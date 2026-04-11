@@ -29,6 +29,7 @@ namespace TaskbarInfo
 
         public bool RunOnlyWithMusicApp { get; set; } = false;
         public string MusicAppProcessNames { get; set; } = "QQMusic,cloudmusic,Spotify,YesPlayMusic,Foobar2000"; 
+        public bool AutoCheckUpdates { get; set; } = true;
 
         private static string ConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
 

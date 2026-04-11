@@ -189,6 +189,12 @@
                         </MenuItem.Icon>
                     </MenuItem>
 
+                    <MenuItem Header="检查更新..." Click="CheckForUpdates_Click">
+                        <MenuItem.Icon>
+                           <TextBlock Text="&#xf0ab;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 
+                        </MenuItem.Icon>
+                    </MenuItem>
+
                     <MenuItem Header="悬浮歌词" IsCheckable="True" Checked="FloatingLyrics_Checked" Unchecked="FloatingLyrics_Unchecked" x:Name="FloatingLyricsMenuItem">
                          <MenuItem.Icon>
                             <TextBlock Text="&#xf24d;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 

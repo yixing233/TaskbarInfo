@@ -80,6 +80,7 @@ namespace TaskbarInfo
             CheckDoubleLine.IsChecked = _settings.IsDoubleLine;
             SliderWidth.Value = _settings.Width;
             SliderLyricOffset.Value = _settings.LyricOffsetSeconds;
+            CheckAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
             
             if (_settings.PositionMode == 1) RadioLeft.IsChecked = true;
             else RadioRight.IsChecked = true;
@@ -111,6 +112,7 @@ namespace TaskbarInfo
 
             _isUpdating = false;
             
+            VersionText.Text = $"当前版本 {UpdateService.CurrentVersionDisplay}";
             UpdateColorPreview();
 
             // Attach Events
@@ -151,6 +153,8 @@ namespace TaskbarInfo
             CheckDoubleLine.Unchecked += (s, e) => OnValueChanged();
             SliderWidth.ValueChanged += (s, e) => OnValueChanged();
             SliderLyricOffset.ValueChanged += (s, e) => OnValueChanged();
+            CheckAutoUpdate.Checked += (s, e) => OnValueChanged();
+            CheckAutoUpdate.Unchecked += (s, e) => OnValueChanged();
             
             SliderOffset.ValueChanged += (s, e) => OnValueChanged();
             RadioRight.Checked += (s, e) => OnValueChanged();
@@ -228,6 +232,7 @@ namespace TaskbarInfo
             _settings.Width = SliderWidth.Value;
             _settings.IsDoubleLine = CheckDoubleLine.IsChecked == true;
             _settings.LyricOffsetSeconds = SliderLyricOffset.Value;
+            _settings.AutoCheckUpdates = CheckAutoUpdate.IsChecked == true;
             
             _settings.PositionMode = (RadioLeft.IsChecked == true) ? 1 : 0;
             _settings.OffsetX = (int)SliderOffset.Value;

@@ -44,6 +44,7 @@ namespace TaskbarInfo
         private bool _hasLyrics = false;
         private string _lastLyricText = "";
         private string _lastCurrentLyric = ""; // Track current lyric separately for animation
+        private bool _isShowingStatusText = true;
         
         // Sync & Interpolation logic
         private DispatcherTimer? _lyricSyncTimer;
@@ -57,6 +58,9 @@ namespace TaskbarInfo
 
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
         private FloatingLyricsWindow? _floatingWindow;
+        private readonly UpdateService _updateService = new UpdateService();
+        private UpdateCheckResult? _pendingUpdateResult;
+        private bool _isCheckingUpdates;
         
         private DispatcherTimer? _processMonitorTimer;
 
@@ -132,7 +136,7 @@ namespace TaskbarInfo
             }
         }
 
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             // Init Tray Icon
             _notifyIcon = new System.Windows.Forms.NotifyIcon();
@@ -171,6 +175,7 @@ namespace TaskbarInfo
             _notifyIcon.Visible = true;
             _notifyIcon.Visible = true;
             _notifyIcon.Text = "LyricsX";
+            _notifyIcon.BalloonTipClicked += NotifyIcon_BalloonTipClicked;
             
             // Handle Mouse Up to show WPF ContextMenu
             _notifyIcon.MouseUp += (s, args) => 
@@ -231,6 +236,19 @@ namespace TaskbarInfo
 
             _mediaManager.Initialize();
             _isMediaPlaying = _mediaManager.IsPlaying;
+
+            if (_settings.AutoCheckUpdates)
+            {
+                _ = CheckForUpdatesAsync(isStartupCheck: true);
+            }
+        }
+
+        private void NotifyIcon_BalloonTipClicked(object? sender, EventArgs e)
+        {
+            if (_pendingUpdateResult != null)
+            {
+                OpenUrl(_pendingUpdateResult.DownloadUrl);
+            }
         }
 
         private void LyricSyncTimer_Tick(object? sender, EventArgs e)
@@ -252,6 +270,7 @@ namespace TaskbarInfo
             // Close notify icon to avoid ghost icon
             if (_notifyIcon != null)
             {
+                _notifyIcon.BalloonTipClicked -= NotifyIcon_BalloonTipClicked;
                 _notifyIcon.Visible = false;
                 _notifyIcon.Dispose();
             }
@@ -281,10 +300,99 @@ namespace TaskbarInfo
         {
             if (_notifyIcon != null)
             {
+                _notifyIcon.BalloonTipClicked -= NotifyIcon_BalloonTipClicked;
                 _notifyIcon.Visible = false;
                 _notifyIcon.Dispose();
             }
             Application.Current.Shutdown();
+        }
+
+        private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            await CheckForUpdatesAsync(isStartupCheck: false);
+        }
+
+        private async Task CheckForUpdatesAsync(bool isStartupCheck)
+        {
+            if (_isCheckingUpdates)
+            {
+                return;
+            }
+
+            _isCheckingUpdates = true;
+
+            try
+            {
+                var result = await _updateService.CheckForUpdatesAsync();
+
+                if (!result.Success)
+                {
+                    if (!isStartupCheck)
+                    {
+                        UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? "发生了未知错误。");
+                    }
+                    return;
+                }
+
+                if (result.NoReleasePublished)
+                {
+                    if (!isStartupCheck)
+                    {
+                        UpdateDialogWindow.ShowForResult(this, result);
+                    }
+                    return;
+                }
+
+                if (!result.HasUpdate)
+                {
+                    if (!isStartupCheck)
+                    {
+                        UpdateDialogWindow.ShowForResult(this, result);
+                    }
+                    return;
+                }
+
+                _pendingUpdateResult = result;
+
+                if (isStartupCheck)
+                {
+                    _notifyIcon?.ShowBalloonTip(
+                        5000,
+                        "LyricsX 有新版本",
+                        $"当前 {result.CurrentVersionDisplay}，最新 {result.LatestVersionDisplay}。点击此通知可打开下载页面。",
+                        System.Windows.Forms.ToolTipIcon.Info);
+                    return;
+                }
+
+                UpdateDialogWindow.ShowForResult(this, result);
+            }
+            catch (Exception ex)
+            {
+                if (!isStartupCheck)
+                {
+                    UpdateDialogWindow.ShowForError(this, ex.Message);
+                }
+            }
+            finally
+            {
+                _isCheckingUpdates = false;
+            }
+        }
+
+        private static void OpenUrl(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch
+            {
+            }
         }
 
         private void ApplySettings()
@@ -420,6 +528,11 @@ namespace TaskbarInfo
                  // Apply effect to next line too
                  _nextLyricControl.Effect = dropShadow;
             }
+
+            if (_isShowingStatusText)
+            {
+                ApplyStatusTextLayout();
+            }
         }
 
         private void UpdateVerticalCentering()
@@ -437,6 +550,38 @@ namespace TaskbarInfo
             
             double top = (containerH - textH) / 2;
             
+            Canvas.SetTop(_mainLyricControl, top);
+        }
+
+        private void ApplyStatusTextLayout()
+        {
+            _mainLyricControl.BeginAnimation(Canvas.LeftProperty, null);
+            _nextLyricControl.BeginAnimation(Canvas.LeftProperty, null);
+            _mainLyricControl.BeginAnimation(Canvas.TopProperty, null);
+            _nextLyricControl.BeginAnimation(Canvas.TopProperty, null);
+
+            Canvas.SetLeft(_mainLyricControl, 0);
+            Canvas.SetLeft(_nextLyricControl, 0);
+
+            _nextLyricControl.Text = string.Empty;
+            _nextLyricControl.Visibility = Visibility.Collapsed;
+            _nextLyricControl.Opacity = 0;
+
+            _mainLyricControl.Visibility = Visibility.Visible;
+            _mainLyricControl.Opacity = 1.0;
+            _mainLyricControl.FontSize = _settings.FontSize;
+            _mainLyricControl.FontWeight = FontWeights.SemiBold;
+
+            // Status text should always render as a single centered line,
+            // regardless of whether double-line lyric mode is enabled.
+            double containerH = TextContainer.ActualHeight;
+            if (containerH <= 0 || double.IsNaN(containerH))
+            {
+                containerH = 30;
+            }
+
+            double textH = _settings.FontSize * 1.35;
+            double top = (containerH - textH) / 2;
             Canvas.SetTop(_mainLyricControl, top);
         }
 
@@ -733,7 +878,7 @@ namespace TaskbarInfo
                         menuText.ToolTip = info; // Add tooltip for full text
                     }
                     
-                    UpdateTextWithScroll(text);
+                    ShowStatusText(text);
                 });
                 
                 // Search lyrics
@@ -745,7 +890,7 @@ namespace TaskbarInfo
                  // Just update play state prefix if lyrics logic doesn't override
                  if (!_hasLyrics)
                  {
-                     Dispatcher.Invoke(() => UpdateTextWithScroll(text));
+                     Dispatcher.Invoke(() => ShowStatusText(text));
                  }
             }
         }
@@ -765,6 +910,8 @@ namespace TaskbarInfo
         private void UpdateLyricsUI(TimeSpan position)
         {
             if (!_hasLyrics) return;
+
+            _isShowingStatusText = false;
 
             var adjustedPosition = position - TimeSpan.FromSeconds(_settings.LyricOffsetSeconds);
 
@@ -948,7 +1095,12 @@ namespace TaskbarInfo
              timer.Start();
         }
         
-        private void UpdateTextWithScroll(string text) => UpdateSingleLineScroll(_mainLyricControl, text, 0, !_settings.IsDoubleLine);
+        private void ShowStatusText(string text)
+        {
+            _isShowingStatusText = true;
+            ApplyStatusTextLayout();
+            UpdateSingleLineScroll(_mainLyricControl, text, 0, true);
+        }
 
         private void UpdateSingleLineScroll(TextBlock target, string text, double durationSeconds, bool isInfinite = false)
         {

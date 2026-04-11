@@ -10,6 +10,11 @@
     <AssemblyName>LyricsX</AssemblyName>
     <Product>LyricsX</Product>
     <Title>LyricsX</Title>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <RepositoryUrl>https://github.com/yixing233/LyricsX</RepositoryUrl>
     <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
   </PropertyGroup>
   

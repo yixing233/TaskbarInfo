@@ -252,7 +252,9 @@
                             </Grid.ColumnDefinitions>
                             <Grid Grid.Column="0" VerticalAlignment="Center">
                                 <Border x:Name="Border" Width="18" Height="18" CornerRadius="4" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="White"/>
-                                <Path x:Name="CheckMark" Data="M3,9 L7,13 L15,5" Stroke="White" StrokeThickness="2" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center" SnapsToDevicePixels="False"/>
+                                <Viewbox Width="10" Height="8" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                                    <Path x:Name="CheckMark" Data="M1,4.5 L3.5,7 L9,1" Stroke="White" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Opacity="0"/>
+                                </Viewbox>
                             </Grid>
                             <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" HorizontalAlignment="Left" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Grid>
@@ -648,7 +650,13 @@
                     </StackPanel>
                 </Border>
                 
-
+                <TextBlock Text="版本更新" Style="{StaticResource SectionHeader}"/>
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <CheckBox x:Name="CheckAutoUpdate" Content="启动时自动检查更新" Margin="0,4" VerticalContentAlignment="Center"/>
+                        <TextBlock Text="启动时检查是否有新版本。" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="24,2,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
 
             </StackPanel>
         </ScrollViewer>
@@ -664,7 +672,7 @@
                 </Grid.ColumnDefinitions>
                 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    
+                    <TextBlock x:Name="VersionText" Foreground="{StaticResource TextSecondaryColor}" FontSize="12"/>
                 </StackPanel>
                 
                 <Button Grid.Column="1" Content="取 消" Width="88" Click="Cancel_Click"/>
