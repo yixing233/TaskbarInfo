@@ -1,0 +1,12 @@
+* text=auto
+
+*.cs text
+*.xaml text
+*.csproj text
+*.md text
+*.json text
+*.gitignore text
+
+*.png binary
+*.ico binary
+*.ttf binary

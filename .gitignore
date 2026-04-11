@@ -1,0 +1,30 @@
+# Build outputs
+bin/
+obj/
+publish/
+
+# IDE/editor
+.vs/
+.vscode/
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.cache
+*.pidb
+*.svclog
+build*.txt
+error*.txt
+final_error*.txt
+diag.log
+debug.log
+
+# OS files
+Thumbs.db
+Desktop.ini

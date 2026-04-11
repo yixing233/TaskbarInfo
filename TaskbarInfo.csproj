@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>LyricsX</AssemblyName>
+    <Product>LyricsX</Product>
+    <Title>LyricsX</Title>
+    <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <None Include="src\icons\LyricsX.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="src\icons\*.png" />
+    <Resource Include="Fonts\fa-solid-900.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="3v.EvtSource" Version="2.0.0" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.1" />
+    <PackageReference Include="Dubya.WindowsMediaController" Version="2.5.6" />
+    <PackageReference Include="Lyricify.Lyrics.Helper" Version="0.1.4" />
+  </ItemGroup>
+
+</Project>
