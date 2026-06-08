@@ -24,6 +24,12 @@ error*.txt
 final_error*.txt
 diag.log
 debug.log
+debug*.txt
+
+# Local reference/decompiler/installer artifacts
+decompiler/
+installer/
+参考代码-来自windhawk.txt
 
 # OS files
 Thumbs.db
