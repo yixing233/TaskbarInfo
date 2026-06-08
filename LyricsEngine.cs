@@ -101,14 +101,14 @@ namespace TaskbarInfo
             {
                 // 尝试用 QrcParser 或 KrcParser
                 data = QrcParser.Parse(raw);
-                if (data == null || data.Lines.Count == 0 || data.Lines.All(l => l.Text.Contains("(")))
+                if (data?.Lines == null || data.Lines.Count == 0 || data.Lines.All(l => l.Text.Contains("(")))
                 {
                     data = KrcParser.Parse(raw);
                 }
             }
             
             // 兜底使用标准 LRC
-            if (data == null || data.Lines.Count == 0)
+            if (data?.Lines == null || data.Lines.Count == 0)
             {
                 data = LrcParser.Parse(raw);
             }
@@ -122,6 +122,8 @@ namespace TaskbarInfo
         private void LoadFromLyricsData(LyricsData data)
         {
             var lines = new List<LyricLine>();
+            if (data.Lines == null) return;
+
             foreach (var iLine in data.Lines)
             {
                 var line = new LyricLine
@@ -149,6 +151,16 @@ namespace TaskbarInfo
                     lines.Add(line);
             }
             CurrentLyrics = lines.OrderBy(l => l.StartMs).ToList();
+            for (int i = 0; i < CurrentLyrics.Count; i++)
+            {
+                var line = CurrentLyrics[i];
+                if (line.EndMs <= line.StartMs)
+                {
+                    line.EndMs = i + 1 < CurrentLyrics.Count
+                        ? CurrentLyrics[i + 1].StartMs
+                        : line.StartMs + Math.Max(1, line.Syllables.Sum(s => s.DurationMs));
+                }
+            }
         }
 
         public (LyricLine? current, LyricLine? next) GetLyricsForTime(TimeSpan time)
@@ -174,6 +186,9 @@ namespace TaskbarInfo
             if (ms < line.StartMs) return 0;
             if (ms >= line.EndMs) return 1;
 
+            int durationMs = line.EndMs - line.StartMs;
+            if (durationMs <= 0) return 0;
+
             // 查找当前进行到哪个音节了
             // 这种方式可以支持逐字高亮所需的百分比计算
             var lastSyllable = line.Syllables.LastOrDefault();
@@ -182,7 +197,7 @@ namespace TaskbarInfo
             // 这里简单计算：已过音节数 / 总音节数 
             // 完美的实现需要计算像素宽度，但由于 WPF TextBlock 限制，
             // 我们先提供基于时间的音节定位。
-            return (double)(ms - line.StartMs) / (line.EndMs - line.StartMs);
+            return (double)(ms - line.StartMs) / durationMs;
         }
     }
 }

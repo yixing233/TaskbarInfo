@@ -71,5 +71,66 @@ namespace TaskbarInfo
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern int GetWindowTextLength(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool DestroyIcon(IntPtr hIcon);
+
+        public enum AccentState
+        {
+            ACCENT_DISABLED = 0,
+            ACCENT_ENABLE_GRADIENT = 1,
+            ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
+            ACCENT_ENABLE_BLURBEHIND = 3,
+            ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct AccentPolicy
+        {
+            public AccentState AccentState;
+            public int AccentFlags;
+            public int GradientColor;
+            public int AnimationId;
+        }
+
+        public enum WindowCompositionAttribute
+        {
+            WCA_ACCENT_POLICY = 19
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct WindowCompositionAttributeData
+        {
+            public WindowCompositionAttribute Attribute;
+            public IntPtr Data;
+            public int SizeOfData;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
+
+        public const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+        public const int DWMWA_USE_HOSTBACKDROPBRUSH = 17;
+        public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+        public enum DwmSystemBackdropType
+        {
+            DWMSBT_AUTO = 0,
+            DWMSBT_NONE = 1,
+            DWMSBT_MAINWINDOW = 2,
+            DWMSBT_TRANSIENTWINDOW = 3,
+            DWMSBT_TABBEDWINDOW = 4
+        }
+
+        public enum DwmWindowCornerPreference
+        {
+            DWMWCP_DEFAULT = 0,
+            DWMWCP_DONOTROUND = 1,
+            DWMWCP_ROUND = 2,
+            DWMWCP_ROUNDSMALL = 3
+        }
+
+        [DllImport("dwmapi.dll", PreserveSig = true)]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
     }
 }

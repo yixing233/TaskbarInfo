@@ -11,6 +11,7 @@
     <Product>LyricsX</Product>
     <Title>LyricsX</Title>
     <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
+    <DefaultItemExcludes>$(DefaultItemExcludes);decompiler\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
   
   <ItemGroup>
