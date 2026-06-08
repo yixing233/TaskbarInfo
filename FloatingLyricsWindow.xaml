@@ -13,9 +13,13 @@
         MouseDown="Window_MouseDown"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Grid>
-        <Border Background="Transparent" CornerRadius="8" Padding="10">
+        <Border x:Name="FloatingBackground"
+                Background="White"
+                BorderThickness="0"
+                CornerRadius="10"
+                Padding="12">
             <TextBlock x:Name="LyricText" 
-                       Text="Waiting for lyrics..." 
+                       Text="歌词加载中..." 
                        FontSize="20" 
                        FontWeight="Bold"
                        HorizontalAlignment="Center" 
@@ -33,7 +37,7 @@
                 </TextBlock.Effect>
             </TextBlock>
             <Border.ContextMenu>
-                 <ContextMenu>
+                 <ContextMenu Placement="MousePoint" HorizontalOffset="6" VerticalOffset="6">
                     <ContextMenu.Resources>
                         <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
                         <!-- Premium Menu Styles COPY -->
@@ -47,12 +51,14 @@
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ContextMenu">
-                                        <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
-                                            <Border.Effect>
-                                                <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
-                                            </Border.Effect>
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                                        </Border>
+                                        <Grid Background="Transparent" Margin="12">
+                                            <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
+                                                <Border.Effect>
+                                                    <DropShadowEffect BlurRadius="18" Direction="270" Color="Black" Opacity="0.16" ShadowDepth="5" />
+                                                </Border.Effect>
+                                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                            </Border>
+                                        </Grid>
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
@@ -97,6 +103,17 @@
                     <MenuItem Header="锁定位置" IsCheckable="True" x:Name="LockPositionMenuItem" Click="LockPosition_Click">
                         <MenuItem.Icon>
                             <TextBlock Text="&#xf023;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <Separator/>
+                    <MenuItem Header="设置" Click="OpenFloatingSettings_Click">
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/> 
+                        </MenuItem.Icon>
+                    </MenuItem>
+                    <MenuItem Header="关闭悬浮歌词" Click="CloseFloatingLyrics_Click">
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xf00d;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#FF4D4F"/> 
                         </MenuItem.Icon>
                     </MenuItem>
                  </ContextMenu>

@@ -16,6 +16,7 @@
     <InformationalVersion>1.0.0</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/LyricsX</RepositoryUrl>
     <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
+    <DefaultItemExcludes>$(DefaultItemExcludes);decompiler\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
   
   <ItemGroup>

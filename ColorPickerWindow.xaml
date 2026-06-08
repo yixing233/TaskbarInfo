@@ -1,33 +1,39 @@
 <Window x:Class="TaskbarInfo.ColorPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="颜色选择" Height="400" Width="360"
+        Title="选择颜色" Height="550" Width="350"
         ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
-        Background="#F5F7FA" FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
-    <!-- Increased Width to 360 to accommodate sliders better -->
+        Background="#FFFFFF" FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif"
+        WindowStyle="SingleBorderWindow" ShowInTaskbar="True">
     
     <Window.Resources>
-        <!-- Reusing resources from SettingsWindow for consistency -->
-        <SolidColorBrush x:Key="ControlBorder" Color="#E0E0E0"/>
-        <SolidColorBrush x:Key="TextPrimaryColor" Color="#202020"/>
+        <!-- Theme Colors (Bright Fluent Theme) -->
+        <SolidColorBrush x:Key="ControlBorder" Color="#EAEAEA"/>
+        <SolidColorBrush x:Key="TextPrimaryColor" Color="#2D2D2D"/>
+        <SolidColorBrush x:Key="TextSecondaryColor" Color="#5F5F5F"/>
         <SolidColorBrush x:Key="SystemAccentColor" Color="#0067C0"/>
         
+        <!-- Standard Button Style -->
         <Style TargetType="Button">
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="12.5"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#FBFBFB"/>
+                                <Setter TargetName="border" Property="Background" Value="#F6F6F6"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#D6D6D6"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#EDEDED"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -35,6 +41,7 @@
             </Setter>
         </Style>
 
+        <!-- Accent Button Style -->
         <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="{StaticResource SystemAccentColor}"/>
             <Setter Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
@@ -42,13 +49,16 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White"/>
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" TextElement.Foreground="White"/>
                         </Border>
                          <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="#1975C5"/>
                                 <Setter TargetName="border" Property="BorderBrush" Value="#1975C5"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#005AAB"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -56,28 +66,30 @@
             </Setter>
         </Style>
 
-        <!-- Custom Style for Color Presets to avoid white hover background -->
+        <!-- Rounded Circle Color Presets Swatches -->
         <Style x:Key="ColorSwatchButtonStyle" TargetType="Button">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Margin" Value="0,0,8,8"/>
-            <Setter Property="Width" Value="24"/>
-            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="0,0,9,8"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <!-- Use TemplateBinding Background to keep the color -->
-                        <Border x:Name="border" 
-                                Background="{TemplateBinding Background}" 
-                                BorderBrush="{StaticResource ControlBorder}" 
-                                BorderThickness="1" 
-                                CornerRadius="4">
-                        </Border>
+                        <Grid>
+                            <Ellipse x:Name="ellipse" 
+                                     Fill="{TemplateBinding Background}" 
+                                     Stroke="{StaticResource ControlBorder}" 
+                                     StrokeThickness="1">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect Color="Black" Opacity="0.08" BlurRadius="2" ShadowDepth="1"/>
+                                </Ellipse.Effect>
+                            </Ellipse>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <!-- On hover, just darken/thicken the border, do NOT change Background -->
-                                <Setter TargetName="border" Property="BorderBrush" Value="#666666"/>
-                                <Setter TargetName="border" Property="BorderThickness" Value="1.5"/>
+                                <Setter TargetName="ellipse" Property="Stroke" Value="#555555"/>
+                                <Setter TargetName="ellipse" Property="StrokeThickness" Value="1.5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -85,31 +97,33 @@
             </Setter>
         </Style>
         
-        <!-- Slider Styles Copied from SettingsWindow -->
+        <!-- Premium Fluent Slider Thumb -->
         <Style x:Key="SliderThumbStyle" TargetType="Thumb">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Width" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
                         <Grid>
+                            <!-- Outside Light Border Globe -->
                             <Ellipse x:Name="Ellipse" Fill="#FFFFFF" Stroke="{StaticResource ControlBorder}" StrokeThickness="1">
                                 <Ellipse.Effect>
-                                    <DropShadowEffect Color="Black" Opacity="0.12" BlurRadius="4" ShadowDepth="1"/>
+                                    <DropShadowEffect Color="Black" Opacity="0.1" BlurRadius="3" ShadowDepth="1"/>
                                 </Ellipse.Effect>
                             </Ellipse>
-                            <Ellipse x:Name="Inner" Fill="{StaticResource SystemAccentColor}" Width="8" Height="8" Opacity="0.8"/>
+                            <!-- Inside Accent Center Point -->
+                            <Ellipse x:Name="Inner" Fill="{StaticResource SystemAccentColor}" Width="6" Height="6"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Ellipse" Property="Fill" Value="#FAFAFA"/>
-                                <Setter TargetName="Inner" Property="Opacity" Value="1.0"/>
+                                <Setter TargetName="Ellipse" Property="Stroke" Value="#BBBBBB"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="Ellipse" Property="Fill" Value="#F0F0F0"/>
-                                <Setter TargetName="Inner" Property="Width" Value="10"/>
-                                <Setter TargetName="Inner" Property="Height" Value="10"/>
+                                <Setter TargetName="Ellipse" Property="Fill" Value="#EDEDED"/>
+                                <Setter TargetName="Inner" Property="Width" Value="7"/>
+                                <Setter TargetName="Inner" Property="Height" Value="7"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -117,6 +131,7 @@
             </Setter>
         </Style>
 
+        <!-- Slider Template -->
         <Style TargetType="Slider">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
@@ -136,9 +151,9 @@
                             </Grid.RowDefinitions>
                             
                             <!-- Track Background -->
-                            <Border Grid.Row="1" Height="4" Background="#E0E0E0" CornerRadius="2" VerticalAlignment="Center"/>
+                            <Border Grid.Row="1" Height="4" Background="#F0F0F0" CornerRadius="2" VerticalAlignment="Center"/>
                             
-                            <!-- Track -->
+                            <!-- Active Track -->
                             <Track x:Name="PART_Track" Grid.Row="1">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
@@ -150,7 +165,8 @@
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="RepeatButton">
-                                                            <Border Height="4" Background="{StaticResource SystemAccentColor}" CornerRadius="2" VerticalAlignment="Center"/>
+                                                            <!-- Slide-to-fit margin seamlessly merges Decrease Button and Thumb -->
+                                                            <Border Height="4" Background="{StaticResource SystemAccentColor}" CornerRadius="2" VerticalAlignment="Center" Margin="0,0,-7,0"/>
                                                         </ControlTemplate>
                                                     </Setter.Value>
                                                 </Setter>
@@ -185,109 +201,259 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Compact Numeric TextBox Styles for Channels -->
+        <Style x:Key="ChannelTextBoxStyle" TargetType="TextBox">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
+            <Setter Property="Background" Value="#F9F9F9"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Padding" Value="0,1,0,0"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="FontSize" Value="13"/>
+        <!-- HEX Input TextBox Style -->
+        <Style x:Key="HexTextBoxStyle" TargetType="TextBox">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
+            <Setter Property="Background" Value="#FDFDFD"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
+                                <Setter TargetName="border" Property="Background" Value="#FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="20">
+    <Grid Margin="18,14">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/> <!-- Preview -->
-            <RowDefinition Height="Auto"/> <!-- Sliders -->
-            <RowDefinition Height="*"/>    <!-- Spacer -->
-            <RowDefinition Height="Auto"/> <!-- Buttons -->
+            <!-- 1. Presets Header & Palette -->
+            <RowDefinition Height="Auto"/>
+            <!-- 2. Hue & Sat/Bri Picking Area -->
+            <RowDefinition Height="Auto"/>
+            <!-- 3. HEX & Large Preview -->
+            <RowDefinition Height="Auto"/>
+            <!-- 4. Channel Sliders -->
+            <RowDefinition Height="Auto"/>
+            <!-- 5. Dialog Buttons -->
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Preview and Hex -->
-        <Grid Grid.Row="0" Margin="0,0,0,20">
+        <!-- Presets Row (Top) -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+            <TextBlock Text="常用预设" Foreground="{StaticResource TextSecondaryColor}" FontSize="11.5" Margin="0,0,0,6"/>
+            <!-- Presets Panel Grid populated via C# code behind -->
+            <WrapPanel x:Name="PresetPanel" HorizontalAlignment="Stretch">
+                <!-- Color buttons added here dynamically in code -->
+            </WrapPanel>
+        </StackPanel>
+
+        <!-- Canvas Selection Row (Hue Bar & SB Block) -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="60"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>     <!-- Sat/Bri Area -->
+                <ColumnDefinition Width="Auto"/>  <!-- Hue Vertical Slider -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Saturation-Brightness Selection Block -->
+            <Border x:Name="ColorCanvas" Grid.Column="0" Height="170" CornerRadius="8" ClipToBounds="True" Cursor="Cross" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"
+                    MouseLeftButtonDown="ColorCanvas_MouseLeftButtonDown"
+                    MouseMove="ColorCanvas_MouseMove"
+                    MouseLeftButtonUp="ColorCanvas_MouseLeftButtonUp">
+                <Grid x:Name="ColorCanvasGrid">
+                    <!-- Base color layer (Hue) -->
+                    <Border x:Name="HueBaseBorder" Background="Red"/>
+                    <!-- Horizontal white fade (Saturation) -->
+                    <Border>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#FFFFFFFF" Offset="0"/>
+                                <GradientStop Color="#00FFFFFF" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <!-- Vertical black fade (Brightness/Value) -->
+                    <Border>
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                <GradientStop Color="#00000000" Offset="0"/>
+                                <GradientStop Color="#FF000000" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    
+                    <!-- Floating Selecting circle ring -->
+                    <Canvas x:Name="MarkerCanvas" Background="Transparent" IsHitTestVisible="False">
+                        <Ellipse x:Name="ColorMarker" Width="10" Height="10" Stroke="White" StrokeThickness="2" Fill="Transparent" Margin="-5">
+                            <Ellipse.Effect>
+                                <DropShadowEffect Color="Black" Opacity="0.35" BlurRadius="3" ShadowDepth="1"/>
+                            </Ellipse.Effect>
+                        </Ellipse>
+                    </Canvas>
+                </Grid>
+            </Border>
+
+            <!-- Hue Selection Area Grid (Outer container to prevent slider clipping) -->
+            <Grid Grid.Column="1" Width="24" Height="170" Margin="14,0,0,0" Background="Transparent">
+                <!-- Hue Rainbow Bar -->
+                <Border x:Name="HueSlider" Width="14" CornerRadius="7" Cursor="Hand" BorderThickness="1" BorderBrush="{StaticResource ControlBorder}" HorizontalAlignment="Center"
+                        MouseLeftButtonDown="HueSlider_MouseLeftButtonDown"
+                        MouseMove="HueSlider_MouseMove"
+                        MouseLeftButtonUp="HueSlider_MouseLeftButtonUp">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#FF0000" Offset="0.00"/>
+                            <GradientStop Color="#FFFF00" Offset="0.17"/>
+                            <GradientStop Color="#00FF00" Offset="0.33"/>
+                            <GradientStop Color="#00FFFF" Offset="0.50"/>
+                            <GradientStop Color="#0000FF" Offset="0.67"/>
+                            <GradientStop Color="#FF00FF" Offset="0.83"/>
+                            <GradientStop Color="#FF0000" Offset="1.00"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Floating horizontal hue indexer slider -->
+                <Canvas x:Name="HueMarkerCanvas" Background="Transparent" IsHitTestVisible="False" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <!-- Horizontal rounded white border indicator representing H value -->
+                    <!-- Width set to 20 to surround the 14px bar with 3px overhang on each side, perfectly centered via Left="2" -->
+                    <Border x:Name="HueMarker" Width="20" Height="6" CornerRadius="3" Background="White" BorderBrush="{StaticResource SystemAccentColor}" BorderThickness="1.5" Margin="0,-3,0,0" Canvas.Left="2">
+                        <Border.Effect>
+                            <DropShadowEffect Color="Black" Opacity="0.15" BlurRadius="2" ShadowDepth="0.5"/>
+                        </Border.Effect>
+                    </Border>
+                </Canvas>
+            </Grid>
+        </Grid>
+
+        <!-- Preview Color Grid Row -->
+        <Grid Grid.Row="2" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>     <!-- Hex Label and TextBox -->
+                <ColumnDefinition Width="Auto"/>  <!-- Target color preview block -->
             </Grid.ColumnDefinitions>
             
-            <Border Grid.Column="0" Height="40" Width="40" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1" Background="White">
-                <Rectangle x:Name="ColorPreview" RadiusX="6" RadiusY="6" Margin="4">
+            <!-- HEX Input -->
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Hex色值:" Foreground="{StaticResource TextSecondaryColor}" FontSize="12.5" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBox x:Name="HexInput" Text="#FFFFFFFF" Style="{StaticResource HexTextBoxStyle}" Width="120"
+                         TextChanged="HexInput_TextChanged"/>
+            </StackPanel>
+            
+            <!-- Large Preview Block -->
+            <Border Grid.Column="1" Height="30" Width="60" CornerRadius="6" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" Background="White">
+                <Rectangle x:Name="ColorPreview" RadiusX="4" RadiusY="4">
                    <Rectangle.Fill>
-                        <SolidColorBrush Color="{Binding StartColor}"/>
+                        <SolidColorBrush Color="White"/>
                    </Rectangle.Fill>
                 </Rectangle>
             </Border>
-            
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
-                <TextBlock Text="HEX Color" FontSize="11" Foreground="#666666"/>
-                <TextBox x:Name="HexInput" Text="#FFFFFFFF" FontSize="14" FontWeight="SemiBold" 
-                         Padding="4" BorderThickness="0" Background="Transparent"
-                         TextChanged="HexInput_TextChanged"/>
-            </StackPanel>
         </Grid>
 
-        <!-- RGB Sliders -->
-        <StackPanel Grid.Row="1">
-            <Grid Margin="0,0,0,12">
+        <!-- RGB/A sliders and numerical boxes (Row 3) -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,20">
+            <!-- R Slider Row -->
+            <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="20"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30"/>
+                    <ColumnDefinition Width="32"/>  <!-- Color point indexer and Letter R -->
+                    <ColumnDefinition Width="*"/>   <!-- Horizontal Slider -->
+                    <ColumnDefinition Width="Auto"/> <!-- Manual input text box -->
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="R" FontWeight="Bold" Foreground="#FF5252"/>
-                <Slider x:Name="SliderR" Grid.Column="1" Maximum="255" Margin="8,0" ValueChanged="Slider_ValueChanged"/>
-                <TextBlock x:Name="TextR" Grid.Column="2" Text="{Binding ElementName=SliderR, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="#FF5252" Margin="0,0,4,0"/>
+                    <TextBlock Text="R:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                </StackPanel>
+                <Slider x:Name="SliderR" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
+                <TextBox x:Name="TextR" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
             </Grid>
 
-            <Grid Margin="0,0,0,12">
+            <!-- G Slider Row -->
+            <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="32"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="G" FontWeight="Bold" Foreground="#4CAF50"/>
-                <Slider x:Name="SliderG" Grid.Column="1" Maximum="255" Margin="8,0" ValueChanged="Slider_ValueChanged"/>
-                <TextBlock x:Name="TextG" Grid.Column="2" Text="{Binding ElementName=SliderG, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="#4CAF50" Margin="0,0,4,0"/>
+                    <TextBlock Text="G:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                </StackPanel>
+                <Slider x:Name="SliderG" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
+                <TextBox x:Name="TextG" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
             </Grid>
 
-            <Grid Margin="0,0,0,12">
+            <!-- B Slider Row -->
+            <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="32"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="B" FontWeight="Bold" Foreground="#2196F3"/>
-                <Slider x:Name="SliderB" Grid.Column="1" Maximum="255" Margin="8,0" ValueChanged="Slider_ValueChanged"/>
-                <TextBlock x:Name="TextB" Grid.Column="2" Text="{Binding ElementName=SliderB, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="#2196F3" Margin="0,0,4,0"/>
+                    <TextBlock Text="B:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                </StackPanel>
+                <Slider x:Name="SliderB" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
+                <TextBox x:Name="TextB" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
             </Grid>
             
-            <Grid Margin="0,0,0,12">
+            <!-- A (Alpha) Slider Row -->
+            <Grid Margin="0,0,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="20"/>
+                    <ColumnDefinition Width="32"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="A" FontWeight="Bold" Foreground="#9E9E9E"/>
-                <Slider x:Name="SliderA" Grid.Column="1" Maximum="255" Margin="8,0" ValueChanged="Slider_ValueChanged"/>
-                <TextBlock x:Name="TextA" Grid.Column="2" Text="{Binding ElementName=SliderA, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="#9E9E9E" Margin="0,0,4,0"/>
+                    <TextBlock Text="A:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                </StackPanel>
+                <Slider x:Name="SliderA" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
+                <TextBox x:Name="TextA" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
             </Grid>
         </StackPanel>
 
-        <!-- Presets -->
-        <StackPanel Grid.Row="2" Margin="0,10,0,0">
-             <TextBlock Text="预设颜色" Margin="0,0,0,8" Foreground="#666666" FontSize="12"/>
-             <WrapPanel x:Name="PresetPanel">
-                 <!-- Populated in Code Behind -->
-             </WrapPanel>
-        </StackPanel>
-
-        <Grid Grid.Row="3" Margin="0,20,0,0">
+        <!-- Buttons row (Bottom) -->
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" Content="取 消" Width="80" Click="Cancel_Click"/>
-            <Button Grid.Column="3" Content="确 定" Width="80" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
+            <Button Grid.Column="1" Content="取 消" Padding="18,5" Click="Cancel_Click"/>
+            <Button Grid.Column="3" Content="确 定" Padding="18,5" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
         </Grid>
     </Grid>
 </Window>

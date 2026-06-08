@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 
 using System.Windows.Media.Imaging;
+using System.Windows.Input;
 
 // Aliases to avoid ambiguity with System.Windows.Forms/System.Drawing
 using Application = System.Windows.Application;
@@ -34,6 +35,10 @@ namespace TaskbarInfo
             Canvas.SetTop(_nextLyricControl, 0); // Will be set by logic based on mode
             Canvas.SetLeft(_nextLyricControl, 0);
         }
+
+        private bool _isDraggingHandle = false;
+        private Point _dragStartMouseScreenPos;
+        private int _dragStartOffsetX;
 
         private AppSettings _settings = new AppSettings();
         
@@ -111,6 +116,8 @@ namespace TaskbarInfo
 
             if (found)
             {
+                SetTrayText("LyricsX");
+
                 if (this.Visibility != Visibility.Visible)
                 {
                     this.Show();
@@ -123,6 +130,8 @@ namespace TaskbarInfo
             }
             else
             {
+                SetTrayText("LyricsX - 已隐藏，等待播放器运行");
+
                 // Hide everything
                 if (this.Visibility == Visibility.Visible)
                 {
@@ -395,20 +404,33 @@ namespace TaskbarInfo
             }
         }
 
+        private void SetTrayText(string text)
+        {
+            if (_notifyIcon == null) return;
+            _notifyIcon.Text = text.Length > 63 ? text.Substring(0, 63) : text;
+        }
+
+        private void ShowTrayWarning(string message)
+        {
+            if (_notifyIcon == null) return;
+            _notifyIcon.ShowBalloonTip(3000, "LyricsX", message, System.Windows.Forms.ToolTipIcon.Warning);
+        }
+
         private void ApplySettings()
         {
             // Sync Process Monitoring
             SetupProcessMonitor();
             
             // Sync Floating Window
-            _floatingWindow?.ApplySettings();
+            _floatingWindow?.ApplySettings(_settings);
 
             // Do NOT set this.Width/Height here, as it causes conflict with MoveWindow in InjectIntoTaskbar
             // this.Width = _settings.Width;
             
             // Adjust Height for Double Line logic (Internal elements only)
             double baseHeight = 30; // Default Taskbar Height approx
-            double targetHeight = _settings.IsDoubleLine ? baseHeight * 2 : baseHeight;
+            bool isActuallyDoubleLine = _settings.IsDoubleLine && _hasLyrics;
+            double targetHeight = isActuallyDoubleLine ? baseHeight * 2 : baseHeight;
             // this.Height = targetHeight; // Don't set Window Height, let MoveWindow handle it
             
             // Allow TextContainer to fill available space
@@ -445,61 +467,76 @@ namespace TaskbarInfo
 
                _mainLyricControl.FontFamily = fontFamily;
                _mainLyricControl.Opacity = 1.0; 
-               _mainLyricControl.FontWeight = FontWeights.SemiBold;
 
-               if (_settings.IsDoubleLine)
+               try
                {
-                   _nextLyricControl.FontFamily = fontFamily;
-                   
-                   if (_nextLyricControl.Foreground is LinearGradientBrush nextBrush && nextBrush.GradientStops.Count >= 2)
+                   if (!string.IsNullOrEmpty(_settings.FontWeight))
                    {
-                       nextBrush.GradientStops[0].Color = activeColor;
-                       nextBrush.GradientStops[1].Color = mainColor;
+                       var weightStr = _settings.FontWeight.Split(' ')[0];
+                       var converter = new FontWeightConverter();
+                       var obj = converter.ConvertFromString(weightStr);
+                       _mainLyricControl.FontWeight = (obj as FontWeight?) ?? FontWeights.SemiBold;
                    }
+                   else
+                   {
+                       _mainLyricControl.FontWeight = FontWeights.SemiBold;
+                   }
+               }
+               catch
+               {
+                   _mainLyricControl.FontWeight = FontWeights.SemiBold;
+               }
 
-                   _nextLyricControl.FontSize = Math.Max(9, _settings.FontSize - _settings.NextLyricFontSizeDiff); 
-                   _nextLyricControl.Opacity = 0.7; // Use Opacity property for dimming
-                   
-                   try
+                if (isActuallyDoubleLine)
+                {
+                    _nextLyricControl.FontFamily = fontFamily;
+                    
+                    if (_nextLyricControl.Foreground is LinearGradientBrush nextBrush && nextBrush.GradientStops.Count >= 2)
                     {
-                        if (!string.IsNullOrEmpty(_settings.NextLyricFontWeight))
-                        {
-                            var weightStr = _settings.NextLyricFontWeight.Split(' ')[0];
-                            var converter = new FontWeightConverter();
-                            var obj = converter.ConvertFromString(weightStr);
-                            _nextLyricControl.FontWeight = (obj as FontWeight?) ?? FontWeights.Normal;
-                        }
-                        else
-                        {
-                             _nextLyricControl.FontWeight = FontWeights.Normal;
-                        }
+                        nextBrush.GradientStops[0].Color = activeColor;
+                        nextBrush.GradientStops[1].Color = mainColor;
                     }
-                   catch
-                   {
-                       _nextLyricControl.FontWeight = FontWeights.Normal;
-                   }
 
-                   _nextLyricControl.Visibility = Visibility.Visible;
-                   
-                   _mainLyricControl.TextWrapping = TextWrapping.NoWrap; 
-                   _mainLyricControl.Height = double.NaN; 
-                   // Set positions for double line mode
-                   Canvas.SetTop(_mainLyricControl, 2);
-                   Canvas.SetTop(_nextLyricControl, _settings.FontSize + 4);
-                   
-                   _nextLyricControl.TextWrapping = TextWrapping.NoWrap; 
-                   // Don't set Canvas.SetTop here - AnimateDoubleLyricTransition and UpdateSingleLineScroll control this
-                   // Canvas.SetTop(_nextLyricControl, _settings.FontSize + 8); 
-               }
-               else
-               {
-                   // In single line mode, hide next lyric unless it's being used as ghost block
-                   // Don't force Visibility here - UpdateSingleLineScroll manages it
-                   // _nextLyricControl.Visibility = Visibility.Collapsed;
-                   _mainLyricControl.TextWrapping = TextWrapping.NoWrap;
-                   // Logic moved to UpdateVerticalCentering
-                   UpdateVerticalCentering();
-               }
+                    _nextLyricControl.FontSize = Math.Max(9, _settings.FontSize - _settings.NextLyricFontSizeDiff); 
+                    _nextLyricControl.Opacity = 0.7; // Use Opacity property for dimming
+                    
+                    try
+                     {
+                         if (!string.IsNullOrEmpty(_settings.NextLyricFontWeight))
+                         {
+                             var weightStr = _settings.NextLyricFontWeight.Split(' ')[0];
+                             var converter = new FontWeightConverter();
+                             var obj = converter.ConvertFromString(weightStr);
+                             _nextLyricControl.FontWeight = (obj as FontWeight?) ?? FontWeights.Normal;
+                         }
+                         else
+                         {
+                              _nextLyricControl.FontWeight = FontWeights.Normal;
+                         }
+                     }
+                    catch
+                    {
+                        _nextLyricControl.FontWeight = FontWeights.Normal;
+                    }
+
+                    _nextLyricControl.Visibility = Visibility.Visible;
+                    
+                    _mainLyricControl.TextWrapping = TextWrapping.NoWrap; 
+                    _mainLyricControl.Height = double.NaN; 
+                    // Set positions for double line mode
+                    Canvas.SetTop(_mainLyricControl, 2);
+                    Canvas.SetTop(_nextLyricControl, _settings.FontSize + 4);
+                    
+                    _nextLyricControl.TextWrapping = TextWrapping.NoWrap; 
+                    // Don't set Canvas.SetTop here - AnimateDoubleLyricTransition and UpdateSingleLineScroll control this
+                    // Canvas.SetTop(_nextLyricControl, _settings.FontSize + 8); 
+                }
+                else
+                {
+                    _nextLyricControl.Visibility = Visibility.Collapsed; // 显式隐藏第二行
+                    _mainLyricControl.TextWrapping = TextWrapping.NoWrap;
+                    UpdateVerticalCentering();
+                }
             }
             catch {}
 
@@ -537,7 +574,8 @@ namespace TaskbarInfo
 
         private void UpdateVerticalCentering()
         {
-            if (_settings.IsDoubleLine) return; // Managed by double line logic
+            bool isActuallyDoubleLine = _settings.IsDoubleLine && _hasLyrics;
+            if (isActuallyDoubleLine) return; // Managed by double line logic
 
             double containerH = TextContainer.ActualHeight;
             if (containerH <= 0 || double.IsNaN(containerH)) containerH = 30; // Fallback
@@ -587,6 +625,21 @@ namespace TaskbarInfo
 
         private void OpenSettings_Click(object sender, RoutedEventArgs e)
         {
+            OpenSettings(0);
+        }
+
+        private void ResetTaskbarPosition_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.OffsetX = 10;
+            if (!_settings.Save(out var errorMessage))
+            {
+                ShowTrayWarning("位置已重置，但保存失败: " + errorMessage);
+            }
+            InjectIntoTaskbar();
+        }
+
+        private void OpenSettings(int initialNavIndex)
+        {
             // Backup
             AppSettings backup = _settings.Clone();
 
@@ -597,11 +650,13 @@ namespace TaskbarInfo
                 InjectIntoTaskbar();
             };
 
-            SettingsWindow win = new SettingsWindow(_settings, onPreview);
+            SettingsWindow win = new SettingsWindow(_settings, onPreview, _mediaManager, initialNavIndex);
             
             if (win.ShowDialog() == true)
             {
                 // Already applied via preview
+                _mediaManager.FilterAppIds = _settings.IncludedAppIds;
+                _mediaManager.RefreshSession();
                 ApplySettings(); 
                 InjectIntoTaskbar(); 
             }
@@ -609,6 +664,8 @@ namespace TaskbarInfo
             {
                 // Cancelled - Restore backup
                 _settings = backup;
+                _mediaManager.FilterAppIds = _settings.IncludedAppIds;
+                _mediaManager.RefreshSession();
                 ApplySettings();
                 InjectIntoTaskbar();
             }
@@ -661,30 +718,20 @@ namespace TaskbarInfo
                 int height = tbHeight;
                 int xPos = 0;
 
-                if (_settings.PositionMode == 1)
+                // Always anchor against the tray area; drag handle updates OffsetX.
+                IntPtr trayNotifyWnd = UnmanagedMethods.FindWindowEx(taskbarWnd, IntPtr.Zero, "TrayNotifyWnd", null);
+                if (trayNotifyWnd != IntPtr.Zero)
                 {
-                    // === Left Mode ===
-                    // Simple Offset from Left
-                    xPos = _settings.OffsetX;
+                    UnmanagedMethods.RECT rectTray;
+                    UnmanagedMethods.GetWindowRect(trayNotifyWnd, out rectTray);
+                    
+                    // Tray Left (Screen) - Taskbar Left (Screen) - My Width - Offset
+                    xPos = (rectTray.Left - rectTaskbar.Left) - width - _settings.OffsetX;
                 }
                 else
                 {
-                    // === Right Mode (Default) ===
-                    // Relative to Tray
-                    IntPtr trayNotifyWnd = UnmanagedMethods.FindWindowEx(taskbarWnd, IntPtr.Zero, "TrayNotifyWnd", null);
-                    if (trayNotifyWnd != IntPtr.Zero)
-                    {
-                        UnmanagedMethods.RECT rectTray;
-                        UnmanagedMethods.GetWindowRect(trayNotifyWnd, out rectTray);
-                        
-                        // Tray Left (Screen) - Taskbar Left (Screen) - My Width - Offset
-                        xPos = (rectTray.Left - rectTaskbar.Left) - width - _settings.OffsetX;
-                    }
-                    else
-                    {
-                        // Fallback
-                        xPos = tbWidth - width - _settings.OffsetX - 10;
-                    }
+                    // Fallback
+                    xPos = tbWidth - width - _settings.OffsetX - 10;
                 }
 
                 // Boundary Checks
@@ -771,9 +818,19 @@ namespace TaskbarInfo
         {
             if (_settings.EnableFloatingLyrics)
             {
+                if (_floatingWindow != null && _floatingWindow.IsAcrylicMode != _settings.FloatingLyricsUseAcrylic)
+                {
+                    _floatingWindow.CloseRequested -= FloatingWindow_CloseRequested;
+                    _floatingWindow.SettingsRequested -= FloatingWindow_SettingsRequested;
+                    _floatingWindow.Close();
+                    _floatingWindow = null;
+                }
+
                 if (_floatingWindow == null)
                 {
-                    _floatingWindow = new FloatingLyricsWindow();
+                    _floatingWindow = new FloatingLyricsWindow(_settings);
+                    _floatingWindow.CloseRequested += FloatingWindow_CloseRequested;
+                    _floatingWindow.SettingsRequested += FloatingWindow_SettingsRequested;
                     _floatingWindow.Show();
                     // Apply CTX state explicitly if initialized late
                     _floatingWindow.SetClickThrough(_settings.FloatingLyricsClickThrough);
@@ -811,6 +868,24 @@ namespace TaskbarInfo
                 }
                 _floatingWindow?.Hide();
             }
+        }
+
+        private void FloatingWindow_CloseRequested()
+        {
+            _settings.EnableFloatingLyrics = false;
+            _settings.Save();
+
+            if (FloatingLyricsMenuItem != null)
+            {
+                FloatingLyricsMenuItem.IsChecked = false;
+            }
+
+            ManageFloatingWindow();
+        }
+
+        private void FloatingWindow_SettingsRequested()
+        {
+            OpenSettings(2);
         }
 
         private void FloatingLyricsCtx_Checked(object sender, RoutedEventArgs e)
@@ -883,6 +958,12 @@ namespace TaskbarInfo
                 
                 // Search lyrics
                 _hasLyrics = await _lyricsEngine.SearchAndLoadLyricsAsync(artist, title);
+                
+                // 歌词检索完成后，根据最新的 _hasLyrics 状态重新应用布局
+                Dispatcher.Invoke(() =>
+                {
+                    ApplySettings();
+                });
             }
 
             else
@@ -1260,6 +1341,72 @@ namespace TaskbarInfo
         }
 
 
+
+        private void DragHandle_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var el = sender as UIElement;
+            if (el != null)
+            {
+                _isDraggingHandle = true;
+                el.CaptureMouse();
+                try
+                {
+                    _dragStartMouseScreenPos = PointToScreen(e.GetPosition(this));
+                }
+                catch
+                {
+                    _dragStartMouseScreenPos = e.GetPosition(null);
+                }
+                _dragStartOffsetX = _settings.OffsetX;
+                e.Handled = true;
+            }
+        }
+
+        private void DragHandle_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_isDraggingHandle) return;
+
+            Point currentMouseScreenPos;
+            try
+            {
+                currentMouseScreenPos = PointToScreen(e.GetPosition(this));
+            }
+            catch
+            {
+                currentMouseScreenPos = e.GetPosition(null);
+            }
+
+            double deltaX = currentMouseScreenPos.X - _dragStartMouseScreenPos.X;
+
+            int newOffsetX = _dragStartOffsetX - (int)Math.Round(deltaX);
+
+            // 限制 OffsetX 不能为负
+            if (newOffsetX < 0) newOffsetX = 0;
+
+            if (_settings.OffsetX != newOffsetX)
+            {
+                _settings.OffsetX = newOffsetX;
+                InjectIntoTaskbar();
+            }
+            e.Handled = true;
+        }
+
+        private void DragHandle_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_isDraggingHandle)
+            {
+                var el = sender as UIElement;
+                if (el != null)
+                {
+                    el.ReleaseMouseCapture();
+                }
+                _isDraggingHandle = false;
+                
+                // 拖拽结束时保存设置
+                _settings.Save();
+                e.Handled = true;
+            }
+        }
 
         private void AppIcon_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {

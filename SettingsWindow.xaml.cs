@@ -14,10 +14,28 @@ namespace TaskbarInfo
     {
         private AppSettings _settings;
         private Action _previewCallback;
+        private MediaManager _mediaManager;
         private bool _isUpdating = false;
         private List<string> _allFonts;
 
+        public class AppItem
+        {
+            public string AppId { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+            public bool IsSelected { get; set; }
+        }
+
         private void OnFontSearch(object sender, TextChangedEventArgs e)
+        {
+            HandleFontSearch(ComboFonts, e);
+        }
+
+        private void OnFloatingFontSearch(object sender, TextChangedEventArgs e)
+        {
+            HandleFontSearch(ComboFloatingFonts, e);
+        }
+
+        private void HandleFontSearch(System.Windows.Controls.ComboBox comboBox, TextChangedEventArgs e)
         {
             if (_isUpdating) return;
             
@@ -36,8 +54,8 @@ namespace TaskbarInfo
                 if (match != null)
                 {
                     // Do NOT set SelectedItem to avoid overwriting user input
-                    ComboFonts.IsDropDownOpen = true;
-                    // ComboFonts.ScrollIntoView(match); // Method not found fix
+                    comboBox.IsDropDownOpen = true;
+                    // comboBox.ScrollIntoView(match); // Method not found fix
                 }
             }
 
@@ -48,11 +66,13 @@ namespace TaskbarInfo
             }
         }
 
-        public SettingsWindow(AppSettings settings, Action previewCallback)
+        public SettingsWindow(AppSettings settings, Action previewCallback, MediaManager mediaManager, int initialNavIndex = 0)
         {
             InitializeComponent();
             _settings = settings;
             _previewCallback = previewCallback;
+            _mediaManager = mediaManager;
+            NavMenu.SelectedIndex = initialNavIndex;
 
             // Load Fonts with Chinese names support
             _allFonts = new List<string>();
@@ -69,6 +89,7 @@ namespace TaskbarInfo
             }
             _allFonts.Sort();
             ComboFonts.ItemsSource = _allFonts;
+            ComboFloatingFonts.ItemsSource = _allFonts;
 
             // Set current values
             _isUpdating = true;
@@ -79,16 +100,61 @@ namespace TaskbarInfo
             CheckShadow.IsChecked = _settings.EnableShadow;
             CheckDoubleLine.IsChecked = _settings.IsDoubleLine;
             SliderWidth.Value = _settings.Width;
-            SliderLyricOffset.Value = _settings.LyricOffsetSeconds;
             CheckAutoUpdate.IsChecked = _settings.AutoCheckUpdates;
-            
-            if (_settings.PositionMode == 1) RadioLeft.IsChecked = true;
-            else RadioRight.IsChecked = true;
-            
-            SliderOffset.Value = _settings.OffsetX;
+            TxtLyricOffset.Text = _settings.LyricOffsetSeconds.ToString("F1");
+            CheckRunOnly.IsChecked = _settings.RunOnlyWithMusicApp;
+            LoadApps();
 
             SliderNextSizeDiff.Value = _settings.NextLyricFontSizeDiff;
+            ComboFloatingFonts.Text = _settings.FloatingLyricsFontFamily;
+            SliderFloatingSize.Value = _settings.FloatingLyricsFontSize;
+            FloatingBgColorBox.Text = _settings.FloatingLyricsBackgroundColor;
+            CheckFloatingShadow.IsChecked = _settings.FloatingLyricsEnableShadow;
+            CheckFloatingAcrylic.IsChecked = _settings.FloatingLyricsUseAcrylic;
 
+            // Initialize main font weight selector
+            foreach (ComboBoxItem item in ComboFontWeight.Items)
+            {
+                if (item.Tag?.ToString() == _settings.FontWeight)
+                {
+                    ComboFontWeight.SelectedItem = item;
+                    break;
+                }
+            }
+            if (ComboFontWeight.SelectedItem == null)
+            {
+               foreach (ComboBoxItem item in ComboFontWeight.Items)
+               {
+                   if (item.Tag?.ToString() == "SemiBold") 
+                   {
+                       ComboFontWeight.SelectedItem = item;
+                       break;
+                   }
+               }
+            }
+
+            // Initialize floating lyrics font weight selector
+            foreach (ComboBoxItem item in ComboFloatingWeight.Items)
+            {
+                if (item.Tag?.ToString() == _settings.FloatingLyricsFontWeight)
+                {
+                    ComboFloatingWeight.SelectedItem = item;
+                    break;
+                }
+            }
+            if (ComboFloatingWeight.SelectedItem == null)
+            {
+               foreach (ComboBoxItem item in ComboFloatingWeight.Items)
+               {
+                   if (item.Tag?.ToString() == "Bold") 
+                   {
+                       ComboFloatingWeight.SelectedItem = item;
+                       break;
+                   }
+               }
+            }
+
+            // Initialize next font weight selector
             foreach (ComboBoxItem item in ComboNextWeight.Items)
             {
                 if (item.Tag?.ToString() == _settings.NextLyricFontWeight)
@@ -126,6 +192,8 @@ namespace TaskbarInfo
             // Handle Font Search/Filter
             ComboFonts.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, 
                 new TextChangedEventHandler(OnFontSearch));
+            ComboFloatingFonts.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+                new TextChangedEventHandler(OnFloatingFontSearch));
             
             // Auto-open dropdown on focus, unless clicking the key/toggle
             ComboFonts.GotFocus += (s, e) => { 
@@ -141,25 +209,57 @@ namespace TaskbarInfo
                 }
                 catch { /* Ignore visual tree errors */ }
             };
+            ComboFloatingFonts.GotFocus += (s, e) => { 
+                try 
+                {
+                    var element = System.Windows.Input.Mouse.DirectlyOver as DependencyObject;
+                    while (element != null && element != ComboFloatingFonts)
+                    {
+                        if (element is System.Windows.Controls.Primitives.ToggleButton) return;
+                        element = VisualTreeHelper.GetParent(element);
+                    }
+                    if (!ComboFloatingFonts.IsDropDownOpen) ComboFloatingFonts.IsDropDownOpen = true; 
+                }
+                catch { /* Ignore visual tree errors */ }
+            };
             
             SliderSize.ValueChanged += (s, e) => OnValueChanged();
-            SliderNextSizeDiff.ValueChanged += (s, e) => OnValueChanged(); // Add this
-            ComboNextWeight.SelectionChanged += (s, e) => OnValueChanged(); // Add this
-            TextColorBox.TextChanged += (s, e) => { UpdateColorPreview(); OnValueChanged(); };
-            BgColorBox.TextChanged += (s, e) => { UpdateColorPreview(); OnValueChanged(); };
+            ComboFontWeight.SelectionChanged += (s, e) => OnValueChanged(); // Main font weight
+            SliderNextSizeDiff.ValueChanged += (s, e) => OnValueChanged(); 
+            ComboNextWeight.SelectionChanged += (s, e) => OnValueChanged(); 
+            TextColorBox.TextChanged += (s, e) => { UpdateColorPreview(); UpdateValidationState(); OnValueChanged(); };
+            BgColorBox.TextChanged += (s, e) => { UpdateColorPreview(); UpdateValidationState(); OnValueChanged(); };
+            ComboFloatingFonts.SelectionChanged += (s, e) => {
+                if (ComboFloatingFonts.SelectedItem != null)
+                {
+                    OnValueChanged();
+                }
+            };
+            SliderFloatingSize.ValueChanged += (s, e) => OnValueChanged();
+            ComboFloatingWeight.SelectionChanged += (s, e) => OnValueChanged();
+            FloatingBgColorBox.TextChanged += (s, e) => { UpdateColorPreview(); UpdateValidationState(); OnValueChanged(); };
+            CheckFloatingShadow.Checked += (s, e) => OnValueChanged();
+            CheckFloatingShadow.Unchecked += (s, e) => OnValueChanged();
+            CheckFloatingAcrylic.Checked += (s, e) => OnValueChanged();
+            CheckFloatingAcrylic.Unchecked += (s, e) => OnValueChanged();
             CheckShadow.Checked += (s, e) => OnValueChanged();
             CheckShadow.Unchecked += (s, e) => OnValueChanged();
             CheckDoubleLine.Checked += (s, e) => OnValueChanged();
             CheckDoubleLine.Unchecked += (s, e) => OnValueChanged();
             SliderWidth.ValueChanged += (s, e) => OnValueChanged();
-            SliderLyricOffset.ValueChanged += (s, e) => OnValueChanged();
             CheckAutoUpdate.Checked += (s, e) => OnValueChanged();
             CheckAutoUpdate.Unchecked += (s, e) => OnValueChanged();
-            
-            SliderOffset.ValueChanged += (s, e) => OnValueChanged();
-            RadioRight.Checked += (s, e) => OnValueChanged();
-            RadioLeft.Checked += (s, e) => OnValueChanged();
 
+            TxtLyricOffset.TextChanged += (s, e) => {
+                if (_isUpdating) return;
+                if (double.TryParse(TxtLyricOffset.Text, out double val))
+                {
+                    if (val < -10.0) val = -10.0;
+                    if (val > 10.0) val = 10.0;
+                    _settings.LyricOffsetSeconds = val;
+                    OnValueChanged();
+                }
+            };
             // Set Icon
             this.Icon = App.GetAppIcon();
             
@@ -170,8 +270,37 @@ namespace TaskbarInfo
                 Dispatcher.BeginInvoke(new Action(() => 
                 {
                     UpdateColorPreview();
+                    UpdateValidationState();
                 }), System.Windows.Threading.DispatcherPriority.Loaded);
             };
+        }
+
+        private void BtnDecOffset_Click(object sender, RoutedEventArgs e)
+        {
+            if (double.TryParse(TxtLyricOffset.Text, out double val))
+            {
+                val -= 0.1;
+                if (val < -10.0) val = -10.0;
+                TxtLyricOffset.Text = val.ToString("F1");
+            }
+            else
+            {
+                TxtLyricOffset.Text = "0.0";
+            }
+        }
+
+        private void BtnIncOffset_Click(object sender, RoutedEventArgs e)
+        {
+            if (double.TryParse(TxtLyricOffset.Text, out double val))
+            {
+                val += 0.1;
+                if (val > 10.0) val = 10.0;
+                TxtLyricOffset.Text = val.ToString("F1");
+            }
+            else
+            {
+                TxtLyricOffset.Text = "0.0";
+            }
         }
 
         private void PickColor_Click(object sender, RoutedEventArgs e)
@@ -193,6 +322,35 @@ namespace TaskbarInfo
             }
         }
 
+        private void LoadApps()
+        {
+            var savedIds = new HashSet<string>(_settings.IncludedAppIds);
+            var runningIds = _mediaManager.GetCurrentSourceIds();
+            var allIds = new HashSet<string>(savedIds);
+
+            foreach (var id in runningIds)
+            {
+                allIds.Add(id);
+            }
+
+            var list = allIds
+                .Select(id => new AppItem
+                {
+                    AppId = id,
+                    DisplayName = id.Contains("!") ? id.Split('!')[0] : id.Replace(".exe", ""),
+                    IsSelected = savedIds.Contains(id)
+                })
+                .OrderBy(item => item.DisplayName)
+                .ToList();
+
+            AppList.ItemsSource = list;
+        }
+
+        private void RefreshApps_Click(object sender, RoutedEventArgs e)
+        {
+            LoadApps();
+        }
+
         private void PickBgColor_Click(object sender, RoutedEventArgs e)
         {
             Color initialColor = Colors.Transparent; // Default
@@ -212,6 +370,25 @@ namespace TaskbarInfo
             }
         }
 
+        private void PickFloatingBgColor_Click(object sender, RoutedEventArgs e)
+        {
+            Color initialColor = Colors.White;
+            try 
+            {
+                 initialColor = (Color)ColorConverter.ConvertFromString(FloatingBgColorBox.Text);
+            }
+            catch {}
+
+            var picker = new ColorPickerWindow(initialColor);
+            picker.Owner = this;
+            
+            if (picker.ShowDialog() == true)
+            {
+                var c = picker.SelectedColor;
+                FloatingBgColorBox.Text = c.ToString();
+            }
+        }
+
         private void OnValueChanged()
         {
             if (_isUpdating) return;
@@ -226,22 +403,58 @@ namespace TaskbarInfo
             _settings.FontSize = SliderSize.Value;
             _settings.TextColor = TextColorBox.Text;
             _settings.BackgroundColor = BgColorBox.Text;
+            _settings.FloatingLyricsFontFamily = ComboFloatingFonts.Text;
+            _settings.FloatingLyricsFontSize = SliderFloatingSize.Value;
+            _settings.FloatingLyricsBackgroundColor = FloatingBgColorBox.Text;
+            _settings.FloatingLyricsEnableShadow = CheckFloatingShadow.IsChecked == true;
+            _settings.FloatingLyricsUseAcrylic = CheckFloatingAcrylic.IsChecked == true;
             _settings.EnableShadow = CheckShadow.IsChecked == true;
             _settings.EnableOutline = false; // Feature removed from UI
             _settings.Width = SliderWidth.Value;
-            _settings.Width = SliderWidth.Value;
             _settings.IsDoubleLine = CheckDoubleLine.IsChecked == true;
-            _settings.LyricOffsetSeconds = SliderLyricOffset.Value;
             _settings.AutoCheckUpdates = CheckAutoUpdate.IsChecked == true;
+            if (double.TryParse(TxtLyricOffset.Text, out double offsetVal))
+            {
+                if (offsetVal < -10.0) offsetVal = -10.0;
+                if (offsetVal > 10.0) offsetVal = 10.0;
+                _settings.LyricOffsetSeconds = offsetVal;
+            }
+            UpdateAppFilterSettings();
             
-            _settings.PositionMode = (RadioLeft.IsChecked == true) ? 1 : 0;
-            _settings.OffsetX = (int)SliderOffset.Value;
-            
+            if (ComboFontWeight.SelectedItem is ComboBoxItem mainWeightItem)
+            {
+                _settings.FontWeight = mainWeightItem.Tag?.ToString() ?? "SemiBold";
+            }
+
+            if (ComboFloatingWeight.SelectedItem is ComboBoxItem floatingWeightItem)
+            {
+                _settings.FloatingLyricsFontWeight = floatingWeightItem.Tag?.ToString() ?? "Bold";
+            }
+
             _settings.NextLyricFontSizeDiff = SliderNextSizeDiff.Value;
             if (ComboNextWeight.SelectedItem is ComboBoxItem item)
             {
                 _settings.NextLyricFontWeight = item.Tag?.ToString() ?? "Normal";
             }
+        }
+
+        private void UpdateAppFilterSettings()
+        {
+            if (AppList.ItemsSource is not List<AppItem> list) return;
+
+            _settings.IncludedAppIds.Clear();
+            var processNames = new List<string>();
+
+            foreach (var item in list)
+            {
+                if (!item.IsSelected) continue;
+
+                _settings.IncludedAppIds.Add(item.AppId);
+                processNames.Add(item.DisplayName);
+            }
+
+            _settings.RunOnlyWithMusicApp = CheckRunOnly.IsChecked == true;
+            _settings.MusicAppProcessNames = string.Join(",", processNames);
         }
 
         private void UpdateColorPreview()
@@ -287,12 +500,85 @@ namespace TaskbarInfo
             {
                 BgColorPreview.Background = new SolidColorBrush(Colors.White);
             }
+
+            if (FloatingBgColorPreview == null || FloatingBgColorBox == null) return;
+
+            try
+            {
+                var colorText = FloatingBgColorBox.Text;
+                if (string.IsNullOrWhiteSpace(colorText))
+                {
+                    FloatingBgColorPreview.Background = new SolidColorBrush(Colors.White);
+                }
+                else
+                {
+                    var color = (Color)ColorConverter.ConvertFromString(colorText);
+                    FloatingBgColorPreview.Background = new SolidColorBrush(color);
+                }
+            }
+            catch
+            {
+                FloatingBgColorPreview.Background = new SolidColorBrush(Colors.White);
+            }
+        }
+
+        private bool UpdateValidationState()
+        {
+            var invalidFields = new List<string>();
+
+            SetColorFieldState(TextColorBox, IsValidColor(TextColorBox.Text), "文本颜色", invalidFields);
+            SetColorFieldState(BgColorBox, IsValidColor(BgColorBox.Text), "背景颜色", invalidFields);
+            SetColorFieldState(FloatingBgColorBox, IsValidColor(FloatingBgColorBox.Text), "悬浮背景颜色", invalidFields);
+
+            bool isValid = invalidFields.Count == 0;
+            BtnSave.IsEnabled = isValid;
+            SettingsStatusText.Text = isValid ? "" : "颜色格式无效: " + string.Join("、", invalidFields);
+            return isValid;
+        }
+
+        private static bool IsValidColor(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            try
+            {
+                ColorConverter.ConvertFromString(value);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private void SetColorFieldState(System.Windows.Controls.TextBox textBox, bool isValid, string displayName, List<string> invalidFields)
+        {
+            if (isValid)
+            {
+                textBox.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
+                textBox.ToolTip = null;
+                return;
+            }
+
+            textBox.BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#DC2626"));
+            textBox.ToolTip = "请输入 #RRGGBB、#AARRGGBB 或系统颜色名称";
+            invalidFields.Add(displayName);
         }
 
         private void Save_Click(object sender, RoutedEventArgs e)
         {
+            if (!UpdateValidationState())
+            {
+                return;
+            }
+
             UpdateSettingsObject();
-            _settings.Save();
+            if (!_settings.Save(out var errorMessage))
+            {
+                SettingsStatusText.Text = "保存失败: " + errorMessage;
+                System.Windows.MessageBox.Show(this, "设置保存失败:\n" + errorMessage, "LyricsX", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             
             this.DialogResult = true;
             this.Close();

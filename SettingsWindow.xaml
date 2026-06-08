@@ -4,20 +4,23 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="外观设置" Height="540" Width="400" 
-        ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
-        Background="#F5F7FA"
+        Title="设置" Height="520" Width="640"
+        MinHeight="470" MinWidth="580"
+        ResizeMode="CanResize" WindowStartupLocation="CenterScreen"
+        Background="#FFFFFF"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <Window.Resources>
-        <!-- Colors -->
-        <SolidColorBrush x:Key="SystemAccentColor" Color="#0067C0"/>
-        <SolidColorBrush x:Key="SystemAccentHoverColor" Color="#1975C5"/>
-        <SolidColorBrush x:Key="TextPrimaryColor" Color="#202020"/>
-        <SolidColorBrush x:Key="TextSecondaryColor" Color="#666666"/>
-        <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="ControlBorder" Color="#E0E0E0"/>
+        <!-- FontAwesome -->
+        <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
+
+        <!-- Colors (Ant Design Inspired) -->
+        <SolidColorBrush x:Key="SystemAccentColor" Color="#1677FF"/>
+        <SolidColorBrush x:Key="SystemAccentHoverColor" Color="#4096FF"/>
+        <SolidColorBrush x:Key="TextPrimaryColor" Color="#1F2937"/>
+        <SolidColorBrush x:Key="TextSecondaryColor" Color="#6B7280"/>
+        <SolidColorBrush x:Key="ControlBorder" Color="#E5E7EB"/>
         <SolidColorBrush x:Key="ControlBackground" Color="#FFFFFF"/>
 
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -29,14 +32,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type Thumb}">
-                        <Border x:Name="rectangle"
-                                Background="#C1C1C1"
-                                CornerRadius="4"
-                                Height="{TemplateBinding Height}"
-                                Width="{TemplateBinding Width}"/>
+                        <Border x:Name="rectangle" Background="#D1D5DB" CornerRadius="3" Height="{TemplateBinding Height}" Width="{TemplateBinding Width}"/>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="rectangle" Property="Background" Value="#A0A0A0"/>
+                                <Setter TargetName="rectangle" Property="Background" Value="#9CA3AF"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -47,7 +46,7 @@
         <Style TargetType="{x:Type ScrollBar}">
             <Setter Property="Stylus.IsPressAndHoldEnabled" Value="false"/>
             <Setter Property="Stylus.IsFlicksEnabled" Value="false"/>
-            <Setter Property="Width" Value="10"/>
+            <Setter Property="Width" Value="6"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -61,7 +60,7 @@
                                     <RepeatButton Command="{x:Static ScrollBar.LineDownCommand}" Opacity="0" Height="0"/>
                                 </Track.IncreaseRepeatButton>
                                 <Track.Thumb>
-                                    <Thumb Style="{StaticResource ScrollBarThumb}" Margin="2"/>
+                                    <Thumb Style="{StaticResource ScrollBarThumb}"/>
                                 </Track.Thumb>
                             </Track>
                         </Grid>
@@ -79,13 +78,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" CanContentScroll="{TemplateBinding CanContentScroll}" CanHorizontallyScroll="False" Grid.Column="0" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Margin="{TemplateBinding Padding}" Grid.Row="0"/>
-                            <ScrollBar x:Name="PART_VerticalScrollBar" AutomationProperties.AutomationId="VerticalScrollBar" Cursor="Arrow" Grid.Column="1" Maximum="{TemplateBinding ScrollableHeight}" Minimum="0" Grid.Row="0" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportHeight}"/>
-                            <ScrollBar x:Name="PART_HorizontalScrollBar" AutomationProperties.AutomationId="HorizontalScrollBar" Cursor="Arrow" Grid.Column="0" Maximum="{TemplateBinding ScrollableWidth}" Minimum="0" Orientation="Horizontal" Grid.Row="1" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportWidth}"/>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" CanContentScroll="{TemplateBinding CanContentScroll}" CanHorizontallyScroll="False" Grid.Column="0" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" Margin="{TemplateBinding Padding}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar" AutomationProperties.AutomationId="VerticalScrollBar" Cursor="Arrow" Grid.Column="1" Maximum="{TemplateBinding ScrollableHeight}" Minimum="0" Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" Value="{Binding VerticalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportHeight}"/>
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value> 
@@ -95,25 +89,23 @@
         <!-- Custom ComboBox Style -->
         <Style TargetType="{x:Type ComboBoxItem}">
             <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="Padding" Value="10,8"/>
-            <Setter Property="HorizontalContentAlignment" Value="{Binding HorizontalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"/>
-            <Setter Property="VerticalContentAlignment" Value="{Binding VerticalContentAlignment, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"/>
+            <Setter Property="Padding" Value="10,6"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ComboBoxItem}">
                         <Border x:Name="Bd" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="true" CornerRadius="4" Margin="2,1">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            <ContentPresenter VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" TargetName="Bd" Value="#F2F2F2"/>
+                                <Setter Property="Background" TargetName="Bd" Value="#F3F4F6"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" TargetName="Bd" Value="#E6F2FA"/>
+                                <Setter Property="Background" TargetName="Bd" Value="#E6F4FF"/>
                                 <Setter Property="Foreground" Value="{StaticResource SystemAccentColor}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -123,19 +115,19 @@
         </Style>
 
         <ControlTemplate x:Key="ComboBoxToggleButton" TargetType="{x:Type ToggleButton}">
-            <Border x:Name="templateRoot" Background="{StaticResource ControlBackground}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="8" SnapsToDevicePixels="true">
+            <Border x:Name="templateRoot" Background="{StaticResource ControlBackground}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" SnapsToDevicePixels="true">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="32"/>
+                        <ColumnDefinition Width="28"/>
                     </Grid.ColumnDefinitions>
-                    <Path x:Name="arrow" Grid.Column="1" Data="M0,0 L8,0 L4,4 z" Fill="#666666" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="false"/>
+                    <Path x:Name="arrow" Grid.Column="1" Data="M0,0 L6,0 L3,3 z" Fill="#6B7280" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="false"/>
                 </Grid>
             </Border>
             <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="true">
-                    <Setter TargetName="templateRoot" Property="Background" Value="#FAFAFA"/>
-                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="#C0C0C0"/>
+                    <Setter TargetName="templateRoot" Property="Background" Value="#F9FAFB"/>
+                    <Setter TargetName="templateRoot" Property="BorderBrush" Value="#D1D5DB"/>
                 </Trigger>
                 <Trigger Property="IsChecked" Value="true">
                     <Setter TargetName="templateRoot" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
@@ -150,22 +142,19 @@
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
             <Setter Property="ScrollViewer.CanContentScroll" Value="true"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
-            <Setter Property="Padding" Value="12,0,0,0"/>
+            <Setter Property="Padding" Value="10,0,0,0"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type ComboBox}">
                         <Grid x:Name="templateRoot" SnapsToDevicePixels="true">
                             <ToggleButton x:Name="toggleButton" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Grid.ColumnSpan="2" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Template="{StaticResource ComboBoxToggleButton}"/>
-                            
                             <ContentPresenter x:Name="contentPresenter" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" Content="{TemplateBinding SelectionBoxItem}" ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" IsHitTestVisible="false" Margin="{TemplateBinding Padding}" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
-                            
                             <TextBox x:Name="PART_EditableTextBox" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}" Margin="{TemplateBinding Padding}" Style="{x:Null}" Background="Transparent" BorderThickness="0" Visibility="Hidden"/>
-
                             <Popup x:Name="PART_Popup" AllowsTransparency="true" Grid.ColumnSpan="2" IsOpen="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" Margin="1" Placement="Bottom" PopupAnimation="Slide">
-                                <Border x:Name="dropDownBorder" Background="{StaticResource ControlBackground}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="8" Margin="0,4,0,0" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border x:Name="dropDownBorder" Background="{StaticResource ControlBackground}" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" Margin="0,4,0,0" MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="12" Direction="270" Color="Black" Opacity="0.1" ShadowDepth="4"/>
+                                        <DropShadowEffect BlurRadius="8" Direction="270" Color="Black" Opacity="0.08" ShadowDepth="3"/>
                                     </Border.Effect>
                                     <ScrollViewer x:Name="DropDownScrollViewer" Margin="2">
                                         <Grid x:Name="grid" RenderOptions.ClearTypeHint="Enabled">
@@ -185,11 +174,11 @@
                             <Trigger Property="IsEditable" Value="true">
                                 <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
                                 <Setter TargetName="contentPresenter" Property="Visibility" Value="Hidden"/>
-                                <Setter TargetName="PART_EditableTextBox" Property="Margin" Value="4,0,32,0"/>
+                                <Setter TargetName="PART_EditableTextBox" Property="Margin" Value="4,0,28,0"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="false">
                                 <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.GrayTextBrushKey}}"/>
-                                <Setter TargetName="templateRoot" Property="Background" Value="#FFF0F0F0"/>
+                                <Setter TargetName="templateRoot" Property="Background" Value="#F3F4F6"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -200,7 +189,7 @@
         <!-- Custom RadioButton Style -->
         <Style TargetType="{x:Type RadioButton}">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="#B0B0B0"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -214,8 +203,8 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid Grid.Column="0" VerticalAlignment="Center">
-                                <Ellipse x:Name="Border" Width="18" Height="18" Stroke="{TemplateBinding BorderBrush}" StrokeThickness="{TemplateBinding BorderThickness}" Fill="Transparent"/>
-                                <Ellipse x:Name="Dot" Width="10" Height="10" Fill="{StaticResource SystemAccentColor}" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Ellipse x:Name="Border" Width="16" Height="16" Stroke="{TemplateBinding BorderBrush}" StrokeThickness="{TemplateBinding BorderThickness}" Fill="Transparent"/>
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{StaticResource SystemAccentColor}" Opacity="0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Grid>
                             <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" HorizontalAlignment="Left" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Grid>
@@ -225,7 +214,7 @@
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Border" Property="Stroke" Value="{StaticResource SystemAccentColor}"/>
-                                <Setter TargetName="Border" Property="StrokeThickness" Value="2"/>
+                                <Setter TargetName="Border" Property="StrokeThickness" Value="1.5"/>
                                 <Setter TargetName="Dot" Property="Opacity" Value="1"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -234,38 +223,65 @@
             </Setter>
         </Style>
 
-        <!-- Custom CheckBox Style -->
+        <!-- Switch-style CheckBox -->
         <Style TargetType="{x:Type CheckBox}">
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="#B0B0B0"/>
-            <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Padding" Value="8,0,0,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="{x:Type CheckBox}">
-                        <Grid Background="Transparent" SnapsToDevicePixels="True">
+                        <Grid Background="Transparent" MinHeight="{TemplateBinding MinHeight}" SnapsToDevicePixels="True">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Grid Grid.Column="0" VerticalAlignment="Center">
-                                <Border x:Name="Border" Width="18" Height="18" CornerRadius="4" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="White"/>
-                                <Viewbox Width="10" Height="8" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-                                    <Path x:Name="CheckMark" Data="M1,4.5 L3.5,7 L9,1" Stroke="White" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Opacity="0"/>
-                                </Viewbox>
-                            </Grid>
-                            <ContentPresenter Grid.Column="1" Margin="{TemplateBinding Padding}" HorizontalAlignment="Left" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            <ContentPresenter Grid.Column="0"
+                                              Margin="0,0,14,0"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            <Border x:Name="SwitchTrack"
+                                    Grid.Column="1"
+                                    Width="40"
+                                    Height="22"
+                                    Background="#D1D5DB"
+                                    CornerRadius="11"
+                                    VerticalAlignment="Center">
+                                <Border x:Name="SwitchThumb"
+                                        Width="18"
+                                        Height="18"
+                                        Margin="2"
+                                        HorizontalAlignment="Left"
+                                        Background="#FFFFFF"
+                                        CornerRadius="9">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="3" Direction="270" Color="Black" Opacity="0.18" ShadowDepth="1"/>
+                                    </Border.Effect>
+                                </Border>
+                            </Border>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource SystemAccentHoverColor}"/>
+                                <Setter TargetName="SwitchTrack" Property="Background" Value="#BFC6D1"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="{StaticResource SystemAccentColor}"/>
-                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
-                                <Setter TargetName="CheckMark" Property="Opacity" Value="1"/>
+                                <Setter TargetName="SwitchTrack" Property="Background" Value="{StaticResource SystemAccentColor}"/>
+                                <Setter TargetName="SwitchThumb" Property="HorizontalAlignment" Value="Right"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsChecked" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="SwitchTrack" Property="Background" Value="{StaticResource SystemAccentHoverColor}"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -280,32 +296,11 @@
             <Setter Property="FontSize" Value="13"/>
         </Style>
 
-        <Style x:Key="SectionHeader" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="2,0,0,12"/>
-            <Setter Property="Foreground" Value="{StaticResource SystemAccentColor}"/>
-        </Style>
-
-        <Style TargetType="Border" x:Key="CardStyle">
-            <Setter Property="Background" Value="{StaticResource CardBackground}"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
-            <Setter Property="BorderBrush" Value="#EEEEEE"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000" BlurRadius="20" ShadowDepth="4" Opacity="0.04" Direction="270"/>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="ColorPreviewButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -320,26 +315,60 @@
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" 
-                                Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}" 
-                                CornerRadius="8">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#FBFBFB"/>
-                                <Setter TargetName="border" Property="BorderBrush" Value="#B0B0B0"/>
+                                <Setter TargetName="border" Property="Background" Value="#F9FAFB"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="border" Property="Background" Value="#F5F5F5"/>
+                                <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RefreshButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="MinWidth" Value="76"/>
+            <Setter Property="Padding" Value="9,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="7"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F9FAFB"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryColor}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -355,14 +384,10 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="border" 
-                                Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="{TemplateBinding BorderThickness}" 
-                                CornerRadius="8">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" TextElement.Foreground="White"/>
                         </Border>
-                         <ControlTemplate.Triggers>
+                        <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="border" Property="Background" Value="{StaticResource SystemAccentHoverColor}"/>
                                 <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource SystemAccentHoverColor}"/>
@@ -377,19 +402,20 @@
         </Style>
 
         <Style TargetType="TextBox">
-            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Padding" Value="8,5"/>
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
             <Setter Property="Background" Value="{StaticResource ControlBackground}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                  <Setter.Value>
                     <ControlTemplate TargetType="TextBox">
-                        <Border x:Name="border" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                        <Border x:Name="border" CornerRadius="6" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
                              <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
                         </Border>
-                         <ControlTemplate.Triggers>
+                        <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="true">
-                                <Setter TargetName="border" Property="BorderBrush" Value="#B0B0B0"/>
+                                <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="true">
                                 <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
@@ -403,28 +429,28 @@
         <!-- Custom Slider Style -->
         <Style x:Key="SliderThumbStyle" TargetType="Thumb">
             <Setter Property="OverridesDefaultStyle" Value="True"/>
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Width" Value="16"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Thumb">
                         <Grid>
                             <Ellipse x:Name="Ellipse" Fill="#FFFFFF" Stroke="{StaticResource ControlBorder}" StrokeThickness="1">
                                 <Ellipse.Effect>
-                                    <DropShadowEffect Color="Black" Opacity="0.12" BlurRadius="4" ShadowDepth="1"/>
+                                    <DropShadowEffect Color="Black" Opacity="0.1" BlurRadius="3" ShadowDepth="1"/>
                                 </Ellipse.Effect>
                             </Ellipse>
-                            <Ellipse x:Name="Inner" Fill="{StaticResource SystemAccentColor}" Width="8" Height="8" Opacity="0.8"/>
+                            <Ellipse x:Name="Inner" Fill="{StaticResource SystemAccentColor}" Width="7" Height="7" Opacity="0.95"/>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Ellipse" Property="Fill" Value="#FAFAFA"/>
+                                <Setter TargetName="Ellipse" Property="Fill" Value="#F9FAFB"/>
                                 <Setter TargetName="Inner" Property="Opacity" Value="1.0"/>
                             </Trigger>
                             <Trigger Property="IsDragging" Value="True">
-                                <Setter TargetName="Ellipse" Property="Fill" Value="#F0F0F0"/>
-                                <Setter TargetName="Inner" Property="Width" Value="10"/>
-                                <Setter TargetName="Inner" Property="Height" Value="10"/>
+                                <Setter TargetName="Ellipse" Property="Fill" Value="#F3F4F6"/>
+                                <Setter TargetName="Inner" Property="Width" Value="9"/>
+                                <Setter TargetName="Inner" Property="Height" Value="9"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -450,10 +476,8 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             
-                            <!-- Track Background -->
-                            <Border Grid.Row="1" Height="4" Background="#E0E0E0" CornerRadius="2" VerticalAlignment="Center"/>
+                            <Border Grid.Row="1" Height="4" Background="#E5E7EB" CornerRadius="2" VerticalAlignment="Center"/>
                             
-                            <!-- Track -->
                             <Track x:Name="PART_Track" Grid.Row="1">
                                 <Track.DecreaseRepeatButton>
                                     <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
@@ -465,7 +489,7 @@
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="RepeatButton">
-                                                            <Border Height="4" Background="{StaticResource SystemAccentColor}" CornerRadius="2" VerticalAlignment="Center"/>
+                                                            <Border Height="4" Background="{StaticResource SystemAccentColor}" CornerRadius="2" Margin="0,0,-8,0" VerticalAlignment="Center"/>
                                                         </ControlTemplate>
                                                     </Setter.Value>
                                                 </Setter>
@@ -506,90 +530,228 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="64"/>
         </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-            <StackPanel Margin="24,28,24,24">
+        <!-- Left Navigation Panel (Ant Design Menu) -->
+        <Border Grid.Row="0" Grid.Column="0" Background="#F8FAFC" BorderBrush="#E5E7EB" BorderThickness="0">
+            <ListBox x:Name="NavMenu" Background="Transparent" BorderThickness="0" Margin="0,12" SelectedIndex="0">
+                <ListBox.Resources>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Height" Value="40"/>
+                        <Setter Property="Margin" Value="8,2"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="BgBorder" CornerRadius="6" Background="{TemplateBinding Background}" Padding="12,8" Margin="0,1">
+                                        <Grid>
+                                            <!-- Blue bar indicator on the left -->
+                                            <Border x:Name="ActiveBar" Width="3" Height="16" Background="#1677FF" CornerRadius="1.5" HorizontalAlignment="Left" Visibility="Collapsed" Margin="-12,0,0,0"/>
+                                            <ContentPresenter VerticalAlignment="Center" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="BgBorder" Property="Background" Value="#F1F5F9"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="BgBorder" Property="Background" Value="#E6F4FF"/>
+                                            <Setter TargetName="ActiveBar" Property="Visibility" Value="Visible"/>
+                                            <Setter Property="Foreground" Value="#1677FF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.Resources>
                 
-                <!-- Section 1: Typography -->
-                <TextBlock Text="字体与显示" Style="{StaticResource SectionHeader}"/>
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
+                <!-- Menu Items -->
+                <ListBoxItem>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" FontFamily="{StaticResource FontAwesome}" Text="&#xf031;" FontSize="13" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                        <TextBlock Grid.Column="1" Text="字体显示" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                    </Grid>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" FontFamily="{StaticResource FontAwesome}" Text="&#xf06e;" FontSize="13" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                        <TextBlock Grid.Column="1" Text="视觉增强" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                    </Grid>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" FontFamily="{StaticResource FontAwesome}" Text="&#xf2d0;" FontSize="13" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                        <TextBlock Grid.Column="1" Text="悬浮歌词" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                    </Grid>
+                </ListBoxItem>
+                <ListBoxItem>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" FontFamily="{StaticResource FontAwesome}" Text="&#xf0c0;" FontSize="13" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                        <TextBlock Grid.Column="1" Text="应用域" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" Foreground="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+                    </Grid>
+                </ListBoxItem>
+            </ListBox>
+        </Border>
+
+        <!-- Right Content Panel -->
+        <Grid Grid.Row="0" Grid.Column="1" Background="#FFFFFF">
+            
+            <!-- Panel 0: Typography -->
+            <Border Padding="28,24,28,24">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=NavMenu, Path=SelectedIndex}" Value="0">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="字体与显示" FontSize="16" FontWeight="Bold" Foreground="#1F2937" Margin="0,0,0,16"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="65"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="40"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="16"/>
+                                <RowDefinition Height="12"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="16"/>
+                                <RowDefinition Height="12"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="16"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Text="字体" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <ComboBox x:Name="ComboFonts" IsEditable="True" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Height="36" MaxDropDownHeight="320" />
+                            <!-- FontFamily -->
+                            <TextBlock Text="歌词字体" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ComboFonts" IsEditable="True" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Height="32"/>
 
-                            <TextBlock Text="字号" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <Slider x:Name="SliderSize" Grid.Row="2" Grid.Column="1" Minimum="9" Maximum="48" Margin="0,0,10,0" ToolTip="调整文字大小"/>
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ElementName=SliderSize, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold"/>
+                            <!-- FontSize -->
+                            <TextBlock Text="歌词字号" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <Slider x:Name="SliderSize" Grid.Row="2" Grid.Column="1" Minimum="9" Maximum="48" Margin="0,0,8,0" ToolTip="调整文字大小"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ElementName=SliderSize, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold" VerticalAlignment="Center"/>
 
-                            <TextBlock Text="文本色" Grid.Row="4" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <TextBox x:Name="TextColorBox" Grid.Row="4" Grid.Column="1" Height="36" Margin="0,0,10,0"/>
-                            <Button Grid.Row="4" Grid.Column="2" Height="36" Width="36" 
+                            <!-- FontWeight -->
+                            <TextBlock Text="歌词字重" Grid.Row="4" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ComboFontWeight" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Height="32">
+                                <ComboBoxItem Content="极细" Tag="Thin"/>
+                                <ComboBoxItem Content="细体" Tag="Light"/>
+                                <ComboBoxItem Content="常规" Tag="Normal"/>
+                                <ComboBoxItem Content="中等" Tag="Medium"/>
+                                <ComboBoxItem Content="半粗" Tag="SemiBold"/>
+                                <ComboBoxItem Content="粗体" Tag="Bold"/>
+                                <ComboBoxItem Content="极粗" Tag="Black"/>
+                            </ComboBox>
+
+                            <!-- TextColor -->
+                            <TextBlock Text="文本颜色" Grid.Row="6" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <TextBox x:Name="TextColorBox" Grid.Row="6" Grid.Column="1" Height="32" Margin="0,0,8,0"/>
+                            <Button Grid.Row="6" Grid.Column="2" Height="32" Width="32" HorizontalAlignment="Right"
                                     Click="PickColor_Click" ToolTip="点击选择文本颜色" 
                                     Style="{StaticResource ColorPreviewButtonStyle}">
                                 <Border x:Name="ColorPreview" Background="White" CornerRadius="4" 
                                         BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
                             </Button>
 
-                            <TextBlock Text="背景色" Grid.Row="6" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <TextBox x:Name="BgColorBox" Grid.Row="6" Grid.Column="1" Height="36" Margin="0,0,10,0"/>
-                            <Button Grid.Row="6" Grid.Column="2" Height="36" Width="36" 
+                            <!-- BackgroundColor -->
+                            <TextBlock Text="背景颜色" Grid.Row="8" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <TextBox x:Name="BgColorBox" Grid.Row="8" Grid.Column="1" Height="32" Margin="0,0,8,0"/>
+                            <Button Grid.Row="8" Grid.Column="2" Height="32" Width="32" HorizontalAlignment="Right"
                                     Click="PickBgColor_Click" ToolTip="点击选择背景颜色" 
                                     Style="{StaticResource ColorPreviewButtonStyle}">
                                 <Border x:Name="BgColorPreview" Background="White" CornerRadius="4" 
                                         BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
                             </Button>
+
+                            <!-- Width -->
+                            <TextBlock Text="容器宽度" Grid.Row="10" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <Slider x:Name="SliderWidth" Grid.Row="10" Grid.Column="1" Minimum="50" Maximum="800" TickFrequency="10" Margin="0,0,8,0"/>
+                            <TextBlock Grid.Row="10" Grid.Column="2" Text="{Binding ElementName=SliderWidth, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold" VerticalAlignment="Center"/>
                         </Grid>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </Border>
 
-                <!-- Section 2: Visual Effects -->
-                <TextBlock Text="视觉增强" Style="{StaticResource SectionHeader}"/>
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <CheckBox x:Name="CheckShadow" Content="启用阴影" Margin="0,4" VerticalContentAlignment="Center"/>
-                        <TextBlock Text="为文字添加柔和阴影，提高浅色背景下的辨识度。" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="24,2,0,12" TextWrapping="Wrap"/>
+            <!-- Panel 1: Visual Effects -->
+            <Border Padding="28,24,28,24">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=NavMenu, Path=SelectedIndex}" Value="1">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="视觉增强" FontSize="16" FontWeight="Bold" Foreground="#1F2937" Margin="0,0,0,16"/>
                         
-
+                        <!-- Enable Shadow -->
+                        <CheckBox x:Name="CheckShadow" Content="启用文字阴影" Margin="0,4" VerticalContentAlignment="Center"/>
                         
-                        <CheckBox x:Name="CheckDoubleLine" Content="双行歌词模式" Margin="0,4" VerticalContentAlignment="Center"/>
-                        <TextBlock Text="同时显示当前歌词和下一句歌词。" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="24,2,0,12" TextWrapping="Wrap"/>
-
-                        <StackPanel Visibility="{Binding IsChecked, ElementName=CheckDoubleLine, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="24,0,0,12">
+                        <!-- Double Line Mode -->
+                        <CheckBox x:Name="CheckDoubleLine" Content="双行歌词模式" Margin="0,16,0,4" VerticalContentAlignment="Center"/>
+                        
+                        <StackPanel Visibility="{Binding IsChecked, ElementName=CheckDoubleLine, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="20,8,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="60"/>
+                                    <ColumnDefinition Width="65"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="40"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="12"/>
+                                    <RowDefinition Height="10"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 
-                                <TextBlock Text="副字号差" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                                <Slider x:Name="SliderNextSizeDiff" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="10" Margin="0,0,10,0" ToolTip="副歌词比主歌词小的字号数"/>
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ElementName=SliderNextSizeDiff, Path=Value, StringFormat={}{0:F1}}" HorizontalAlignment="Right" FontWeight="Bold"/>
+                                <TextBlock Text="副字号差" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                                <Slider x:Name="SliderNextSizeDiff" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="10" Margin="0,0,8,0" ToolTip="副歌词比主歌词小的字号数"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ElementName=SliderNextSizeDiff, Path=Value, StringFormat={}{0:F1}}" HorizontalAlignment="Right" FontWeight="Bold" VerticalAlignment="Center"/>
 
-                                <TextBlock Text="副字重" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
+                                <TextBlock Text="副歌字重" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="ComboNextWeight" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Height="30">
                                     <ComboBoxItem Content="极细" Tag="Thin"/>
                                     <ComboBoxItem Content="细体" Tag="Light"/>
@@ -602,82 +764,246 @@
                             </Grid>
                         </StackPanel>
 
-                        <Rectangle Height="1" Fill="#F0F0F0" Margin="0,8,0,16"/>
-
-                        <TextBlock Text="歌词进度微调(秒)" Margin="0,0,0,8" Foreground="{StaticResource TextSecondaryColor}"/>
-                        <Grid>
+                        <!-- Lyric Offset (No Slider) -->
+                        <Grid Margin="0,16,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="40"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Slider x:Name="SliderLyricOffset" Minimum="-5.0" Maximum="5.0" TickFrequency="0.1" IsSnapToTickEnabled="True" Margin="0,0,10,0"/>
-                            <TextBlock Grid.Column="1" Text="{Binding ElementName=SliderLyricOffset, Path=Value, StringFormat={}{0:F1}}" HorizontalAlignment="Right" FontWeight="Bold"/>
+                            
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="歌词进度微调(秒)" Foreground="#1F2937" FontWeight="Medium"/>
+                                <TextBlock Text="负值:提前显示 / 正值:延后显示" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="0,2,0,0"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="BtnDecOffset" Click="BtnDecOffset_Click" Width="32" Height="32" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="#FFFFFF" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1,1,0,1" CornerRadius="6,0,0,6">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F9FAFB"/>
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <TextBlock FontFamily="{StaticResource FontAwesome}" Text="&#xf068;" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+                                <TextBox x:Name="TxtLyricOffset" Width="56" Height="32" Padding="4,0" TextAlignment="Center" VerticalContentAlignment="Center">
+                                    <TextBox.Template>
+                                        <ControlTemplate TargetType="TextBox">
+                                            <Border x:Name="border" CornerRadius="0" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="0,1">
+                                                 <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="true">
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
+                                                </Trigger>
+                                                <Trigger Property="IsKeyboardFocused" Value="true">
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource SystemAccentColor}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </TextBox.Template>
+                                </TextBox>
+                                <Button x:Name="BtnIncOffset" Click="BtnIncOffset_Click" Width="32" Height="32" Cursor="Hand">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="#FFFFFF" BorderBrush="{StaticResource ControlBorder}" BorderThickness="0,1,1,1" CornerRadius="0,6,6,0">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F9FAFB"/>
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="#D1D5DB"/>
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F3F4F6"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <TextBlock FontFamily="{StaticResource FontAwesome}" Text="&#xf067;" FontSize="11" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Button>
+                            </StackPanel>
                         </Grid>
-                        <TextBlock Text="负值:提前显示 / 正值:延后显示" FontSize="12" Foreground="{StaticResource TextSecondaryColor}" Margin="0,4,0,0"/>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </Border>
 
-                <!-- Section 3: Layout -->
-                <TextBlock Text="位置布局" Style="{StaticResource SectionHeader}"/>
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <TextBlock Text="固定位置" Foreground="{StaticResource TextSecondaryColor}" Margin="0,0,0,12"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                            <RadioButton x:Name="RadioLeft" Content="屏幕左侧" GroupName="Pos" Margin="0,0,24,0" Cursor="Hand" VerticalContentAlignment="Center"/>
-                            <RadioButton x:Name="RadioRight" Content="跟随右侧托盘" GroupName="Pos" Cursor="Hand" VerticalContentAlignment="Center"/>
-                        </StackPanel>
-
+            <!-- Panel 2: Floating Lyrics -->
+            <Border Padding="28,24,28,24">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=NavMenu, Path=SelectedIndex}" Value="2">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
+                    <StackPanel Margin="0,0,8,0">
+                        <TextBlock Text="悬浮歌词" FontSize="16" FontWeight="Bold" Foreground="#1F2937" Margin="0,0,0,16"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="80"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="40"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="16"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="12"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Text="偏移量" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <Slider x:Name="SliderOffset" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="1000" TickFrequency="10" Margin="0,0,10,0"/>
-                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ElementName=SliderOffset, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold"/>
+                            <TextBlock Text="悬浮字体" Grid.Row="0" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ComboFloatingFonts" IsEditable="True" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" Height="32"/>
 
-                            <TextBlock Text="总宽度" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}"/>
-                            <Slider x:Name="SliderWidth" Grid.Row="2" Grid.Column="1" Minimum="50" Maximum="800" TickFrequency="10" Margin="0,0,10,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ElementName=SliderWidth, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold"/>
+                            <TextBlock Text="悬浮字号" Grid.Row="2" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <Slider x:Name="SliderFloatingSize" Grid.Row="2" Grid.Column="1" Minimum="12" Maximum="64" Margin="0,0,8,0" ToolTip="调整悬浮歌词文字大小"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ElementName=SliderFloatingSize, Path=Value, StringFormat={}{0:F0}}" HorizontalAlignment="Right" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                            <TextBlock Text="悬浮字重" Grid.Row="4" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="ComboFloatingWeight" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Height="32">
+                                <ComboBoxItem Content="极细" Tag="Thin"/>
+                                <ComboBoxItem Content="细体" Tag="Light"/>
+                                <ComboBoxItem Content="常规" Tag="Normal"/>
+                                <ComboBoxItem Content="中等" Tag="Medium"/>
+                                <ComboBoxItem Content="半粗" Tag="SemiBold"/>
+                                <ComboBoxItem Content="粗体" Tag="Bold"/>
+                                <ComboBoxItem Content="极粗" Tag="Black"/>
+                            </ComboBox>
+
+                            <TextBlock Text="背景颜色" Grid.Row="6" Grid.Column="0" Foreground="{StaticResource TextSecondaryColor}" VerticalAlignment="Center"/>
+                            <TextBox x:Name="FloatingBgColorBox" Grid.Row="6" Grid.Column="1" Height="32" Margin="0,0,8,0"/>
+                            <Button Grid.Row="6" Grid.Column="2" Height="32" Width="32" HorizontalAlignment="Right"
+                                    Click="PickFloatingBgColor_Click" ToolTip="点击选择悬浮歌词背景颜色"
+                                    Style="{StaticResource ColorPreviewButtonStyle}">
+                                <Border x:Name="FloatingBgColorPreview" Background="White" CornerRadius="4"
+                                        BorderBrush="{StaticResource ControlBorder}" BorderThickness="1"/>
+                            </Button>
+
+                            <CheckBox x:Name="CheckFloatingShadow" Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="3"
+                                      Content="启用文字阴影" VerticalContentAlignment="Center"/>
+
+                            <CheckBox x:Name="CheckFloatingAcrylic" Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="3"
+                                      Content="亚克力背景" VerticalContentAlignment="Center"/>
                         </Grid>
-                    </StackPanel>
-                </Border>
-                
-                <TextBlock Text="版本更新" Style="{StaticResource SectionHeader}"/>
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
+                        <TextBlock Text="版本更新" FontSize="16" FontWeight="Bold" Foreground="#1F2937" Margin="0,22,0,12"/>
                         <CheckBox x:Name="CheckAutoUpdate" Content="启动时自动检查更新" Margin="0,4" VerticalContentAlignment="Center"/>
-                        <TextBlock Text="启动时检查是否有新版本。" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="24,2,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Text="启动时检查是否有新版本。" FontSize="11" Foreground="{StaticResource TextSecondaryColor}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </Border>
 
-            </StackPanel>
-        </ScrollViewer>
+            <!-- Panel 3: App Filter -->
+            <Border Padding="28,24,28,24">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=NavMenu, Path=SelectedIndex}" Value="3">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="12"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Grid.Row="0" Text="应用域设置" FontSize="16" FontWeight="Bold" Foreground="#1F2937"/>
+                    
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <CheckBox x:Name="CheckRunOnly" Content="仅在指定播放器运行时显示歌词" VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="2" Click="RefreshApps_Click" Style="{StaticResource RefreshButtonStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="12"/>
+                                    <ColumnDefinition Width="5"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           FontFamily="{StaticResource FontAwesome}"
+                                           Text="&#xf2f9;"
+                                           FontSize="10"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           LineHeight="12"
+                                           LineStackingStrategy="BlockLineHeight"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="刷新列表"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                        </Button>
+                    </Grid>
 
-        <!-- Footer -->
-        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#EEEEEE" BorderThickness="0,1,0,0" Padding="24,16">
+                    <Border Grid.Row="4" BorderBrush="{StaticResource ControlBorder}" BorderThickness="1" CornerRadius="6" Background="{StaticResource ControlBackground}">
+                        <ListView x:Name="AppList" BorderThickness="0" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4,2">
+                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Content="{Binding DisplayName}" VerticalContentAlignment="Center"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Border>
+                </Grid>
+            </Border>
+
+        </Grid>
+
+        <!-- Bottom Footer (Buttons) -->
+        <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Background="#F8FAFC" BorderBrush="#E5E7EB" BorderThickness="0" Padding="24,14">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <TextBlock x:Name="VersionText" Foreground="{StaticResource TextSecondaryColor}" FontSize="12"/>
+                    <TextBlock x:Name="SettingsStatusText"
+                               Foreground="#DC2626"
+                               FontSize="12"
+                               TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 
-                <Button Grid.Column="1" Content="取 消" Width="88" Click="Cancel_Click"/>
-                <Button Grid.Column="3" Content="保 存" Style="{StaticResource AccentButton}" Width="96" Click="Save_Click"/>
+                <Button Grid.Column="1" Content="取 消" Width="88" Height="32" Click="Cancel_Click"/>
+                <Button x:Name="BtnSave" Grid.Column="3" Content="保 存" Style="{StaticResource AccentButton}" Width="96" Height="32" Click="Save_Click"/>
             </Grid>
         </Border>
+        
     </Grid>
 </Window>

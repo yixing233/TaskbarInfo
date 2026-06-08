@@ -177,15 +177,15 @@
                     
 
                     
-                    <MenuItem Header="外观设置..." Click="OpenSettings_Click">
+                    <MenuItem Header="设置" Click="OpenSettings_Click">
                         <MenuItem.Icon>
                            <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#555555"/> 
                         </MenuItem.Icon>
                     </MenuItem>
-                    
-                    <MenuItem Header="应用域..." Click="OpenAppFilter_Click">
+
+                    <MenuItem Header="重置任务栏位置" Click="ResetTaskbarPosition_Click">
                         <MenuItem.Icon>
-                           <TextBlock Text="&#xf7d9;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 
+                           <TextBlock Text="&#xf2f1;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/> 
                         </MenuItem.Icon>
                     </MenuItem>
 
@@ -225,15 +225,37 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Image x:Name="AppIcon" Grid.Column="0" Width="24" Height="24" Margin="4,0,8,0" 
+                <!-- Drag Handle -->
+                <Border x:Name="DragHandle" Grid.Column="0" Width="12" Height="24"
+                        Margin="0,0,4,0" VerticalAlignment="Center" Cursor="SizeAll"
+                        Background="Transparent" ToolTip="拖动调整歌词位置"
+                        MouseLeftButtonDown="DragHandle_MouseLeftButtonDown"
+                        MouseMove="DragHandle_MouseMove"
+                        MouseLeftButtonUp="DragHandle_MouseLeftButtonUp">
+                    <Border Width="4" Height="14" CornerRadius="2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#55FFFFFF"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=DragHandle}" Value="True">
+                                        <Setter Property="Background" Value="#A0FFFFFF"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Border>
+
+                <Image x:Name="AppIcon" Grid.Column="1" Width="24" Height="24" Margin="4,0,8,0" 
                        VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
                        Visibility="Collapsed" Cursor="Hand" MouseLeftButtonDown="AppIcon_MouseLeftButtonDown"/>
 
-                <Canvas x:Name="TextContainer" Grid.Column="1" ClipToBounds="True" Height="20" VerticalAlignment="Center">
-                    <TextBlock x:Name="InfoText" Text="LyricsX Loading..." 
+                <Canvas x:Name="TextContainer" Grid.Column="2" ClipToBounds="True" Height="20" VerticalAlignment="Center">
+                    <TextBlock x:Name="InfoText" Text="歌词加载中..." 
                                FontSize="12" FontWeight="SemiBold"
                                Canvas.Left="0" Canvas.Top="2">
                         <TextBlock.Foreground>
