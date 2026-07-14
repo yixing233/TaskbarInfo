@@ -13,7 +13,7 @@ namespace TaskbarInfo
         private readonly WindowsMediaController.MediaManager _mediaManager = new();
         private MediaSession? _currentSession;
 
-        public event EventHandler<string>? MediaInfoChanged;
+        public event EventHandler<MediaTrackInfo>? MediaInfoChanged;
         public event EventHandler<TimeSpan>? PlaybackPositionChanged;
         public event EventHandler<GlobalSystemMediaTransportControlsSessionPlaybackStatus>? PlaybackStatusChanged;
         public event EventHandler<string>? AppIdChanged;
@@ -38,6 +38,10 @@ namespace TaskbarInfo
             {
                 _mediaManager.Start();
                 UpdateCurrentSession();
+                if (_currentSession == null)
+                {
+                    MediaInfoChanged?.Invoke(this, new MediaTrackInfo());
+                }
             }
             catch (Exception ex)
             {
@@ -111,7 +115,7 @@ namespace TaskbarInfo
                 }
                 else
                 {
-                    MediaInfoChanged?.Invoke(this, "开始播放音乐吧");
+                    MediaInfoChanged?.Invoke(this, new MediaTrackInfo());
                     AppIdChanged?.Invoke(this, "");
                 }
             }
@@ -144,16 +148,54 @@ namespace TaskbarInfo
         {
             try
             {
-                var info = await session.ControlSession.TryGetMediaPropertiesAsync();
-                if (info != null)
+                var info = await Task.Run(async () =>
+                    await session.ControlSession.TryGetMediaPropertiesAsync())
+                    .WaitAsync(TimeSpan.FromSeconds(5));
+                if (info != null && session == _currentSession)
                 {
-                    string artist = info.Artist;
-                    string title = info.Title;
-                    string display = string.IsNullOrEmpty(artist) ? title : $"{artist} - {title}";
-                    MediaInfoChanged?.Invoke(this, display);
+                    int? durationMs = null;
+                    try
+                    {
+                        var timeline = session.ControlSession.GetTimelineProperties();
+                        if (timeline.EndTime > TimeSpan.Zero)
+                        {
+                            durationMs = (int)Math.Min(int.MaxValue, timeline.EndTime.TotalMilliseconds);
+                        }
+                    }
+                    catch { }
+
+                    MediaInfoChanged?.Invoke(this, new MediaTrackInfo
+                    {
+                        Artist = info.Artist ?? "",
+                        Title = info.Title ?? "",
+                        Album = info.AlbumTitle ?? "",
+                        DurationMs = durationMs,
+                        SourceAppId = session.Id
+                    });
                 }
             }
-            catch { }
+            catch (TimeoutException)
+            {
+                if (session == _currentSession)
+                {
+                    MediaInfoChanged?.Invoke(this, new MediaTrackInfo
+                    {
+                        SourceAppId = session.Id,
+                        StatusText = "读取歌曲信息超时"
+                    });
+                }
+            }
+            catch
+            {
+                if (session == _currentSession)
+                {
+                    MediaInfoChanged?.Invoke(this, new MediaTrackInfo
+                    {
+                        SourceAppId = session.Id,
+                        StatusText = "暂时无法读取歌曲信息"
+                    });
+                }
+            }
         }
 
         public async Task PlayPauseAsync()

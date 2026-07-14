@@ -32,6 +32,7 @@ namespace TaskbarInfo
         public bool FloatingLyricsEnableShadow { get; set; } = true;
         public double? FloatingLyricsLeft { get; set; } = null;
         public double? FloatingLyricsTop { get; set; } = null;
+        public double? FloatingLyricsWidth { get; set; } = null;
         
         public double NextLyricFontSizeDiff { get; set; } = 2.0;
         public string NextLyricFontWeight { get; set; } = "Normal"; // Normal, Light, Bold etc. 

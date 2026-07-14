@@ -26,9 +26,9 @@ diag.log
 debug.log
 debug*.txt
 
-# Local reference/decompiler/installer artifacts
+# Local reference/decompiler artifacts
 decompiler/
-installer/
+installer/output/
 参考代码-来自windhawk.txt
 
 # OS files

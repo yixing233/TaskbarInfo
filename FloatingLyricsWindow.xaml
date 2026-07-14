@@ -7,10 +7,12 @@
         mc:Ignorable="d"
         Title="LyricsX Floating" SizeToContent="WidthAndHeight"
         MinWidth="200" MinHeight="50"
-        WindowStyle="None" ResizeMode="NoResize"
+        WindowStyle="None" ResizeMode="CanResize"
         Background="Transparent" AllowsTransparency="True"
         Topmost="True" ShowInTaskbar="False"
         MouseDown="Window_MouseDown"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Grid>
         <Border x:Name="FloatingBackground"
@@ -18,24 +20,49 @@
                 BorderThickness="0"
                 CornerRadius="10"
                 Padding="12">
-            <TextBlock x:Name="LyricText" 
-                       Text="歌词加载中..." 
-                       FontSize="20" 
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center" 
-                       VerticalAlignment="Center"
-                       TextWrapping="Wrap"
-                       TextAlignment="Center">
-                <TextBlock.Foreground>
-                    <LinearGradientBrush x:Name="FloatingLyricBrush" StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop x:Name="FloatingLyricStop1" Color="#FF33BBFF" Offset="0"/>
-                        <GradientStop x:Name="FloatingLyricStop2" Color="White" Offset="0"/>
-                    </LinearGradientBrush>
-                </TextBlock.Foreground>
-                <TextBlock.Effect>
-                    <DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="2" Opacity="0.8"/>
-                </TextBlock.Effect>
-            </TextBlock>
+            <Grid x:Name="LyricViewport"
+                  MinWidth="176"
+                  ClipToBounds="True"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center">
+                <StackPanel x:Name="MarqueePanel"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <TextBlock x:Name="LyricText"
+                               Text="歌词加载中..."
+                               FontSize="20"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               TextWrapping="NoWrap"
+                               LineStackingStrategy="BlockLineHeight"
+                               TextAlignment="Center">
+                        <TextBlock.Foreground>
+                            <LinearGradientBrush x:Name="FloatingLyricBrush" StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop x:Name="FloatingLyricStop1" Color="#FF33BBFF" Offset="0"/>
+                                <GradientStop x:Name="FloatingLyricStop2" Color="White" Offset="0"/>
+                            </LinearGradientBrush>
+                        </TextBlock.Foreground>
+                        <TextBlock.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="4" ShadowDepth="2" Opacity="0.8"/>
+                        </TextBlock.Effect>
+                    </TextBlock>
+
+                    <TextBlock x:Name="LyricTextDuplicate"
+                               Text="{Binding Text, ElementName=LyricText}"
+                               FontFamily="{Binding FontFamily, ElementName=LyricText}"
+                               FontSize="{Binding FontSize, ElementName=LyricText}"
+                               FontWeight="{Binding FontWeight, ElementName=LyricText}"
+                               LineHeight="{Binding LineHeight, ElementName=LyricText}"
+                               LineStackingStrategy="BlockLineHeight"
+                               Foreground="{Binding Foreground, ElementName=LyricText}"
+                               Effect="{Binding Effect, ElementName=LyricText}"
+                               Margin="50,0,0,0"
+                               VerticalAlignment="Center"
+                               TextWrapping="NoWrap"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Grid>
             <Border.ContextMenu>
                  <ContextMenu Placement="MousePoint" HorizontalOffset="6" VerticalOffset="6">
                     <ContextMenu.Resources>
@@ -98,14 +125,121 @@
                                 </Setter.Value>
                             </Setter>
                         </Style>
+
+                        <Style x:Key="MediaControlButtonStyle" TargetType="Button">
+                            <Setter Property="Width" Value="42"/>
+                            <Setter Property="Height" Value="34"/>
+                            <Setter Property="Margin" Value="3,0"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="Cursor" Value="Hand"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="ButtonBackground"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="6">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ButtonBackground" Property="Background" Value="#F2F2F2"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="ButtonBackground" Property="Background" Value="#E5E5E5"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+
+                        <Style x:Key="ControlRowMenuItemStyle" TargetType="MenuItem">
+                            <Setter Property="Height" Value="Auto"/>
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Focusable" Value="False"/>
+                            <Setter Property="StaysOpenOnClick" Value="True"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="MenuItem">
+                                        <ContentPresenter ContentSource="Header"
+                                                          HorizontalAlignment="Stretch"
+                                                          VerticalAlignment="Center"/>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
                     </ContextMenu.Resources>
 
+                    <MenuItem Style="{StaticResource ControlRowMenuItemStyle}">
+                        <MenuItem.Header>
+                            <Grid Margin="8,3" HorizontalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="上一首"
+                                        Click="PreviousTrack_Click">
+                                    <TextBlock Text="&#xf048;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/>
+                                </Button>
+                                <Button x:Name="FloatingPlayPauseButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="播放"
+                                        Click="PlayPause_Click">
+                                    <TextBlock x:Name="FloatingPlayPauseIcon" Text="&#xf04b;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#333333"/>
+                                </Button>
+                                <Button Grid.Column="2"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="下一首"
+                                        Click="NextTrack_Click">
+                                    <TextBlock Text="&#xf051;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/>
+                                </Button>
+                            </Grid>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <MenuItem Style="{StaticResource ControlRowMenuItemStyle}">
+                        <MenuItem.Header>
+                            <Grid Margin="8,3" HorizontalAlignment="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="DecreaseFontSizeMenuItem"
+                                        Grid.Column="0"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="减小字号"
+                                        Click="DecreaseFontSize_Click">
+                                    <TextBlock Text="&#xf068;" FontFamily="{StaticResource FontAwesome}" FontSize="11" Foreground="#555555"/>
+                                </Button>
+                                <Button Grid.Column="1"
+                                        Width="60"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="恢复默认字号"
+                                        Click="ResetFontSize_Click">
+                                    <TextBlock x:Name="FloatingFontSizeText" Text="20 px" FontSize="12" Foreground="#333333"/>
+                                </Button>
+                                <Button x:Name="IncreaseFontSizeMenuItem"
+                                        Grid.Column="2"
+                                        Style="{StaticResource MediaControlButtonStyle}"
+                                        ToolTip="增大字号"
+                                        Click="IncreaseFontSize_Click">
+                                    <TextBlock Text="&#xf067;" FontFamily="{StaticResource FontAwesome}" FontSize="11" Foreground="#555555"/>
+                                </Button>
+                            </Grid>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <Separator/>
                     <MenuItem Header="锁定位置" IsCheckable="True" x:Name="LockPositionMenuItem" Click="LockPosition_Click">
                         <MenuItem.Icon>
                             <TextBlock Text="&#xf023;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 
                         </MenuItem.Icon>
                     </MenuItem>
-                    <Separator/>
                     <MenuItem Header="设置" Click="OpenFloatingSettings_Click">
                         <MenuItem.Icon>
                             <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/> 
@@ -119,5 +253,26 @@
                  </ContextMenu>
             </Border.ContextMenu>
         </Border>
+        <Thumb x:Name="WidthResizeThumb"
+               Width="16"
+               Height="16"
+               Margin="0,0,3,3"
+               HorizontalAlignment="Right"
+               VerticalAlignment="Bottom"
+               Cursor="SizeWE"
+               ToolTip="拖动调整宽度，双击恢复自动宽度"
+               PreviewMouseLeftButtonDown="WidthResizeThumb_MouseLeftButtonDown">
+            <Thumb.Template>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Background="Transparent">
+                        <Path Data="M 3,13 L 13,3 M 8,13 L 13,8 M 12,13 L 13,12"
+                              Stroke="#80909090"
+                              StrokeThickness="1.2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"/>
+                    </Grid>
+                </ControlTemplate>
+            </Thumb.Template>
+        </Thumb>
     </Grid>
 </Window>

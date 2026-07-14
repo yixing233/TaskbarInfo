@@ -16,7 +16,7 @@ namespace TaskbarInfo
     {
         private const string RepoOwner = "yixing233";
         private const string RepoName = "LyricsX";
-        private const string DefaultVersion = "1.0.0";
+        private const string DefaultVersion = "1.1.0";
 
         private static readonly HttpClient HttpClient = CreateHttpClient();
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -241,7 +241,7 @@ namespace TaskbarInfo
         public bool Success { get; private init; }
         public bool HasUpdate { get; private init; }
         public bool NoReleasePublished { get; private init; }
-        public Version CurrentVersion { get; private init; } = new Version(1, 0, 0);
+        public Version CurrentVersion { get; private init; } = new Version(1, 1, 0);
         public Version? LatestVersion { get; private init; }
         public string CurrentVersionDisplay => $"v{CurrentVersion.Major}.{CurrentVersion.Minor}.{CurrentVersion.Build}";
         public string LatestVersionDisplay => LatestVersion == null ? "未知" : $"v{LatestVersion.Major}.{LatestVersion.Minor}.{LatestVersion.Build}";

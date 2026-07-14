@@ -46,10 +46,13 @@ namespace TaskbarInfo
         private LyricsEngine _lyricsEngine = new LyricsEngine();
         private string _currentArtist = "";
         private string _currentTitle = "";
+        private string _currentTrackKey = "";
         private bool _hasLyrics = false;
         private string _lastLyricText = "";
         private string _lastCurrentLyric = ""; // Track current lyric separately for animation
         private bool _isShowingStatusText = true;
+        private CancellationTokenSource? _lyricsSearchCts;
+        private int _lyricsSearchVersion;
         
         // Sync & Interpolation logic
         private DispatcherTimer? _lyricSyncTimer;
@@ -437,7 +440,7 @@ namespace TaskbarInfo
             TextContainer.Height = double.NaN; 
             TextContainer.VerticalAlignment = VerticalAlignment.Stretch;
             
-            InfoText.FontSize = _settings.FontSize;
+            _mainLyricControl.FontSize = _settings.FontSize;
 
             // Apply Background Color
             try
@@ -607,8 +610,11 @@ namespace TaskbarInfo
 
             _mainLyricControl.Visibility = Visibility.Visible;
             _mainLyricControl.Opacity = 1.0;
+            _mainLyricControl.FontFamily = new FontFamily(_settings.FontFamily);
             _mainLyricControl.FontSize = _settings.FontSize;
-            _mainLyricControl.FontWeight = FontWeights.SemiBold;
+            _mainLyricControl.FontWeight = GetConfiguredFontWeight(
+                _settings.FontWeight,
+                FontWeights.SemiBold);
 
             // Status text should always render as a single centered line,
             // regardless of whether double-line lyric mode is enabled.
@@ -621,6 +627,22 @@ namespace TaskbarInfo
             double textH = _settings.FontSize * 1.35;
             double top = (containerH - textH) / 2;
             Canvas.SetTop(_mainLyricControl, top);
+        }
+
+        private static FontWeight GetConfiguredFontWeight(string? value, FontWeight fallback)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return fallback;
+
+            try
+            {
+                var converter = new FontWeightConverter();
+                var converted = converter.ConvertFromString(value.Split(' ')[0]);
+                return (converted as FontWeight?) ?? fallback;
+            }
+            catch
+            {
+                return fallback;
+            }
         }
 
         private void OpenSettings_Click(object sender, RoutedEventArgs e)
@@ -760,7 +782,10 @@ namespace TaskbarInfo
 
         private void UpdatePlayPauseButton(Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus status)
         {
-            if (status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+            bool isPlaying = status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            _floatingWindow?.SetPlaybackState(isPlaying);
+
+            if (isPlaying)
             {
                 // Currently playing - show pause icon
                 PlayPauseButton.Content = "\uf04c"; // Pause icon (FontAwesome)
@@ -822,6 +847,9 @@ namespace TaskbarInfo
                 {
                     _floatingWindow.CloseRequested -= FloatingWindow_CloseRequested;
                     _floatingWindow.SettingsRequested -= FloatingWindow_SettingsRequested;
+                    _floatingWindow.PreviousTrackRequested -= FloatingWindow_PreviousTrackRequested;
+                    _floatingWindow.PlayPauseRequested -= FloatingWindow_PlayPauseRequested;
+                    _floatingWindow.NextTrackRequested -= FloatingWindow_NextTrackRequested;
                     _floatingWindow.Close();
                     _floatingWindow = null;
                 }
@@ -831,9 +859,13 @@ namespace TaskbarInfo
                     _floatingWindow = new FloatingLyricsWindow(_settings);
                     _floatingWindow.CloseRequested += FloatingWindow_CloseRequested;
                     _floatingWindow.SettingsRequested += FloatingWindow_SettingsRequested;
+                    _floatingWindow.PreviousTrackRequested += FloatingWindow_PreviousTrackRequested;
+                    _floatingWindow.PlayPauseRequested += FloatingWindow_PlayPauseRequested;
+                    _floatingWindow.NextTrackRequested += FloatingWindow_NextTrackRequested;
                     _floatingWindow.Show();
                     // Apply CTX state explicitly if initialized late
                     _floatingWindow.SetClickThrough(_settings.FloatingLyricsClickThrough);
+                    _floatingWindow.SetPlaybackState(_isMediaPlaying);
                 }
                 else
                 {
@@ -888,6 +920,12 @@ namespace TaskbarInfo
             OpenSettings(2);
         }
 
+        private Task FloatingWindow_PreviousTrackRequested() => _mediaManager.PreviousTrackAsync();
+
+        private Task FloatingWindow_PlayPauseRequested() => _mediaManager.PlayPauseAsync();
+
+        private Task FloatingWindow_NextTrackRequested() => _mediaManager.NextTrackAsync();
+
         private void FloatingLyricsCtx_Checked(object sender, RoutedEventArgs e)
         {
             _settings.FloatingLyricsClickThrough = true;
@@ -906,74 +944,89 @@ namespace TaskbarInfo
 
 
 
-        private async void MediaManager_MediaInfoChanged(object? sender, string text)
+        private async void MediaManager_MediaInfoChanged(object? sender, MediaTrackInfo track)
         {
-            // Parse Artist - Title from the simple text (assuming we formatted it "Artist - Title")
-            // Actually, we should expose Artist/Title raw events to be cleaner, 
-            // but for now let's rely on the formatted string or we can hackily parse.
-            // Wait, MediaManager formats it. Better to modify MediaManager to pass object or parse here?
-            // Let's modify MediaManager to pass a struct? Too much change?
-            // Let's assume text format if it contains " - ".
-            
-            // Or better, let's keep it simple: Just trigger reload.
-            // But we need artist/title for search.
-            // Update: MediaManager only passes string. I should update MediaManager to expose _currentSession properties or pass a custom args.
-            
-            // TEMP FIX: Re-query session or make MediaManager event richer. 
-            // Let's cheat: We only have the string. 
-            // If Text is [Paused] ... remove it.
-            
-            string raw = text;
-            var parts = raw.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
-            
-            string artist = parts.Length > 0 ? parts[0] : "";
-            string title = parts.Length > 1 ? parts[1] : raw; // Fallback
-            if (parts.Length > 1) title = string.Join(" - ", parts.Skip(1));
+            string artist = track.Artist.Trim();
+            string title = track.Title.Trim();
+            string displayText = track.DisplayText;
 
-
-            if (artist != _currentArtist || title != _currentTitle)
+            if (!track.HasTrack)
             {
-                _currentArtist = artist;
-                _currentTitle = title;
+                _lyricsSearchCts?.Cancel();
+                Interlocked.Increment(ref _lyricsSearchVersion);
+                _currentArtist = "";
+                _currentTitle = "";
+                _currentTrackKey = "";
                 _hasLyrics = false;
                 _lastLyricText = "";
                 _lastCurrentLyric = "";
-                
-                // Update tooltip and menu with new song info
+
                 Dispatcher.Invoke(() =>
                 {
-                    TooltipTitleText.Text = string.IsNullOrEmpty(title) ? "未知歌曲" : title;
-                    TooltipArtistText.Text = string.IsNullOrEmpty(artist) ? "未知艺术家" : artist;
-                    
-                    var menuText = this.FindName("MenuSongInfoText") as TextBlock;
-                    if (menuText != null)
-                    {
-                        string info = $"{TooltipTitleText.Text} - {TooltipArtistText.Text}";
-                        menuText.Text = info;
-                        menuText.ToolTip = info; // Add tooltip for full text
-                    }
-                    
-                    ShowStatusText(text);
+                    TooltipTitleText.Text = "未知歌曲";
+                    TooltipArtistText.Text = "未知艺术家";
+                    MenuSongInfoText.Text = displayText;
+                    MenuSongInfoText.ToolTip = displayText;
+                    ShowStatusText(displayText);
+                    _floatingWindow?.UpdateLyrics(displayText);
                 });
-                
-                // Search lyrics
-                _hasLyrics = await _lyricsEngine.SearchAndLoadLyricsAsync(artist, title);
-                
-                // 歌词检索完成后，根据最新的 _hasLyrics 状态重新应用布局
-                Dispatcher.Invoke(() =>
-                {
-                    ApplySettings();
-                });
+                return;
             }
 
-            else
+            string trackKey = $"{track.SourceAppId}\n{title}\n{artist}\n{track.Album}";
+            if (string.Equals(trackKey, _currentTrackKey, StringComparison.OrdinalIgnoreCase))
             {
-                 // Just update play state prefix if lyrics logic doesn't override
-                 if (!_hasLyrics)
-                 {
-                     Dispatcher.Invoke(() => ShowStatusText(text));
-                 }
+                return;
             }
+
+            _currentTrackKey = trackKey;
+            _currentArtist = artist;
+            _currentTitle = title;
+            _hasLyrics = false;
+            _lastLyricText = "";
+            _lastCurrentLyric = "";
+
+            _lyricsSearchCts?.Cancel();
+            _lyricsSearchCts?.Dispose();
+            var searchCts = new CancellationTokenSource();
+            _lyricsSearchCts = searchCts;
+            int searchVersion = Interlocked.Increment(ref _lyricsSearchVersion);
+
+            Dispatcher.Invoke(() =>
+            {
+                TooltipTitleText.Text = title;
+                TooltipArtistText.Text = string.IsNullOrEmpty(artist) ? "未知艺术家" : artist;
+                MenuSongInfoText.Text = displayText;
+                MenuSongInfoText.ToolTip = displayText;
+                ShowStatusText("正在搜索歌词…");
+                _floatingWindow?.UpdateLyrics("正在搜索歌词…");
+            });
+
+            var result = await _lyricsEngine.SearchAndLoadLyricsAsync(track, searchCts.Token);
+            if (searchCts.IsCancellationRequested || searchVersion != _lyricsSearchVersion)
+            {
+                return;
+            }
+
+            _hasLyrics = result.IsSuccess;
+            Dispatcher.Invoke(() =>
+            {
+                if (_hasLyrics)
+                {
+                    ShowStatusText(displayText);
+                    ApplySettings();
+                    UpdateLyricsUI(_lastMediaPosition);
+                }
+                else
+                {
+                    string statusText = string.IsNullOrEmpty(result.StatusText)
+                        ? "未找到歌词"
+                        : result.StatusText;
+                    ShowStatusText(statusText);
+                    _floatingWindow?.UpdateLyrics(statusText);
+                    ApplySettings();
+                }
+            });
         }
 
         private void MediaManager_PlaybackPositionChanged(object? sender, TimeSpan position)

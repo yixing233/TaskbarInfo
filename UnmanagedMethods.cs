@@ -28,6 +28,17 @@ namespace TaskbarInfo
             public int Right;
             public int Bottom;
         }
+
+        public const int WM_SYSCOMMAND = 0x0112;
+        public const int SC_SIZE = 0xF000;
+        public const int WMSZ_RIGHT = 2;
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ReleaseCapture();
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         
         public const int GWL_STYLE = -16;
         public const int GWL_EXSTYLE = -20;
