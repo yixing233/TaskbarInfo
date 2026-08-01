@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -19,7 +20,12 @@ namespace TaskbarInfo
         private AppSettings _settings;
         private readonly TranslateTransform _marqueeTransform = new();
         private int _marqueeUpdateVersion;
+        private int _placementLayoutVersion;
         private bool _isNativeWidthResizing;
+        private Color _floatingMainTextColor = Colors.White;
+        private Color _floatingActiveTextColor = Color.FromRgb(0x33, 0xBB, 0xFF);
+        private bool _hasTimedLyricProgress;
+        private double _lyricProgress;
         public bool IsAcrylicMode { get; }
         public event Action? CloseRequested;
         public event Action? SettingsRequested;
@@ -47,8 +53,80 @@ namespace TaskbarInfo
             ApplySettings();
             LockPositionMenuItem.IsChecked = _settings.FloatingLyricsLocked;
             this.Icon = App.GetAppIcon();
-            this.Loaded += (_, _) => ApplySavedPosition();
+            this.Loaded += FloatingLyricsWindow_Loaded;
+            this.ContentRendered += FloatingLyricsWindow_ContentRendered;
             this.SizeChanged += FloatingWindow_SizeChanged;
+        }
+
+        private void FloatingLyricsWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            ApplySavedPosition();
+            SchedulePlacementLayoutRefresh();
+        }
+
+        private void FloatingLyricsWindow_ContentRendered(object? sender, EventArgs e)
+        {
+            // Transparent/chromeless HWNDs can complete their first render with a backing surface
+            // sized in physical pixels as if they were DIPs. Re-assert the explicit logical width
+            // after the first composition pass instead of waiting for a mouse-driven native move.
+            SchedulePlacementLayoutRefresh();
+        }
+
+        protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+        {
+            base.OnDpiChanged(oldDpi, newDpi);
+            SchedulePlacementLayoutRefresh();
+        }
+
+        private void SchedulePlacementLayoutRefresh()
+        {
+            int version = ++_placementLayoutVersion;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (version != _placementLayoutVersion) return;
+
+                if (_settings.FloatingLyricsWidth is double savedWidth)
+                {
+                    SizeToContent = SizeToContent.Height;
+                    Width = Clamp(savedWidth, MinWidth, GetMaximumBubbleWidth());
+                    ResetViewportToContentWidth();
+                }
+
+                InvalidateMeasure();
+                InvalidateArrange();
+                FloatingBackground.InvalidateVisual();
+                UpdateLayout();
+                ConfigureMarquee();
+                SynchronizeNativeWindowSize();
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+        }
+
+        private void SynchronizeNativeWindowSize()
+        {
+            if (!IsLoaded) return;
+
+            IntPtr hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+
+            double logicalWidth = !double.IsNaN(Width) ? Width : ActualWidth;
+            double logicalHeight = ActualHeight > 0 ? ActualHeight : MinHeight;
+            if (logicalWidth <= 0 || logicalHeight <= 0) return;
+
+            DpiScale dpi = VisualTreeHelper.GetDpi(this);
+            int pixelWidth = Math.Max(1, (int)Math.Round(logicalWidth * dpi.DpiScaleX));
+            int pixelHeight = Math.Max(1, (int)Math.Round(logicalHeight * dpi.DpiScaleY));
+            UnmanagedMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                0,
+                0,
+                pixelWidth,
+                pixelHeight,
+                UnmanagedMethods.SWP_NOMOVE |
+                UnmanagedMethods.SWP_NOZORDER |
+                UnmanagedMethods.SWP_NOACTIVATE |
+                UnmanagedMethods.SWP_NOOWNERZORDER |
+                UnmanagedMethods.SWP_FRAMECHANGED);
         }
 
         public void ApplySettings(AppSettings settings)
@@ -64,12 +142,10 @@ namespace TaskbarInfo
                 var mainColor = (Color)ColorConverter.ConvertFromString(_settings.FloatingLyricsTextColor);
                 var activeColor = (Color)ColorConverter.ConvertFromString(_settings.ActiveTextColor);
                 var backgroundColor = (Color)ColorConverter.ConvertFromString(_settings.FloatingLyricsBackgroundColor);
-                
-                if (LyricText.Foreground is LinearGradientBrush brush && brush.GradientStops.Count >= 2)
-                {
-                    brush.GradientStops[0].Color = activeColor;
-                    brush.GradientStops[1].Color = mainColor;
-                }
+
+                _floatingMainTextColor = mainColor;
+                _floatingActiveTextColor = activeColor;
+                ApplyLyricProgressBrush();
 
                 ApplyAcrylicBackdrop(_settings.FloatingLyricsUseAcrylic, backgroundColor);
                 Background = System.Windows.Media.Brushes.Transparent;
@@ -134,11 +210,15 @@ namespace TaskbarInfo
 
             MinWidth = Math.Ceiling(minimumViewportWidth + horizontalPadding * 2);
             MinHeight = Math.Ceiling(lineHeight + verticalPadding * 2);
+            SizeToContent = SizeToContent.Height;
 
             if (_settings.FloatingLyricsWidth is double savedWidth)
             {
-                SizeToContent = SizeToContent.Height;
                 Width = Clamp(savedWidth, MinWidth, GetMaximumBubbleWidth());
+            }
+            else if (double.IsNaN(Width))
+            {
+                Width = MinWidth;
             }
         }
 
@@ -388,7 +468,7 @@ namespace TaskbarInfo
                 double finalWidth = Clamp(ActualWidth, MinWidth, GetMaximumBubbleWidth());
                 Width = finalWidth;
                 _settings.FloatingLyricsWidth = finalWidth;
-                UpdateViewportWidth(finalWidth);
+                ResetViewportToContentWidth();
                 ConfigureMarquee();
                 _settings.Save();
             }
@@ -398,23 +478,24 @@ namespace TaskbarInfo
         {
             if (_isNativeWidthResizing)
             {
-                UpdateViewportWidth(e.NewSize.Width);
+                ScheduleMarqueeUpdate();
             }
         }
 
-        private void UpdateViewportWidth(double bubbleWidth)
+        private void ResetViewportToContentWidth()
         {
-            double availableWidth = Math.Max(0,
-                bubbleWidth - FloatingBackground.Padding.Left - FloatingBackground.Padding.Right);
-            LyricViewport.Width = Math.Max(LyricViewport.MinWidth, availableWidth);
+            // The Border already subtracts its padding when arranging the viewport. Keeping the
+            // viewport on Auto avoids mixing the Window's outer width with its DPI-dependent
+            // client width, which previously left the right side one resize-border short.
+            LyricViewport.Width = double.NaN;
         }
 
         private void ResetBubbleWidthToAutomatic()
         {
             _settings.FloatingLyricsWidth = null;
             MaxWidth = double.PositiveInfinity;
-            SizeToContent = SizeToContent.WidthAndHeight;
-            ClearValue(WidthProperty);
+            SizeToContent = SizeToContent.Height;
+            Width = MinWidth;
             ScheduleMarqueeUpdate();
             _settings.Save();
         }
@@ -506,6 +587,9 @@ namespace TaskbarInfo
                 if (string.Equals(LyricText.Text, lyrics, StringComparison.Ordinal)) return;
 
                 LyricText.Text = lyrics;
+                _hasTimedLyricProgress = false;
+                _lyricProgress = 0;
+                ApplyLyricProgressBrush();
                 ScheduleMarqueeUpdate();
             }
             else
@@ -528,41 +612,69 @@ namespace TaskbarInfo
 
         private void ConfigureMarquee()
         {
+            StopMarquee();
             LyricTextDuplicate.Visibility = Visibility.Collapsed;
-            LyricViewport.Width = double.NaN;
-            MarqueePanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+            Canvas.SetLeft(MarqueePanel, 0);
+            Canvas.SetTop(MarqueePanel, 0);
+            MarqueePanel.ClearValue(FrameworkElement.WidthProperty);
+            LyricText.ClearValue(FrameworkElement.WidthProperty);
+            LyricTextDuplicate.ClearValue(FrameworkElement.WidthProperty);
             LyricText.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
 
-            double textWidth = Math.Ceiling(LyricText.DesiredSize.Width);
+            // Reserve a small layout-rounding guard for glyph overhang. More importantly, assign
+            // the unbounded measurement back to both TextBlocks so a later viewport measure cannot
+            // truncate their visual to only the initially visible section.
+            double textWidth = FloatingLyricsLayout.GetTextRenderWidth(LyricText.DesiredSize.Width);
             double textHeight = Math.Ceiling(LyricText.DesiredSize.Height);
             double maxViewportWidth = Math.Min(680, Math.Max(320, SystemParameters.WorkArea.Width * 0.6));
-            double viewportWidth;
+            double requestedViewportWidth;
+
             if (_settings.FloatingLyricsWidth.HasValue)
             {
-                double bubbleWidth = !double.IsNaN(Width) ? Width : ActualWidth;
-                double availableWidth = Math.Max(0,
-                    bubbleWidth - FloatingBackground.Padding.Left - FloatingBackground.Padding.Right);
-                viewportWidth = Math.Max(LyricViewport.MinWidth, availableWidth);
+                Width = Clamp(_settings.FloatingLyricsWidth.Value, MinWidth, GetMaximumBubbleWidth());
+                requestedViewportWidth = Math.Max(LyricViewport.MinWidth,
+                    Width - FloatingBackground.Padding.Left - FloatingBackground.Padding.Right);
             }
             else
             {
-                viewportWidth = Math.Max(LyricViewport.MinWidth, Math.Min(textWidth, maxViewportWidth));
+                requestedViewportWidth = Math.Max(LyricViewport.MinWidth, Math.Min(textWidth, maxViewportWidth));
+                Width = FloatingLyricsLayout.GetBubbleWidth(
+                    requestedViewportWidth,
+                    FloatingBackground.Padding.Left,
+                    FloatingBackground.Padding.Right,
+                    MinWidth,
+                    GetMaximumBubbleWidth());
             }
 
-            LyricViewport.Width = viewportWidth;
+            SizeToContent = SizeToContent.Height;
+            LyricViewport.Width = double.NaN;
             LyricViewport.Height = Math.Max(LyricText.LineHeight, textHeight);
+            LyricText.Width = textWidth;
+            LyricTextDuplicate.Width = textWidth;
+            UpdateLayout();
+
+            double viewportWidth = LyricViewport.ActualWidth;
+            if (viewportWidth <= 0)
+            {
+                viewportWidth = requestedViewportWidth;
+            }
 
             if (textWidth <= viewportWidth + 1)
             {
+                MarqueePanel.Width = textWidth;
+                Canvas.SetLeft(MarqueePanel, Math.Max(0, (viewportWidth - textWidth) / 2));
+                Canvas.SetTop(MarqueePanel, Math.Max(0, (LyricViewport.ActualHeight - textHeight) / 2));
+                MarqueePanel.UpdateLayout();
                 return;
             }
 
-            MarqueePanel.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
             LyricTextDuplicate.Visibility = Visibility.Visible;
-            MarqueePanel.UpdateLayout();
 
-            const double gap = 50;
-            double distance = textWidth + gap;
+            double distance = textWidth + FloatingLyricsLayout.MarqueeGap;
+            MarqueePanel.Width = FloatingLyricsLayout.GetMarqueePanelWidth(textWidth);
+            Canvas.SetLeft(MarqueePanel, 0);
+            Canvas.SetTop(MarqueePanel, Math.Max(0, (LyricViewport.ActualHeight - textHeight) / 2));
+            MarqueePanel.UpdateLayout();
             double durationSeconds = Math.Max(4, distance / 42.0);
             var animation = new DoubleAnimation
             {
@@ -583,19 +695,44 @@ namespace TaskbarInfo
             LyricTextDuplicate.Visibility = Visibility.Collapsed;
         }
 
-        public void UpdateProgress(double progress)
+        public void UpdateProgress(double progress, bool hasTimedProgress = true)
         {
             if (CheckAccess())
             {
-                if (LyricText.Foreground is LinearGradientBrush brush && brush.GradientStops.Count >= 2)
-                {
-                    brush.GradientStops[0].Offset = progress;
-                    brush.GradientStops[1].Offset = Math.Min(1.0, progress + 0.05);
-                }
+                _hasTimedLyricProgress = hasTimedProgress;
+                _lyricProgress = Math.Clamp(progress, 0, 1);
+                ApplyLyricProgressBrush();
             }
             else
             {
-                Dispatcher.Invoke(() => UpdateProgress(progress));
+                Dispatcher.Invoke(() => UpdateProgress(progress, hasTimedProgress));
+            }
+        }
+
+        private void ApplyLyricProgressBrush()
+        {
+            if (LyricText.Foreground is not LinearGradientBrush brush || brush.GradientStops.Count < 2)
+            {
+                return;
+            }
+
+            var activeStop = brush.GradientStops[0];
+            var mainStop = brush.GradientStops[1];
+            if (FloatingLyricsLayout.ShouldUseActiveColor(_hasTimedLyricProgress))
+            {
+                activeStop.Color = _floatingActiveTextColor;
+                mainStop.Color = _floatingMainTextColor;
+                activeStop.Offset = _lyricProgress;
+                mainStop.Offset = _lyricProgress;
+            }
+            else
+            {
+                // Plain LRC lines have no per-word timing. Render the whole line in the normal
+                // color rather than leaving a synthetic colored strip on the first character.
+                activeStop.Color = _floatingMainTextColor;
+                mainStop.Color = _floatingMainTextColor;
+                activeStop.Offset = 0;
+                mainStop.Offset = 0;
             }
         }
     }

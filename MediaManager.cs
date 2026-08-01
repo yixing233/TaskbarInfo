@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Media.Control;
+using Windows.Storage.Streams;
 using WindowsMediaController;
 using static WindowsMediaController.MediaManager;
 
@@ -164,13 +165,23 @@ namespace TaskbarInfo
                     }
                     catch { }
 
+                    byte[]? albumArtBytes = null;
+                    try
+                    {
+                        albumArtBytes = await ReadAlbumArtAsync(info).WaitAsync(TimeSpan.FromSeconds(3));
+                    }
+                    catch { }
+
+                    if (session != _currentSession) return;
+
                     MediaInfoChanged?.Invoke(this, new MediaTrackInfo
                     {
                         Artist = info.Artist ?? "",
                         Title = info.Title ?? "",
                         Album = info.AlbumTitle ?? "",
                         DurationMs = durationMs,
-                        SourceAppId = session.Id
+                        SourceAppId = session.Id,
+                        AlbumArtBytes = albumArtBytes
                     });
                 }
             }
@@ -196,6 +207,28 @@ namespace TaskbarInfo
                     });
                 }
             }
+        }
+
+        private static async Task<byte[]?> ReadAlbumArtAsync(
+            GlobalSystemMediaTransportControlsSessionMediaProperties info)
+        {
+            if (info.Thumbnail == null) return null;
+
+            using IRandomAccessStreamWithContentType stream = await info.Thumbnail.OpenReadAsync();
+            const ulong maximumBytes = 10 * 1024 * 1024;
+            if (stream.Size == 0 || stream.Size > maximumBytes || stream.Size > uint.MaxValue)
+            {
+                return null;
+            }
+
+            uint size = (uint)stream.Size;
+            using var reader = new DataReader(stream.GetInputStreamAt(0));
+            uint loaded = await reader.LoadAsync(size);
+            if (loaded == 0) return null;
+
+            var bytes = new byte[loaded];
+            reader.ReadBytes(bytes);
+            return bytes;
         }
 
         public async Task PlayPauseAsync()

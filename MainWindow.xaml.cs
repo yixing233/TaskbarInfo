@@ -47,6 +47,7 @@ namespace TaskbarInfo
         private string _currentArtist = "";
         private string _currentTitle = "";
         private string _currentTrackKey = "";
+        private MediaTrackInfo _currentTrackInfo = new();
         private bool _hasLyrics = false;
         private string _lastLyricText = "";
         private string _lastCurrentLyric = ""; // Track current lyric separately for animation
@@ -66,6 +67,8 @@ namespace TaskbarInfo
 
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
         private FloatingLyricsWindow? _floatingWindow;
+        private DesktopWidgetWindow? _desktopWidget;
+        private DispatcherTimer? _desktopHostTimer;
         private readonly UpdateService _updateService = new UpdateService();
         private UpdateCheckResult? _pendingUpdateResult;
         private bool _isCheckingUpdates;
@@ -230,6 +233,7 @@ namespace TaskbarInfo
             
             // Ensure floating window is correct state (in case menu item was null or event didn't fire)
             ManageFloatingWindow();
+            ManageDesktopWidget();
             
             InjectIntoTaskbar();
             
@@ -273,6 +277,7 @@ namespace TaskbarInfo
 
             // Update UI with interpolated position
             UpdateLyricsUI(currentEstimatedPosition);
+            _desktopWidget?.UpdatePlayback(currentEstimatedPosition, GetCurrentTrackDuration());
         }
 
         // ... existing methods ...
@@ -426,6 +431,8 @@ namespace TaskbarInfo
             
             // Sync Floating Window
             _floatingWindow?.ApplySettings(_settings);
+            ManageDesktopWidget();
+            _desktopWidget?.ApplySettings(_settings);
 
             // Do NOT set this.Width/Height here, as it causes conflict with MoveWindow in InjectIntoTaskbar
             // this.Width = _settings.Width;
@@ -784,6 +791,7 @@ namespace TaskbarInfo
         {
             bool isPlaying = status == Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
             _floatingWindow?.SetPlaybackState(isPlaying);
+            _desktopWidget?.SetPlaybackState(isPlaying);
 
             if (isPlaying)
             {
@@ -926,6 +934,85 @@ namespace TaskbarInfo
 
         private Task FloatingWindow_NextTrackRequested() => _mediaManager.NextTrackAsync();
 
+        private void ManageDesktopWidget()
+        {
+            if (_settings.EnableDesktopWidget)
+            {
+                if (_desktopWidget == null)
+                {
+                    _desktopWidget = new DesktopWidgetWindow(_settings);
+                    _desktopWidget.CloseRequested += DesktopWidget_CloseRequested;
+                    _desktopWidget.SettingsRequested += DesktopWidget_SettingsRequested;
+                    _desktopWidget.PreviousTrackRequested += DesktopWidget_PreviousTrackRequested;
+                    _desktopWidget.PlayPauseRequested += DesktopWidget_PlayPauseRequested;
+                    _desktopWidget.NextTrackRequested += DesktopWidget_NextTrackRequested;
+                    _desktopWidget.Show();
+                    _desktopWidget.UpdateTrack(_currentTrackInfo);
+                    _desktopWidget.SetPlaybackState(_isMediaPlaying);
+                    _desktopWidget.UpdatePlayback(_lastMediaPosition, GetCurrentTrackDuration());
+
+                    string initialLyric = !string.IsNullOrWhiteSpace(_lastCurrentLyric)
+                        ? _lastCurrentLyric
+                        : (_currentTrackInfo.HasTrack ? _currentTrackInfo.DisplayText : "等待播放");
+                    _desktopWidget.UpdateLyrics(initialLyric);
+                }
+                else
+                {
+                    _desktopWidget.ApplySettings(_settings);
+                    if (!_desktopWidget.IsVisible) _desktopWidget.Show();
+                    _desktopWidget.EnsureDesktopAttachment();
+                }
+
+                EnsureDesktopHostTimer();
+            }
+            else
+            {
+                _desktopHostTimer?.Stop();
+                if (_desktopWidget != null)
+                {
+                    _desktopWidget.CloseRequested -= DesktopWidget_CloseRequested;
+                    _desktopWidget.SettingsRequested -= DesktopWidget_SettingsRequested;
+                    _desktopWidget.PreviousTrackRequested -= DesktopWidget_PreviousTrackRequested;
+                    _desktopWidget.PlayPauseRequested -= DesktopWidget_PlayPauseRequested;
+                    _desktopWidget.NextTrackRequested -= DesktopWidget_NextTrackRequested;
+                    _desktopWidget.Close();
+                    _desktopWidget = null;
+                }
+            }
+        }
+
+        private void EnsureDesktopHostTimer()
+        {
+            if (_desktopHostTimer == null)
+            {
+                _desktopHostTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(100)
+                };
+                _desktopHostTimer.Tick += (_, _) => _desktopWidget?.RefreshDesktopAttachment();
+            }
+            _desktopHostTimer.Start();
+        }
+
+        private void DesktopWidget_CloseRequested()
+        {
+            _settings.EnableDesktopWidget = false;
+            _settings.Save();
+            ManageDesktopWidget();
+        }
+
+        private void DesktopWidget_SettingsRequested() => OpenSettings(4);
+        private Task DesktopWidget_PreviousTrackRequested() => _mediaManager.PreviousTrackAsync();
+        private Task DesktopWidget_PlayPauseRequested() => _mediaManager.PlayPauseAsync();
+        private Task DesktopWidget_NextTrackRequested() => _mediaManager.NextTrackAsync();
+
+        private TimeSpan GetCurrentTrackDuration()
+        {
+            return _currentTrackInfo.DurationMs is > 0
+                ? TimeSpan.FromMilliseconds(_currentTrackInfo.DurationMs.Value)
+                : TimeSpan.Zero;
+        }
+
         private void FloatingLyricsCtx_Checked(object sender, RoutedEventArgs e)
         {
             _settings.FloatingLyricsClickThrough = true;
@@ -946,6 +1033,8 @@ namespace TaskbarInfo
 
         private async void MediaManager_MediaInfoChanged(object? sender, MediaTrackInfo track)
         {
+            _currentTrackInfo = track;
+            Dispatcher.Invoke(() => _desktopWidget?.UpdateTrack(track));
             string artist = track.Artist.Trim();
             string title = track.Title.Trim();
             string displayText = track.DisplayText;
@@ -1034,6 +1123,7 @@ namespace TaskbarInfo
             // Sync anchor point
             _lastMediaPosition = position;
             _lastSyncTime = DateTime.Now;
+            _desktopWidget?.UpdatePlayback(position, GetCurrentTrackDuration());
 
             if (_hasLyrics)
             {
@@ -1115,7 +1205,12 @@ namespace TaskbarInfo
             if (_settings.EnableFloatingLyrics && _floatingWindow != null && target == _mainLyricControl)
             {
                 _floatingWindow.UpdateLyrics(line.Text);
-                _floatingWindow.UpdateProgress(progress);
+                _floatingWindow.UpdateProgress(progress, line.HasSyllables);
+            }
+
+            if (target == _mainLyricControl)
+            {
+                _desktopWidget?.UpdateLyrics(line.Text);
             }
         }
         
@@ -1234,6 +1329,7 @@ namespace TaskbarInfo
             _isShowingStatusText = true;
             ApplyStatusTextLayout();
             UpdateSingleLineScroll(_mainLyricControl, text, 0, true);
+            _desktopWidget?.UpdateLyrics(text);
         }
 
         private void UpdateSingleLineScroll(TextBlock target, string text, double durationSeconds, bool isInfinite = false)

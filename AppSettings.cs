@@ -33,6 +33,15 @@ namespace TaskbarInfo
         public double? FloatingLyricsLeft { get; set; } = null;
         public double? FloatingLyricsTop { get; set; } = null;
         public double? FloatingLyricsWidth { get; set; } = null;
+
+        public bool EnableDesktopWidget { get; set; } = false;
+        public DesktopWidgetTheme DesktopWidgetTheme { get; set; } = DesktopWidgetTheme.Dark;
+        public double DesktopWidgetLeft { get; set; } = 48;
+        public double DesktopWidgetTop { get; set; } = 48;
+        public string DesktopWidgetMonitorDeviceName { get; set; } = "";
+        public double? DesktopWidgetMonitorOffsetX { get; set; } = null;
+        public double? DesktopWidgetMonitorOffsetY { get; set; } = null;
+        public bool DesktopWidgetLocked { get; set; } = false;
         
         public double NextLyricFontSizeDiff { get; set; } = 2.0;
         public string NextLyricFontWeight { get; set; } = "Normal"; // Normal, Light, Bold etc. 

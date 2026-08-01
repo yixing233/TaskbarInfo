@@ -111,6 +111,10 @@ namespace TaskbarInfo
             FloatingBgColorBox.Text = _settings.FloatingLyricsBackgroundColor;
             CheckFloatingShadow.IsChecked = _settings.FloatingLyricsEnableShadow;
             CheckFloatingAcrylic.IsChecked = _settings.FloatingLyricsUseAcrylic;
+            CheckDesktopWidget.IsChecked = _settings.EnableDesktopWidget;
+            DesktopWidgetDarkThemeRadio.IsChecked = _settings.DesktopWidgetTheme == DesktopWidgetTheme.Dark;
+            DesktopWidgetLightThemeRadio.IsChecked = _settings.DesktopWidgetTheme == DesktopWidgetTheme.Light;
+            CheckDesktopWidgetLocked.IsChecked = _settings.DesktopWidgetLocked;
 
             // Initialize main font weight selector
             foreach (ComboBoxItem item in ComboFontWeight.Items)
@@ -249,6 +253,12 @@ namespace TaskbarInfo
             SliderWidth.ValueChanged += (s, e) => OnValueChanged();
             CheckAutoUpdate.Checked += (s, e) => OnValueChanged();
             CheckAutoUpdate.Unchecked += (s, e) => OnValueChanged();
+            CheckDesktopWidget.Checked += (s, e) => OnValueChanged();
+            CheckDesktopWidget.Unchecked += (s, e) => OnValueChanged();
+            CheckDesktopWidgetLocked.Checked += (s, e) => OnValueChanged();
+            CheckDesktopWidgetLocked.Unchecked += (s, e) => OnValueChanged();
+            DesktopWidgetDarkThemeRadio.Checked += (s, e) => OnValueChanged();
+            DesktopWidgetLightThemeRadio.Checked += (s, e) => OnValueChanged();
 
             TxtLyricOffset.TextChanged += (s, e) => {
                 if (_isUpdating) return;
@@ -389,6 +399,16 @@ namespace TaskbarInfo
             }
         }
 
+        private void ResetDesktopWidgetPosition_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.DesktopWidgetLeft = 48;
+            _settings.DesktopWidgetTop = 48;
+            _settings.DesktopWidgetMonitorDeviceName = "";
+            _settings.DesktopWidgetMonitorOffsetX = null;
+            _settings.DesktopWidgetMonitorOffsetY = null;
+            _previewCallback?.Invoke();
+        }
+
         private void OnValueChanged()
         {
             if (_isUpdating) return;
@@ -408,6 +428,11 @@ namespace TaskbarInfo
             _settings.FloatingLyricsBackgroundColor = FloatingBgColorBox.Text;
             _settings.FloatingLyricsEnableShadow = CheckFloatingShadow.IsChecked == true;
             _settings.FloatingLyricsUseAcrylic = CheckFloatingAcrylic.IsChecked == true;
+            _settings.EnableDesktopWidget = CheckDesktopWidget.IsChecked == true;
+            _settings.DesktopWidgetTheme = DesktopWidgetLightThemeRadio.IsChecked == true
+                ? DesktopWidgetTheme.Light
+                : DesktopWidgetTheme.Dark;
+            _settings.DesktopWidgetLocked = CheckDesktopWidgetLocked.IsChecked == true;
             _settings.EnableShadow = CheckShadow.IsChecked == true;
             _settings.EnableOutline = false; // Feature removed from UI
             _settings.Width = SliderWidth.Value;
@@ -520,6 +545,27 @@ namespace TaskbarInfo
             {
                 FloatingBgColorPreview.Background = new SolidColorBrush(Colors.White);
             }
+
+            UpdateDesktopWidgetThemePreview();
+        }
+
+        private void UpdateDesktopWidgetThemePreview()
+        {
+            if (DesktopWidgetPreviewCard == null) return;
+
+            var palette = DesktopWidgetThemePalette.Get(_settings.DesktopWidgetTheme);
+            DesktopWidgetPreviewCard.Background = CreateBrush(palette.CardBackground);
+            DesktopWidgetPreviewCard.BorderBrush = CreateBrush(palette.CardBorder);
+            DesktopWidgetPreviewTitle.Foreground = CreateBrush(palette.PrimaryText);
+            DesktopWidgetPreviewArtist.Foreground = CreateBrush(palette.SecondaryText);
+            DesktopWidgetPreviewLyric.Foreground = CreateBrush(palette.LyricText);
+            DesktopWidgetPreviewProgressTrack.Background = CreateBrush(palette.ProgressTrack);
+            DesktopWidgetPreviewProgressFill.Background = CreateBrush(palette.Accent);
+        }
+
+        private static SolidColorBrush CreateBrush(string color)
+        {
+            return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
         }
 
         private bool UpdateValidationState()

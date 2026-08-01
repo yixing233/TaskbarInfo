@@ -10,6 +10,7 @@ namespace TaskbarInfo
         public int? DurationMs { get; init; }
         public string SourceAppId { get; init; } = "";
         public string StatusText { get; init; } = "";
+        public byte[]? AlbumArtBytes { get; init; }
 
         public bool HasTrack => !string.IsNullOrWhiteSpace(Title);
 
