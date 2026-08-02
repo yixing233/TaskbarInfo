@@ -1,24 +1,38 @@
-# Build outputs
-bin/
-obj/
-publish/
+# .NET / MSBuild build outputs
+**/[Bb]in/
+**/[Oo]bj/
+**/[Pp]ublish/
+artifacts/
+TestResults/
+**/TestResults/
+*.nupkg
+*.snupkg
 
-# IDE/editor
+# IDE and local editor state
 .vs/
 .vscode/
+.idea/
 *.user
-*.rsuser
-*.suo
 *.userosscache
+*.suo
+*.rsuser
+*.DotSettings.user
 *.sln.docstates
 
-# Logs and temporary files
+# Test, coverage and diagnostic output
+*.trx
+*.coverage
+*.coveragexml
+coverage/
 *.log
 *.tmp
 *.temp
 *.cache
 *.pidb
 *.svclog
+*.dmp
+*.mdmp
+*.stackdump
 build*.txt
 error*.txt
 final_error*.txt
@@ -26,11 +40,25 @@ diag.log
 debug.log
 debug*.txt
 
-# Local reference/decompiler artifacts
-decompiler/
+# Local runtime configuration
+settings.json
+**/settings.json
+*.local.json
+
+# Packaging and installer output
+AppPackages/
+BundleArtifacts/
 installer/output/
+*.appxupload
+*.msixbundle
+*.appxbundle
+
+# Local reference, decompiler and agent planning artifacts
+decompiler/
+docs/superpowers/plans/
 参考代码-来自windhawk.txt
 
-# OS files
+# OS-generated files
 Thumbs.db
 Desktop.ini
+.DS_Store
