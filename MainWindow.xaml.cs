@@ -21,9 +21,12 @@ namespace TaskbarInfo
 {
     public partial class MainWindow : Window
     {
+        private const string SharedSettingsAppliedEventName = "LyricsX.Settings.Apply";
+
         public MainWindow()
         {
             InitializeComponent();
+            Closed += (_, _) => StopSharedSettingsApplyNotification();
             
             // Initialize references first
             _mainLyricControl = InfoText;
@@ -74,6 +77,8 @@ namespace TaskbarInfo
         private bool _isCheckingUpdates;
         
         private DispatcherTimer? _processMonitorTimer;
+        private EventWaitHandle? _sharedSettingsAppliedEvent;
+        private RegisteredWaitHandle? _sharedSettingsAppliedWait;
 
         private void SetupProcessMonitor()
         {
@@ -214,6 +219,7 @@ namespace TaskbarInfo
 
             // Load Settings
             _settings = AppSettings.Load();
+            StartSharedSettingsApplyNotification();
             
             // Apply visual settings
             ApplySettings();
@@ -669,35 +675,93 @@ namespace TaskbarInfo
 
         private void OpenSettings(int initialNavIndex)
         {
-            // Backup
-            AppSettings backup = _settings.Clone();
+            EventWaitHandle? settingsAppliedEvent = null;
+            RegisteredWaitHandle? settingsAppliedWait = null;
 
-            // Callback for Preview
-            Action onPreview = () => 
+            try
             {
-                ApplySettings();
-                InjectIntoTaskbar();
-            };
+                string settingsHost = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "SettingsHost",
+                    "LyricsX.Settings.exe");
+                if (!System.IO.File.Exists(settingsHost))
+                {
+                    System.Windows.MessageBox.Show("设置窗口组件未找到，请重新生成开发版本。", "LyricsX", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
 
-            SettingsWindow win = new SettingsWindow(_settings, onPreview, _mediaManager, initialNavIndex);
-            
-            if (win.ShowDialog() == true)
-            {
-                // Already applied via preview
-                _mediaManager.FilterAppIds = _settings.IncludedAppIds;
-                _mediaManager.RefreshSession();
-                ApplySettings(); 
-                InjectIntoTaskbar(); 
+                string applyEventName = $"LyricsX.Settings.{Environment.ProcessId}.{Guid.NewGuid():N}";
+                settingsAppliedEvent = new EventWaitHandle(false, EventResetMode.AutoReset, applyEventName);
+                settingsAppliedWait = ThreadPool.RegisterWaitForSingleObject(
+                    settingsAppliedEvent,
+                    (_, _) => Dispatcher.BeginInvoke(new Action(ReloadSettingsFromHost)),
+                    null,
+                    Timeout.Infinite,
+                    false);
+
+                var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = settingsHost,
+                    Arguments = $"\"{System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")}\" --page={initialNavIndex} --apply-event=\"{applyEventName}\"",
+                    UseShellExecute = false
+                });
+                if (process == null)
+                {
+                    DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
+                    return;
+                }
+
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (process.ExitCode == 0) ReloadSettingsFromHost();
+                    DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
+                    process.Dispose();
+                }));
             }
-            else
+            catch (Exception exception)
             {
-                // Cancelled - Restore backup
-                _settings = backup;
-                _mediaManager.FilterAppIds = _settings.IncludedAppIds;
-                _mediaManager.RefreshSession();
-                ApplySettings();
-                InjectIntoTaskbar();
+                DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
+                System.Windows.MessageBox.Show($"无法打开设置窗口：{exception.Message}", "LyricsX", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void ReloadSettingsFromHost()
+        {
+            _settings = AppSettings.Load();
+            _mediaManager.FilterAppIds = _settings.IncludedAppIds;
+            _mediaManager.RefreshSession();
+            ManageFloatingWindow();
+            ApplySettings();
+            InjectIntoTaskbar();
+        }
+
+        private void StartSharedSettingsApplyNotification()
+        {
+            _sharedSettingsAppliedEvent = new EventWaitHandle(
+                false,
+                EventResetMode.AutoReset,
+                SharedSettingsAppliedEventName);
+            _sharedSettingsAppliedWait = ThreadPool.RegisterWaitForSingleObject(
+                _sharedSettingsAppliedEvent,
+                (_, _) => Dispatcher.BeginInvoke(new Action(ReloadSettingsFromHost)),
+                null,
+                Timeout.Infinite,
+                false);
+        }
+
+        private void StopSharedSettingsApplyNotification()
+        {
+            _sharedSettingsAppliedWait?.Unregister(null);
+            _sharedSettingsAppliedWait = null;
+            _sharedSettingsAppliedEvent?.Dispose();
+            _sharedSettingsAppliedEvent = null;
+        }
+
+        private static void DisposeSettingsApplyNotification(EventWaitHandle? settingsAppliedEvent, RegisteredWaitHandle? settingsAppliedWait)
+        {
+            settingsAppliedWait?.Unregister(null);
+            settingsAppliedEvent?.Dispose();
         }
 
         // ... (Media Events kept as is, not shown here to avoid huge replacement) ...

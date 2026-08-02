@@ -5,14 +5,17 @@ var tests = new (string Name, Action Test)[]
     ("Clone copies app filter list independently", CloneCopiesAppFilterListIndependently),
     ("Desktop widget defaults to dark theme", DesktopWidgetDefaultsToDarkTheme),
     ("Desktop widget palettes differ by theme", DesktopWidgetPalettesDifferByTheme),
+    ("Desktop widget applies selected theme", DesktopWidgetAppliesSelectedTheme),
     ("Desktop widget formats playback time", DesktopWidgetFormatsPlaybackTime),
     ("Desktop widget scales to monitor DPI", DesktopWidgetScalesToMonitorDpi),
     ("Desktop widget clamps inside offset monitor", DesktopWidgetClampsInsideOffsetMonitor),
+    ("Settings window track limits scale to current DPI", SettingsWindowTrackLimitsScaleToCurrentDpi),
     ("Desktop host locates Explorer desktop view", DesktopHostLocatesExplorerDesktopView),
     ("Floating marquee keeps two complete lyric copies", FloatingMarqueeKeepsTwoCompleteLyricCopies),
     ("Floating bubble width is explicit and includes padding", FloatingBubbleWidthIsExplicitAndIncludesPadding),
     ("Floating bubble native width matches logical width", FloatingBubbleNativeWidthMatchesLogicalWidth),
     ("Floating marquee panel is not layout clipped", FloatingMarqueePanelIsNotLayoutClipped),
+    ("Floating marquee defers updates during native width resize", FloatingMarqueeDefersUpdatesDuringNativeWidthResize),
     ("Untimed floating lyric disables active color", UntimedFloatingLyricDisablesActiveColor),
 };
 
@@ -71,6 +74,55 @@ static void DesktopWidgetPalettesDifferByTheme()
     }
 }
 
+static void DesktopWidgetAppliesSelectedTheme()
+{
+    Exception? failure = null;
+    var thread = new Thread(() =>
+    {
+        DesktopWidgetWindow? widget = null;
+        try
+        {
+            widget = new DesktopWidgetWindow(new AppSettings
+            {
+                DesktopWidgetTheme = DesktopWidgetTheme.Dark
+            });
+            var card = widget.FindName("CardBorder") as System.Windows.Controls.Border
+                ?? throw new InvalidOperationException("desktop widget card was not created");
+            var darkBackground = card.Background as System.Windows.Media.SolidColorBrush
+                ?? throw new InvalidOperationException("desktop widget card background is not a solid brush");
+            AssertEqual("#E6081025", darkBackground.Color.ToString(), "dark theme card background");
+
+            widget.ApplySettings(new AppSettings
+            {
+                DesktopWidgetTheme = DesktopWidgetTheme.Light
+            });
+
+            var background = card.Background as System.Windows.Media.SolidColorBrush
+                ?? throw new InvalidOperationException("desktop widget card background is not a solid brush");
+            AssertEqual("#E6FFFFFF", background.Color.ToString(),
+                $"light theme card background ({background.Color})");
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            widget?.Dispose();
+        }
+    });
+    thread.SetApartmentState(ApartmentState.STA);
+    thread.Start();
+    if (!thread.Join(TimeSpan.FromSeconds(5)))
+    {
+        throw new TimeoutException("desktop widget theme test timed out");
+    }
+    if (failure != null)
+    {
+        throw new InvalidOperationException("desktop widget theme was not applied: " + failure.Message, failure);
+    }
+}
+
 static void DesktopWidgetFormatsPlaybackTime()
 {
     AssertEqual("0:18", DesktopWidgetFormatting.FormatTime(TimeSpan.FromSeconds(18)), "elapsed time");
@@ -80,8 +132,8 @@ static void DesktopWidgetFormatsPlaybackTime()
 static void DesktopWidgetScalesToMonitorDpi()
 {
     var size = DesktopWidgetLayout.GetPixelSize(1.25, 1.25);
-    AssertEqual(575, size.Width, "125% widget width");
-    AssertEqual(210, size.Height, "125% widget height");
+    AssertEqual(500, size.Width, "125% widget width");
+    AssertEqual(185, size.Height, "125% widget height");
     AssertEqual(3, DesktopWidgetLayout.LyricMaxLines, "visible lyric line count");
 }
 
@@ -90,15 +142,25 @@ static void DesktopWidgetClampsInsideOffsetMonitor()
     var position = DesktopWidgetLayout.ClampToWorkArea(
         -100,
         20,
-        575,
+        500,
         205,
         -2400,
         140,
         0,
         1430);
 
-    AssertEqual(-575, position.X, "right edge should remain on the left monitor");
+    AssertEqual(-500, position.X, "right edge should remain on the left monitor");
     AssertEqual(140, position.Y, "top should respect the monitor's vertical offset");
+}
+
+static void SettingsWindowTrackLimitsScaleToCurrentDpi()
+{
+    var bounds = WindowSizeConstraints.GetTrackSizeBounds(700, 540, 1120, 760, 144);
+
+    AssertEqual(1050, bounds.MinimumWidth, "minimum width should scale at 150% DPI");
+    AssertEqual(810, bounds.MinimumHeight, "minimum height should scale at 150% DPI");
+    AssertEqual(1680, bounds.MaximumWidth, "maximum width should scale at 150% DPI");
+    AssertEqual(1140, bounds.MaximumHeight, "maximum height should scale at 150% DPI");
 }
 
 static void DesktopHostLocatesExplorerDesktopView()
@@ -196,6 +258,28 @@ static void FloatingMarqueePanelIsNotLayoutClipped()
                 "marquee panel must not retain a viewport-sized layout clip");
         }
     });
+}
+
+static void FloatingMarqueeDefersUpdatesDuringNativeWidthResize()
+{
+    var resize = new FloatingLyricsResizeCoordinator();
+    int beforeResize = resize.ScheduleMarqueeUpdate();
+
+    resize.BeginNativeWidthResize();
+    int duringResize = resize.ScheduleMarqueeUpdate();
+
+    AssertEqual(false, resize.CanApplyMarqueeUpdate(beforeResize),
+        "a queued update before resizing must be invalidated");
+    AssertEqual(false, resize.CanApplyMarqueeUpdate(duringResize),
+        "a queued update must not re-layout while Windows owns the resize loop");
+
+    resize.EndNativeWidthResize();
+    int afterResize = resize.ScheduleMarqueeUpdate();
+
+    AssertEqual(false, resize.CanApplyMarqueeUpdate(duringResize),
+        "the deferred resize update must not replay after resizing ends");
+    AssertEqual(true, resize.CanApplyMarqueeUpdate(afterResize),
+        "only the final post-resize update may re-layout the marquee");
 }
 
 static void RunFloatingWindowLayoutTest(

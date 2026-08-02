@@ -672,7 +672,15 @@ namespace TaskbarInfo
 
         private void SetThemeBrush(string key, string color)
         {
-            Resources[key] = new SolidColorBrush(ParseThemeColor(color));
+            Color parsedColor = ParseThemeColor(color);
+            if (Resources[key] is SolidColorBrush brush && !brush.IsFrozen)
+            {
+                // Existing controls hold this brush instance through DynamicResource.
+                brush.Color = parsedColor;
+                return;
+            }
+
+            Resources[key] = new SolidColorBrush(parsedColor);
         }
 
         private static Color ParseThemeColor(string color)

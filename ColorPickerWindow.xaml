@@ -366,7 +366,7 @@
             
             <!-- HEX Input -->
             <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Hex色值:" Foreground="{StaticResource TextSecondaryColor}" FontSize="12.5" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                <TextBlock Text="十六进制色值:" Foreground="{StaticResource TextSecondaryColor}" FontSize="12.5" Margin="0,0,6,0" VerticalAlignment="Center"/>
                 <TextBox x:Name="HexInput" Text="#FFFFFFFF" Style="{StaticResource HexTextBoxStyle}" Width="120"
                          TextChanged="HexInput_TextChanged"/>
             </StackPanel>
@@ -386,13 +386,13 @@
             <!-- R Slider Row -->
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="32"/>  <!-- Color point indexer and Letter R -->
+                    <ColumnDefinition Width="42"/>  <!-- Color channel label -->
                     <ColumnDefinition Width="*"/>   <!-- Horizontal Slider -->
                     <ColumnDefinition Width="Auto"/> <!-- Manual input text box -->
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="#FF5252" Margin="0,0,4,0"/>
-                    <TextBlock Text="R:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                    <TextBlock Text="红:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
                 </StackPanel>
                 <Slider x:Name="SliderR" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
                 <TextBox x:Name="TextR" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
@@ -401,13 +401,13 @@
             <!-- G Slider Row -->
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="42"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="#4CAF50" Margin="0,0,4,0"/>
-                    <TextBlock Text="G:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                    <TextBlock Text="绿:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
                 </StackPanel>
                 <Slider x:Name="SliderG" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
                 <TextBox x:Name="TextG" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
@@ -416,13 +416,13 @@
             <!-- B Slider Row -->
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="42"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="#2196F3" Margin="0,0,4,0"/>
-                    <TextBlock Text="B:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                    <TextBlock Text="蓝:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
                 </StackPanel>
                 <Slider x:Name="SliderB" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
                 <TextBox x:Name="TextB" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
@@ -431,13 +431,13 @@
             <!-- A (Alpha) Slider Row -->
             <Grid Margin="0,0,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="42"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <Ellipse Width="6" Height="6" Fill="#9E9E9E" Margin="0,0,4,0"/>
-                    <TextBlock Text="A:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
+                    <TextBlock Text="透明度:" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryColor}" FontSize="12"/>
                 </StackPanel>
                 <Slider x:Name="SliderA" Grid.Column="1" Maximum="255" Margin="10,0" ValueChanged="Slider_ValueChanged"/>
                 <TextBox x:Name="TextA" Grid.Column="2" Style="{StaticResource ChannelTextBoxStyle}" TextChanged="TextChannel_TextChanged"/>
@@ -452,8 +452,8 @@
                 <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" Content="取 消" Padding="18,5" Click="Cancel_Click"/>
-            <Button Grid.Column="3" Content="确 定" Padding="18,5" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
+            <Button Grid.Column="1" Content="取消" Padding="18,5" Click="Cancel_Click"/>
+            <Button Grid.Column="3" Content="确认" Padding="18,5" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
         </Grid>
     </Grid>
 </Window>

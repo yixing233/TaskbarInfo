@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TaskbarInfo"
         mc:Ignorable="d"
-        Title="LyricsX Floating" SizeToContent="Height"
+        Title="LyricsX 悬浮歌词" SizeToContent="Height"
         MinWidth="200" MinHeight="50"
         WindowStyle="None" ResizeMode="CanResize"
         Background="Transparent" AllowsTransparency="True"

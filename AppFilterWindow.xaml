@@ -95,10 +95,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             
-            <Button Grid.Column="0" Content="刷 新" Width="60" Click="Refresh_Click"/>
+            <Button Grid.Column="0" Content="刷新" Width="60" Click="Refresh_Click"/>
             
-            <Button Grid.Column="2" Content="取 消" Width="70" Click="Cancel_Click"/>
-            <Button Grid.Column="4" Content="确 定" Width="70" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
+            <Button Grid.Column="2" Content="取消" Width="70" Click="Cancel_Click"/>
+            <Button Grid.Column="4" Content="确认" Width="70" Style="{StaticResource AccentButton}" Click="Confirm_Click"/>
         </Grid>
     </Grid>
 </Window>

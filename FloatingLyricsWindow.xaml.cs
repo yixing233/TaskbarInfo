@@ -19,9 +19,8 @@ namespace TaskbarInfo
 
         private AppSettings _settings;
         private readonly TranslateTransform _marqueeTransform = new();
-        private int _marqueeUpdateVersion;
+        private readonly FloatingLyricsResizeCoordinator _resizeCoordinator = new();
         private int _placementLayoutVersion;
-        private bool _isNativeWidthResizing;
         private Color _floatingMainTextColor = Colors.White;
         private Color _floatingActiveTextColor = Color.FromRgb(0x33, 0xBB, 0xFF);
         private bool _hasTimedLyricProgress;
@@ -55,7 +54,6 @@ namespace TaskbarInfo
             this.Icon = App.GetAppIcon();
             this.Loaded += FloatingLyricsWindow_Loaded;
             this.ContentRendered += FloatingLyricsWindow_ContentRendered;
-            this.SizeChanged += FloatingWindow_SizeChanged;
         }
 
         private void FloatingLyricsWindow_Loaded(object sender, RoutedEventArgs e)
@@ -452,7 +450,8 @@ namespace TaskbarInfo
                 return;
             }
 
-            _isNativeWidthResizing = true;
+            _resizeCoordinator.BeginNativeWidthResize();
+            StopMarquee();
             try
             {
                 UnmanagedMethods.ReleaseCapture();
@@ -464,21 +463,13 @@ namespace TaskbarInfo
             }
             finally
             {
-                _isNativeWidthResizing = false;
+                _resizeCoordinator.EndNativeWidthResize();
                 double finalWidth = Clamp(ActualWidth, MinWidth, GetMaximumBubbleWidth());
                 Width = finalWidth;
                 _settings.FloatingLyricsWidth = finalWidth;
                 ResetViewportToContentWidth();
-                ConfigureMarquee();
-                _settings.Save();
-            }
-        }
-
-        private void FloatingWindow_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            if (_isNativeWidthResizing)
-            {
                 ScheduleMarqueeUpdate();
+                _settings.Save();
             }
         }
 
@@ -600,18 +591,25 @@ namespace TaskbarInfo
 
         private void ScheduleMarqueeUpdate()
         {
-            int version = ++_marqueeUpdateVersion;
+            int version = _resizeCoordinator.ScheduleMarqueeUpdate();
             StopMarquee();
+
+            if (_resizeCoordinator.IsNativeWidthResizing)
+            {
+                return;
+            }
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (version != _marqueeUpdateVersion) return;
+                if (!_resizeCoordinator.CanApplyMarqueeUpdate(version)) return;
                 ConfigureMarquee();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void ConfigureMarquee()
         {
+            if (_resizeCoordinator.IsNativeWidthResizing) return;
+
             StopMarquee();
             LyricTextDuplicate.Visibility = Visibility.Collapsed;
             Canvas.SetLeft(MarqueePanel, 0);

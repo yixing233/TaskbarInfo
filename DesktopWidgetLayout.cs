@@ -4,9 +4,9 @@ namespace TaskbarInfo
 {
     public static class DesktopWidgetLayout
     {
-        public const double Width = 460;
-        public const double Height = 168;
-        public const double LyricLineHeight = 18;
+        public const double Width = 400;
+        public const double Height = 148;
+        public const double LyricLineHeight = 16;
         public const int LyricMaxLines = 3;
 
         public static DesktopWidgetPixelSize GetPixelSize(double dpiScaleX, double dpiScaleY)

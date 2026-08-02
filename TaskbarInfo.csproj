@@ -25,6 +25,25 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Keep the standalone WinUI settings host out of the WPF project's default globs. -->
+    <ApplicationDefinition Remove="Legacy\**\*.xaml;SettingsHost\**\*.xaml;Views\**\*.xaml" />
+    <Page Remove="Legacy\**\*.xaml;SettingsHost\**\*.xaml;Views\**\*.xaml" />
+    <Compile Remove="Legacy\**\*.cs;Hosting\**\*.cs;Interop\**\*.cs;Properties\**\*.cs;Services\**\*.cs;SettingsHost\**\*.cs;ViewModels\**\*.cs;Views\**\*.cs" />
+  </ItemGroup>
+
+  <Target Name="BuildAndCopySettingsHost" BeforeTargets="Build;CopyFilesToOutputDirectory">
+    <MSBuild Projects="SettingsHost\LyricsX.Settings.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <SettingsHostOutput Include="SettingsHost\bin\$(Configuration)\net9.0-windows10.0.19041.0\win-x64\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SettingsHostOutput)"
+          DestinationFiles="@(SettingsHostOutput->'$(OutDir)SettingsHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
     <Resource Include="src\icons\*.png" />
     <Resource Include="Fonts\fa-solid-900.ttf" />
   </ItemGroup>
