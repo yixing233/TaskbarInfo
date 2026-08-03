@@ -8,14 +8,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
     <WinUISDKReferences>false</WinUISDKReferences>
-    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Platforms>x64</Platforms>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;bin\**;obj\**;publish\**</DefaultItemExcludes>
     <RootNamespace>LyricsX.Settings</RootNamespace>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
+    <Version>1.1.1</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
     <InformationalVersion>1.1.0</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/LyricsX</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>

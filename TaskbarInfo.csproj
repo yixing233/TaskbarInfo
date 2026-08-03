@@ -11,13 +11,13 @@
     <AssemblyName>LyricsX</AssemblyName>
     <Product>LyricsX</Product>
     <Title>LyricsX</Title>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
-    <InformationalVersion>1.1.0</InformationalVersion>
+    <Version>1.1.1</Version>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
+    <FileVersion>1.1.1.0</FileVersion>
+    <InformationalVersion>1.1.1</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/LyricsX</RepositoryUrl>
     <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
-    <DefaultItemExcludes>$(DefaultItemExcludes);decompiler\**;installer\**;tests\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;bin\**;obj\**;publish\**;decompiler\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
   
   <ItemGroup>
@@ -33,13 +33,24 @@
 
   <Target Name="BuildAndCopySettingsHost" BeforeTargets="Build;CopyFilesToOutputDirectory">
     <MSBuild Projects="SettingsHost\LyricsX.Settings.csproj"
-             Targets="Build"
+             Targets="Rebuild"
              Properties="Configuration=$(Configuration)" />
+    <RemoveDir Directories="$(OutDir)SettingsHost" />
     <ItemGroup>
       <SettingsHostOutput Include="SettingsHost\$(BaseOutputPath)$(Configuration)\net9.0-windows10.0.19041.0\win-x64\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(SettingsHostOutput)"
           DestinationFiles="@(SettingsHostOutput->'$(OutDir)SettingsHost\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopySettingsHostToPublish" AfterTargets="Publish">
+    <RemoveDir Directories="$(PublishDir)SettingsHost" />
+    <ItemGroup>
+      <SettingsHostPublishOutput Include="$(OutDir)SettingsHost\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SettingsHostPublishOutput)"
+          DestinationFiles="@(SettingsHostPublishOutput->'$(PublishDir)SettingsHost\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
 
