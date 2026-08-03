@@ -17,6 +17,8 @@ var tests = new (string Name, Action Test)[]
     ("Floating marquee panel is not layout clipped", FloatingMarqueePanelIsNotLayoutClipped),
     ("Floating marquee defers updates during native width resize", FloatingMarqueeDefersUpdatesDuringNativeWidthResize),
     ("Untimed floating lyric disables active color", UntimedFloatingLyricDisablesActiveColor),
+    ("Taskbar monitor selection uses configured display", TaskbarMonitorSelectionUsesConfiguredDisplay),
+    ("Taskbar monitor selection falls back to primary taskbar", TaskbarMonitorSelectionFallsBackToPrimaryTaskbar),
 };
 
 var failures = new List<string>();
@@ -40,6 +42,29 @@ if (failures.Count > 0)
     Console.Error.WriteLine();
     Console.Error.WriteLine($"{failures.Count} test(s) failed.");
     Environment.Exit(1);
+}
+
+static void TaskbarMonitorSelectionUsesConfiguredDisplay()
+{
+    var primary = new TaskbarMonitor(new IntPtr(1), "\\\\.\\DISPLAY1");
+    var secondary = new TaskbarMonitor(new IntPtr(2), "\\\\.\\DISPLAY2");
+
+    TaskbarMonitor selected = TaskbarMonitorLocator.Select(
+        [primary, secondary],
+        "\\\\.\\DISPLAY2");
+
+    AssertEqual(secondary, selected, "configured display must select its secondary taskbar");
+}
+
+static void TaskbarMonitorSelectionFallsBackToPrimaryTaskbar()
+{
+    var primary = new TaskbarMonitor(new IntPtr(1), "\\\\.\\DISPLAY1");
+    var secondary = new TaskbarMonitor(new IntPtr(2), "\\\\.\\DISPLAY2");
+
+    AssertEqual(primary, TaskbarMonitorLocator.Select([primary, secondary], ""),
+        "an empty setting must keep the primary taskbar behavior");
+    AssertEqual(primary, TaskbarMonitorLocator.Select([primary, secondary], "\\\\.\\MISSING"),
+        "a disconnected display must fall back to the primary taskbar");
 }
 
 static void CloneCopiesAppFilterListIndependently()

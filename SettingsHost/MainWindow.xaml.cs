@@ -16,6 +16,9 @@ public sealed partial class MainWindow : Window
 {
     private const string SharedSettingsAppliedEventName = "LyricsX.Settings.Apply";
     private static readonly string[] FontWeightOptions = ["常规", "细体", "半粗", "粗体"];
+    private sealed record DisplayOption(string DeviceName, string Label);
+    private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr deviceContext, IntPtr monitorRect, IntPtr data);
+    private const uint MonitorInfofPrimary = 0x00000001;
     private const int DefaultWidth = 920;
     private const int DefaultHeight = 640;
     private const int MinimumWidthDip = 700;
@@ -287,9 +290,84 @@ public sealed partial class MainWindow : Window
         panel.AddRow(LabeledComboBox("下一句字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.NextLyricFontWeight), value => _settings.NextLyricFontWeight = ToFontWeight(value)));
         panel.AddRow(LabeledToggle("显示双行歌词", _settings.IsDoubleLine, value => _settings.IsDoubleLine = value));
         panel.AddRow(LabeledNumberBox("任务栏歌词宽度", _settings.Width, 180, 1600, value => _settings.Width = value));
+        DisplayOption[] displayOptions = GetDisplayOptions();
+        DisplayOption selectedDisplay = displayOptions.FirstOrDefault(option =>
+            string.Equals(option.DeviceName, _settings.TaskbarMonitorDeviceName, StringComparison.OrdinalIgnoreCase))
+            ?? displayOptions[0];
+        panel.AddRow(LabeledComboBox("显示屏", displayOptions.Select(option => option.Label).ToArray(), selectedDisplay.Label,
+            label => _settings.TaskbarMonitorDeviceName = displayOptions.First(option => option.Label == label).DeviceName));
         panel.AddRow(LabeledNumberBox("任务栏右侧偏移", _settings.OffsetX, 0, 200, value => _settings.OffsetX = (int)value));
         panel.AddRow(LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value));
         return Wrap(panel);
+    }
+
+    private static DisplayOption[] GetDisplayOptions()
+    {
+        try
+        {
+            var monitors = new List<(string DeviceName, int Width, int Height, bool IsPrimary)>();
+            MonitorEnumProc collectMonitor = (monitor, _, _, _) =>
+            {
+                var monitorInfo = new MonitorInfoEx { Size = Marshal.SizeOf<MonitorInfoEx>() };
+                if (GetMonitorInfo(monitor, ref monitorInfo))
+                {
+                    monitors.Add((
+                        monitorInfo.DeviceName,
+                        monitorInfo.Monitor.Right - monitorInfo.Monitor.Left,
+                        monitorInfo.Monitor.Bottom - monitorInfo.Monitor.Top,
+                        (monitorInfo.Flags & MonitorInfofPrimary) != 0));
+                }
+
+                return true;
+            };
+            EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, collectMonitor, IntPtr.Zero);
+
+            DisplayOption[] options = monitors
+                .OrderByDescending(monitor => monitor.IsPrimary)
+                .ThenBy(monitor => monitor.DeviceName, StringComparer.OrdinalIgnoreCase)
+                .Select((monitor, index) => new DisplayOption(
+                    monitor.DeviceName,
+                    $"显示器 {index + 1}{(monitor.IsPrimary ? "（主显示器）" : "")} — {monitor.Width} × {monitor.Height}"))
+                .ToArray();
+            return options.Length > 0 ? options : [new DisplayOption("", "主显示器")];
+        }
+        catch
+        {
+            return [new DisplayOption("", "主显示器")];
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumDisplayMonitors(
+        IntPtr deviceContext,
+        IntPtr clipRect,
+        MonitorEnumProc monitorEnumProc,
+        IntPtr data);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfoEx monitorInfo);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MonitorInfoEx
+    {
+        public int Size;
+        public NativeRect Monitor;
+        public NativeRect Work;
+        public uint Flags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string DeviceName;
     }
 
     private Page CreateVisualPage()
@@ -1247,6 +1325,7 @@ public sealed class SettingsDocument
     public string FontWeight { get; set; } = "SemiBold";
     public bool EnableOutline { get; set; }
     public int OffsetX { get; set; } = 10;
+    public string TaskbarMonitorDeviceName { get; set; } = "";
     public bool IsDoubleLine { get; set; } = true;
     public double LyricOffsetSeconds { get; set; }
     public List<string> IncludedAppIds { get; set; } = [];

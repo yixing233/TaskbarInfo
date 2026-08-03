@@ -776,7 +776,7 @@ namespace TaskbarInfo
                 if (hWnd == IntPtr.Zero) return;
 
                 // 1. Find the Taskbar
-                IntPtr taskbarWnd = UnmanagedMethods.FindWindow("Shell_TrayWnd", null);
+                IntPtr taskbarWnd = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarMonitorDeviceName);
                 if (taskbarWnd == IntPtr.Zero) return;
 
                 // Check if we are already child

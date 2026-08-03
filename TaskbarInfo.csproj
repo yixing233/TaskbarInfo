@@ -36,7 +36,7 @@
              Targets="Build"
              Properties="Configuration=$(Configuration)" />
     <ItemGroup>
-      <SettingsHostOutput Include="SettingsHost\bin\$(Configuration)\net9.0-windows10.0.19041.0\win-x64\**\*" />
+      <SettingsHostOutput Include="SettingsHost\$(BaseOutputPath)$(Configuration)\net9.0-windows10.0.19041.0\win-x64\**\*" />
     </ItemGroup>
     <Copy SourceFiles="@(SettingsHostOutput)"
           DestinationFiles="@(SettingsHostOutput->'$(OutDir)SettingsHost\%(RecursiveDir)%(Filename)%(Extension)')"

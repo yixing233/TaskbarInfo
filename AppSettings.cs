@@ -16,7 +16,8 @@ namespace TaskbarInfo
         public string FontWeight { get; set; } = "SemiBold"; // Normal, SemiBold, Bold etc.
         public bool EnableOutline { get; set; } = false; // Simulated outline
 
-        public int OffsetX { get; set; } = 10; 
+        public int OffsetX { get; set; } = 10;
+        public string TaskbarMonitorDeviceName { get; set; } = "";
         public bool IsDoubleLine { get; set; } = true; 
         public double LyricOffsetSeconds { get; set; } = 0; 
         public System.Collections.Generic.List<string> IncludedAppIds { get; set; } = new System.Collections.Generic.List<string>();  
