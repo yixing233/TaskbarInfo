@@ -400,7 +400,7 @@ public sealed partial class MainWindow : Window
 
     private Page CreateApplicationsPage()
     {
-        var panel = NewPanel("应用筛选", "限制歌词的显示条件和媒体来源。");
+        var panel = NewPanel("播放应用", "选择歌词来源，并限制歌词的显示条件。");
         var selectedAppIds = new HashSet<string>(_settings.IncludedAppIds, StringComparer.OrdinalIgnoreCase);
         var appIdBox = new TextBox
         {

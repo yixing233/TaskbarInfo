@@ -62,32 +62,34 @@
                 <NavigationViewItem Content="任务栏歌词" SelectsOnInvoked="False" IsExpanded="True">
                     <NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon>
                     <NavigationViewItem.MenuItems>
-                        <NavigationViewItem Content="字体排版" Tag="Typography" />
+                        <NavigationViewItem Content="布局与显示" Tag="Typography" />
                         <NavigationViewItem Content="视觉效果" Tag="Visual" />
                     </NavigationViewItem.MenuItems>
                 </NavigationViewItem>
                 <NavigationViewItem Content="悬浮歌词" Tag="Floating"><NavigationViewItem.Icon><SymbolIcon Symbol="Globe" /></NavigationViewItem.Icon></NavigationViewItem>
-                <NavigationViewItem Content="应用筛选" Tag="Applications"><NavigationViewItem.Icon><SymbolIcon Symbol="AllApps" /></NavigationViewItem.Icon></NavigationViewItem>
+                <NavigationViewItem Content="播放应用" Tag="Applications"><NavigationViewItem.Icon><SymbolIcon Symbol="AllApps" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="桌面组件" Tag="DesktopWidget"><NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon></NavigationViewItem>
                 <NavigationViewItem Content="关于" Tag="About"><NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon></NavigationViewItem>
             </NavigationView.MenuItems>
             <Frame x:Name="ContentFrame" />
         </NavigationView>
 
-        <Grid Grid.Row="2" Height="52">
+        <Grid Grid.Row="2" MinHeight="56">
             <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
-            <Grid Padding="12,10">
+            <Grid Padding="12,8">
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <InfoBar x:Name="ErrorInfoBar"
                          Grid.Column="0"
-                         HorizontalAlignment="Stretch"
+                         MaxWidth="360"
+                         HorizontalAlignment="Left"
                          VerticalAlignment="Center"
                          IsOpen="False"
                          Severity="Error" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <Button Content="取消"
                             MinWidth="64"
                             Height="32"
