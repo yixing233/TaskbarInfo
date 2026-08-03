@@ -7,6 +7,14 @@ namespace TaskbarInfo
     public class AppSettings
     {
         public double Width { get; set; } = 400;
+        public bool EnableTaskbarPerformanceMonitor { get; set; } = false;
+        public System.Collections.Generic.List<string> TaskbarPerformanceMetrics { get; set; } =
+            TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+        public int TaskbarPerformanceRefreshSeconds { get; set; } = 1;
+        public bool TaskbarPerformanceIsDoubleLine { get; set; } = false;
+        public string TaskbarPerformanceFontFamily { get; set; } = "Microsoft YaHei";
+        public double TaskbarPerformanceFontSize { get; set; } = 10;
+        public string TaskbarPerformanceFontWeight { get; set; } = "SemiBold";
         public double FontSize { get; set; } = 12;
         public string FontFamily { get; set; } = "Microsoft YaHei";
         public string TextColor { get; set; } = "#FFFFFF"; // Hex code
@@ -17,6 +25,7 @@ namespace TaskbarInfo
         public bool EnableOutline { get; set; } = false; // Simulated outline
 
         public int OffsetX { get; set; } = 10;
+        public int? TaskbarPerformanceOffsetX { get; set; }
         public string TaskbarMonitorDeviceName { get; set; } = "";
         public bool IsDoubleLine { get; set; } = true; 
         public double LyricOffsetSeconds { get; set; } = 0; 
@@ -61,7 +70,11 @@ namespace TaskbarInfo
                 {
                     string json = File.ReadAllText(ConfigPath);
                     var settings = JsonSerializer.Deserialize<AppSettings>(json);
-                    return settings ?? new AppSettings();
+                    if (settings == null) return new AppSettings();
+                    settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+                    settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
+                    settings.TaskbarPerformanceRefreshSeconds = NormalizeRefreshSeconds(settings.TaskbarPerformanceRefreshSeconds);
+                    return settings;
                 }
             }
             catch { }
@@ -93,7 +106,10 @@ namespace TaskbarInfo
         {
             var clone = (AppSettings)this.MemberwiseClone();
             clone.IncludedAppIds = new System.Collections.Generic.List<string>(IncludedAppIds);
+            clone.TaskbarPerformanceMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceMetrics);
             return clone;
         }
+
+        private static int NormalizeRefreshSeconds(int value) => value is 1 or 2 or 5 ? value : 1;
     }
 }

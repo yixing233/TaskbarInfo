@@ -17,6 +17,9 @@ namespace TaskbarInfo
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hWnd);
+
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
 
@@ -52,8 +55,11 @@ namespace TaskbarInfo
         public const int VK_LBUTTON = 0x01;
 
         public const int WM_SYSCOMMAND = 0x0112;
+        public const int WM_NCHITTEST = 0x0084;
         public const int SC_SIZE = 0xF000;
         public const int WMSZ_RIGHT = 2;
+        public const int HTTRANSPARENT = -1;
+        public const int HTCLIENT = 1;
 
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

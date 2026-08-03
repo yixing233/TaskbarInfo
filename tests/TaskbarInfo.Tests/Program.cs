@@ -3,6 +3,13 @@ using TaskbarInfo;
 var tests = new (string Name, Action Test)[]
 {
     ("Clone copies app filter list independently", CloneCopiesAppFilterListIndependently),
+    ("Taskbar performance defaults are compact", TaskbarPerformanceDefaultsAreCompact),
+    ("Taskbar performance selection removes unknown and duplicate metrics", TaskbarPerformanceSelectionIsNormalized),
+    ("Taskbar performance formatter follows selected metrics", TaskbarPerformanceFormatterFollowsSelection),
+    ("Taskbar performance formatter supports two lines", TaskbarPerformanceFormatterSupportsTwoLines),
+    ("Taskbar performance layout supports an independent drag offset", TaskbarPerformanceLayoutSupportsIndependentDragOffset),
+    ("Taskbar performance layout adapts to font metrics and DPI", TaskbarPerformanceLayoutAdaptsToFontMetricsAndDpi),
+    ("Taskbar performance collector emits native snapshot", TaskbarPerformanceCollectorEmitsNativeSnapshot),
     ("Desktop widget defaults to dark theme", DesktopWidgetDefaultsToDarkTheme),
     ("Desktop widget palettes differ by theme", DesktopWidgetPalettesDifferByTheme),
     ("Desktop widget applies selected theme", DesktopWidgetAppliesSelectedTheme),
@@ -77,6 +84,161 @@ static void CloneCopiesAppFilterListIndependently()
 
     AssertEqual(1, clone.IncludedAppIds.Count, "clone should keep the original app filter snapshot");
     AssertEqual("Spotify", clone.IncludedAppIds[0], "clone should preserve existing app id");
+}
+
+static void TaskbarPerformanceDefaultsAreCompact()
+{
+    var settings = new AppSettings();
+
+    AssertEqual(false, settings.EnableTaskbarPerformanceMonitor, "performance monitor must be opt-in");
+    AssertEqual(3, settings.TaskbarPerformanceMetrics.Count, "the default metric list should be readable");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Cpu, settings.TaskbarPerformanceMetrics[0], "CPU should be the first default metric");
+    AssertEqual(1, settings.TaskbarPerformanceRefreshSeconds, "default refresh interval");
+}
+
+static void TaskbarPerformanceSelectionIsNormalized()
+{
+    var normalized = TaskbarPerformanceMetricCatalog.Normalize([
+        "memory", "CPU", "memory", "not-a-metric", " GPU "
+    ]);
+
+    AssertEqual(3, normalized.Count, "known metrics should be kept once");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Memory, normalized[0], "selection order should be preserved");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Cpu, normalized[1], "case-insensitive CPU id");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Gpu, normalized[2], "GPU id should be normalized");
+}
+
+static void TaskbarPerformanceFormatterFollowsSelection()
+{
+    var snapshot = new TaskbarPerformanceSnapshot(12.4, 54.1, 0.4, 4.2 * 1024 * 1024, 512);
+    string text = TaskbarPerformanceFormatter.Format(snapshot, [
+        TaskbarPerformanceMetricCatalog.Memory,
+        TaskbarPerformanceMetricCatalog.Download,
+        TaskbarPerformanceMetricCatalog.Upload
+    ]);
+
+    AssertEqual("内存 54%  ↓ 4.20 MB/s  ↑ 512 B/s", text, "formatter should only include selected metrics");
+
+    string compact = TaskbarPerformanceFormatter.Format(
+        snapshot,
+        TaskbarPerformanceMetricCatalog.DefaultSelection,
+        maxCharacters: 12);
+    AssertEqual("CPU 12%", compact, "compact formatter should drop lower-priority metrics");
+}
+
+static void TaskbarPerformanceFormatterSupportsTwoLines()
+{
+    var snapshot = new TaskbarPerformanceSnapshot(12.4, 54.1, 0.4, 4.2 * 1024 * 1024, 512);
+    var lines = TaskbarPerformanceFormatter.FormatLines(snapshot, [
+        TaskbarPerformanceMetricCatalog.Cpu,
+        TaskbarPerformanceMetricCatalog.Memory,
+        TaskbarPerformanceMetricCatalog.Download,
+        TaskbarPerformanceMetricCatalog.Upload
+    ], doubleLine: true);
+
+    AssertEqual("CPU 12%  内存 54%", lines.First, "first performance line");
+    AssertEqual("↓ 4.20 MB/s  ↑ 512 B/s", lines.Second, "second performance line");
+}
+
+static void TaskbarPerformanceLayoutSupportsIndependentDragOffset()
+{
+    var metrics = new[]
+    {
+        TaskbarPerformanceMetricCatalog.Cpu,
+        TaskbarPerformanceMetricCatalog.Memory
+    };
+
+    AssertEqual(159, TaskbarPerformanceLayout.GetWidth(metrics),
+        "performance width should be fixed from the selected metrics");
+    AssertEqual(94, TaskbarPerformanceLayout.GetWidth(metrics, doubleLine: true),
+        "two-line metrics should size to the widest line");
+
+    AssertEqual(199, TaskbarPerformanceLayout.GetWidth([
+        TaskbarPerformanceMetricCatalog.Cpu,
+        TaskbarPerformanceMetricCatalog.Memory,
+        TaskbarPerformanceMetricCatalog.Download,
+        TaskbarPerformanceMetricCatalog.Upload
+    ], doubleLine: true), "two-line metrics should size to the widest line");
+
+    int defaultLeft = TaskbarPerformanceLayout.GetLeftBesideLyrics(
+        taskbarWidth: 1200,
+        lyricLeft: 700,
+        metricIds: metrics);
+    AssertEqual(535, defaultLeft, "default performance position should start to the left of lyrics");
+
+    int defaultOffset = TaskbarPerformanceLayout.GetOffsetForLeft(1000, 153, defaultLeft);
+    var position = TaskbarPerformanceLayout.GetPosition(
+        taskbarWidth: 1200,
+        taskbarHeight: 40,
+        trayLeft: 1000,
+        offsetX: defaultOffset,
+        metricIds: metrics);
+    AssertEqual(529, position.Left, "derived default offset should preserve the initial position");
+    AssertEqual(40, position.Height, "performance component should fill the taskbar height");
+
+    AssertEqual(821, TaskbarPerformanceLayout.GetLeftFromTray(
+        taskbarWidth: 1200,
+        trayLeft: 1000,
+        metricIds: metrics,
+        offsetX: 20), "saved performance offset should position the component independently from lyrics");
+    AssertEqual(0, TaskbarPerformanceLayout.GetLeftFromTray(
+        taskbarWidth: 120,
+        trayLeft: 10,
+        metricIds: metrics,
+        offsetX: 20), "performance component should not leave the taskbar bounds");
+}
+
+static void TaskbarPerformanceLayoutAdaptsToFontMetricsAndDpi()
+{
+    var metrics = new[]
+    {
+        TaskbarPerformanceMetricCatalog.Cpu,
+        TaskbarPerformanceMetricCatalog.Gpu,
+        TaskbarPerformanceMetricCatalog.Memory,
+        TaskbarPerformanceMetricCatalog.Download,
+        TaskbarPerformanceMetricCatalog.Upload
+    };
+
+    int compact = TaskbarPerformanceLayout.GetWidth(metrics, doubleLine: true, "Segoe UI", 10, "Normal", 1);
+    int large = TaskbarPerformanceLayout.GetWidth(metrics, doubleLine: true, "Segoe UI", 16, "Bold", 1);
+    int scaled = TaskbarPerformanceLayout.GetWidth(metrics, doubleLine: true, "Segoe UI", 10, "Normal", 1.5);
+
+    if (large <= compact)
+    {
+        throw new InvalidOperationException("larger font settings should require more width.");
+    }
+    if (scaled <= compact)
+    {
+        throw new InvalidOperationException("high-DPI rendering should scale the physical width.");
+    }
+}
+
+static void TaskbarPerformanceCollectorEmitsNativeSnapshot()
+{
+    if (!OperatingSystem.IsWindows()) return;
+
+    using var signal = new ManualResetEventSlim();
+    TaskbarPerformanceSnapshot? snapshot = null;
+    using var collector = new TaskbarPerformanceCollector();
+    collector.SnapshotUpdated += (_, value) =>
+    {
+        snapshot = value;
+        signal.Set();
+    };
+    collector.Start(1);
+
+    if (!signal.Wait(TimeSpan.FromSeconds(4)))
+    {
+        throw new TimeoutException("performance collector did not emit a snapshot");
+    }
+
+    if (snapshot == null || !snapshot.MemoryUsagePercent.HasValue)
+    {
+        throw new InvalidOperationException("native memory usage was not collected");
+    }
+
+    collector.Stop();
+    if (collector.IsRunning) throw new InvalidOperationException("collector did not stop");
 }
 
 static void DesktopWidgetDefaultsToDarkTheme()

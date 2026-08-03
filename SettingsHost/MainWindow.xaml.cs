@@ -272,6 +272,7 @@ public sealed partial class MainWindow : Window
         {
             "Typography" => CreateTypographyPage(),
             "Visual" => CreateVisualPage(),
+            "TaskbarPerformance" => CreateTaskbarPerformancePage(),
             "Floating" => CreateFloatingPage(),
             "Applications" => CreateApplicationsPage(),
             "DesktopWidget" => CreateDesktopWidgetPage(),
@@ -378,6 +379,169 @@ public sealed partial class MainWindow : Window
         panel.AddRow(LabeledColorPicker("任务栏背景", _settings.BackgroundColor, value => _settings.BackgroundColor = value));
         panel.AddRow(LabeledToggle("启用文字阴影", _settings.EnableShadow, value => _settings.EnableShadow = value));
         panel.AddRow(LabeledToggle("启用文字描边", _settings.EnableOutline, value => _settings.EnableOutline = value));
+        return Wrap(panel);
+    }
+
+    private Page CreateTaskbarPerformancePage()
+    {
+        var panel = NewPanel("性能监控", "独立于任务栏歌词显示的性能组件；GPU 计数器不可用时会自动隐藏 GPU 数据。");
+        panel.AddRow(LabeledToggle(
+            "启用任务栏性能监控",
+            _settings.EnableTaskbarPerformanceMonitor,
+            value => _settings.EnableTaskbarPerformanceMonitor = value));
+
+        string[] refreshOptions = ["1 秒", "2 秒", "5 秒"];
+        string selectedRefresh = _settings.TaskbarPerformanceRefreshSeconds switch
+        {
+            2 => "2 秒",
+            5 => "5 秒",
+            _ => "1 秒"
+        };
+        panel.AddRow(LabeledComboBox(
+            "刷新频率",
+            refreshOptions,
+            selectedRefresh,
+            value => _settings.TaskbarPerformanceRefreshSeconds = value switch
+            {
+                "2 秒" => 2,
+                "5 秒" => 5,
+                _ => 1
+            }));
+        panel.AddRow(LabeledToggle(
+            "显示双行指标",
+            _settings.TaskbarPerformanceIsDoubleLine,
+            value => _settings.TaskbarPerformanceIsDoubleLine = value));
+        panel.AddRow(LabeledFontPicker(
+            "字体",
+            _settings.TaskbarPerformanceFontFamily,
+            value => _settings.TaskbarPerformanceFontFamily = value));
+        panel.AddRow(LabeledNumberBox(
+            "字体大小",
+            _settings.TaskbarPerformanceFontSize,
+            8,
+            24,
+            value => _settings.TaskbarPerformanceFontSize = value));
+        panel.AddRow(LabeledComboBox(
+            "字体粗细",
+            FontWeightOptions,
+            ToChineseFontWeight(_settings.TaskbarPerformanceFontWeight),
+            value => _settings.TaskbarPerformanceFontWeight = ToFontWeight(value)));
+
+        var selectedMetrics = TaskbarPerformanceMetricCatalog
+            .Normalize(_settings.TaskbarPerformanceMetrics)
+            .ToList();
+        var metricOrder = selectedMetrics
+            .Concat(TaskbarPerformanceMetricCatalog.Definitions
+                .Select(definition => definition.Id)
+                .Where(id => !selectedMetrics.Contains(id, StringComparer.OrdinalIgnoreCase)))
+            .ToList();
+        var orderEditor = new ListView
+        {
+            CanDragItems = true,
+            CanReorderItems = true,
+            AllowDrop = true,
+            SelectionMode = ListViewSelectionMode.None,
+            IsItemClickEnabled = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            // ListView 默认按内容宽度测量项目，导致行内的 Star 列没有铺满，
+            // 开关会停在中间并在右侧留下大块空白。
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
+        };
+        ScrollViewer.SetVerticalScrollMode(orderEditor, ScrollMode.Disabled);
+        ScrollViewer.SetVerticalScrollBarVisibility(orderEditor, ScrollBarVisibility.Disabled);
+
+        void SaveMetricOrder()
+        {
+            var enabledMetricIds = selectedMetrics
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            selectedMetrics.Clear();
+            selectedMetrics.AddRange(metricOrder
+                .Where(enabledMetricIds.Contains)
+                .Select(id => id));
+            _settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(selectedMetrics);
+        }
+
+        bool IsMetricEnabled(string metricId) => selectedMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase);
+
+        void RefreshMetricOrderEditor()
+        {
+            orderEditor.Items.Clear();
+            foreach (string metricId in metricOrder)
+            {
+                TaskbarPerformanceMetricDefinition definition = TaskbarPerformanceMetricCatalog.Definitions
+                    .First(definition => string.Equals(definition.Id, metricId, StringComparison.OrdinalIgnoreCase));
+
+                var row = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var dragGrip = CreateMetricDragGrip();
+                dragGrip.Margin = new Thickness(0, 0, 12, 0);
+                Grid.SetColumn(dragGrip, 0);
+                row.Children.Add(dragGrip);
+                var metricName = new TextBlock { Text = definition.DisplayName, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(metricName, 1);
+                row.Children.Add(metricName);
+
+                var toggle = new ToggleSwitch
+                {
+                    IsOn = IsMetricEnabled(metricId),
+                    OnContent = null,
+                    OffContent = null,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                toggle.Toggled += (_, _) =>
+                {
+                    if (toggle.IsOn)
+                    {
+                        if (!selectedMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase))
+                        {
+                            selectedMetrics.Add(metricId);
+                        }
+                    }
+                    else
+                    {
+                        selectedMetrics.RemoveAll(id => string.Equals(id, metricId, StringComparison.OrdinalIgnoreCase));
+                    }
+                    _settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(selectedMetrics);
+                };
+                Grid.SetColumn(toggle, 2);
+                row.Children.Add(toggle);
+
+                orderEditor.Items.Add(new ListViewItem
+                {
+                    Tag = definition.Id,
+                    Content = row,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                    Padding = new Thickness(10, 7, 10, 7)
+                });
+            }
+        }
+
+        orderEditor.DragItemsCompleted += (_, _) =>
+        {
+            var reordered = orderEditor.Items
+                .OfType<ListViewItem>()
+                .Select(item => item.Tag as string)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Cast<string>()
+                .ToList();
+            if (reordered.Count != metricOrder.Count) return;
+            metricOrder.Clear();
+            metricOrder.AddRange(reordered);
+            SaveMetricOrder();
+        };
+
+        RefreshMetricOrderEditor();
+        panel.AddRow(SectionHeader("指标显示与顺序"));
+        panel.AddRow(orderEditor);
+
+        var resetPosition = new Button { Content = "恢复默认位置", HorizontalAlignment = HorizontalAlignment.Left };
+        resetPosition.Click += (_, _) => _settings.TaskbarPerformanceOffsetX = null;
+        panel.AddRow(resetPosition);
+
         return Wrap(panel);
     }
 
@@ -1082,6 +1246,41 @@ public sealed partial class MainWindow : Window
         return host;
     }
 
+    private static FrameworkElement CreateMetricDragGrip()
+    {
+        var grip = new Grid
+        {
+            Width = 14,
+            Height = 18,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsHitTestVisible = false
+        };
+        for (int row = 0; row < 3; row++)
+        {
+            grip.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            for (int column = 0; column < 2; column++)
+            {
+                var dot = new Microsoft.UI.Xaml.Shapes.Ellipse
+                {
+                    Width = 3,
+                    Height = 3,
+                    Fill = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                        Windows.UI.Color.FromArgb(150, 95, 99, 104)),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetRow(dot, row);
+                Grid.SetColumn(dot, column);
+                grip.Children.Add(dot);
+            }
+        }
+
+        grip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grip.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        return grip;
+    }
+
     private static FrameworkElement Field(string label, FrameworkElement control, string? description)
     {
         var panel = new StackPanel { Spacing = 4 };
@@ -1316,6 +1515,13 @@ public sealed partial class MainWindow : Window
 public sealed class SettingsDocument
 {
     public double Width { get; set; } = 400;
+    public bool EnableTaskbarPerformanceMonitor { get; set; }
+    public List<string> TaskbarPerformanceMetrics { get; set; } = TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+    public int TaskbarPerformanceRefreshSeconds { get; set; } = 1;
+    public bool TaskbarPerformanceIsDoubleLine { get; set; }
+    public string TaskbarPerformanceFontFamily { get; set; } = "Microsoft YaHei";
+    public double TaskbarPerformanceFontSize { get; set; } = 10;
+    public string TaskbarPerformanceFontWeight { get; set; } = "SemiBold";
     public double FontSize { get; set; } = 12;
     public string FontFamily { get; set; } = "Microsoft YaHei";
     public string TextColor { get; set; } = "#FFFFFF";
@@ -1325,6 +1531,7 @@ public sealed class SettingsDocument
     public string FontWeight { get; set; } = "SemiBold";
     public bool EnableOutline { get; set; }
     public int OffsetX { get; set; } = 10;
+    public int? TaskbarPerformanceOffsetX { get; set; }
     public string TaskbarMonitorDeviceName { get; set; } = "";
     public bool IsDoubleLine { get; set; } = true;
     public double LyricOffsetSeconds { get; set; }
@@ -1364,6 +1571,11 @@ public sealed class SettingsDocument
 
             SettingsDocument settings = JsonSerializer.Deserialize<SettingsDocument>(File.ReadAllText(path)) ?? new SettingsDocument();
             settings.IncludedAppIds ??= [];
+            settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+            settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
+            settings.TaskbarPerformanceRefreshSeconds = settings.TaskbarPerformanceRefreshSeconds is 1 or 2 or 5
+                ? settings.TaskbarPerformanceRefreshSeconds
+                : 1;
             return settings;
         }
         catch
