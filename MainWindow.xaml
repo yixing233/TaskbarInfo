@@ -183,12 +183,6 @@
                         </MenuItem.Icon>
                     </MenuItem>
 
-                    <MenuItem Header="重置任务栏位置" Click="ResetTaskbarPosition_Click">
-                        <MenuItem.Icon>
-                           <TextBlock Text="&#xf2f1;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/> 
-                        </MenuItem.Icon>
-                    </MenuItem>
-
                     <MenuItem Header="检查更新..." Click="CheckForUpdates_Click">
                         <MenuItem.Icon>
                            <TextBlock Text="&#xf0ab;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 

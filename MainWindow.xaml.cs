@@ -26,7 +26,11 @@ namespace TaskbarInfo
         public MainWindow()
         {
             InitializeComponent();
-            Closed += (_, _) => StopSharedSettingsApplyNotification();
+            Closed += (_, _) =>
+            {
+                StopSharedSettingsApplyNotification();
+                _taskbarPerformanceWindow?.Dispose();
+            };
             
             // Initialize references first
             _mainLyricControl = InfoText;
@@ -77,6 +81,7 @@ namespace TaskbarInfo
         private bool _isCheckingUpdates;
         
         private DispatcherTimer? _processMonitorTimer;
+        private TaskbarPerformanceWindow? _taskbarPerformanceWindow;
         private EventWaitHandle? _sharedSettingsAppliedEvent;
         private RegisteredWaitHandle? _sharedSettingsAppliedWait;
 
@@ -133,7 +138,6 @@ namespace TaskbarInfo
                 {
                     this.Show();
                 }
-
                 if (_settings.EnableFloatingLyrics && _floatingWindow != null && _floatingWindow.Visibility != Visibility.Visible)
                 {
                     _floatingWindow.Show();
@@ -142,7 +146,6 @@ namespace TaskbarInfo
             else
             {
                 SetTrayText("LyricsX - 已隐藏，等待播放器运行");
-
                 // Hide everything
                 if (this.Visibility == Visibility.Visible)
                 {
@@ -242,6 +245,7 @@ namespace TaskbarInfo
             ManageDesktopWidget();
             
             InjectIntoTaskbar();
+            ManageTaskbarPerformance();
             
             // Initialize Media Manager
             _mediaManager.FilterAppIds = _settings.IncludedAppIds; // Initialize Filter
@@ -434,6 +438,7 @@ namespace TaskbarInfo
         {
             // Sync Process Monitoring
             SetupProcessMonitor();
+            ManageTaskbarPerformance();
             
             // Sync Floating Window
             _floatingWindow?.ApplySettings(_settings);
@@ -663,16 +668,6 @@ namespace TaskbarInfo
             OpenSettings(0);
         }
 
-        private void ResetTaskbarPosition_Click(object sender, RoutedEventArgs e)
-        {
-            _settings.OffsetX = 10;
-            if (!_settings.Save(out var errorMessage))
-            {
-                ShowTrayWarning("位置已重置，但保存失败: " + errorMessage);
-            }
-            InjectIntoTaskbar();
-        }
-
         private void OpenSettings(int initialNavIndex)
         {
             EventWaitHandle? settingsAppliedEvent = null;
@@ -764,6 +759,30 @@ namespace TaskbarInfo
             settingsAppliedEvent?.Dispose();
         }
 
+        private void ManageTaskbarPerformance()
+        {
+            List<string> selectedMetrics = TaskbarPerformanceMetricCatalog.Normalize(_settings.TaskbarPerformanceMetrics);
+            bool enabled = _settings.EnableTaskbarPerformanceMonitor && selectedMetrics.Count > 0;
+            if (!enabled)
+            {
+                _taskbarPerformanceWindow?.Dispose();
+                _taskbarPerformanceWindow = null;
+                return;
+            }
+
+            if (_taskbarPerformanceWindow == null)
+            {
+                _taskbarPerformanceWindow = new TaskbarPerformanceWindow();
+                _taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(0);
+                _taskbarPerformanceWindow.CheckForUpdatesRequested += async (_, _) => await CheckForUpdatesAsync(false);
+                _taskbarPerformanceWindow.RestartRequested += (_, _) => Restart_Click(this, new RoutedEventArgs());
+                _taskbarPerformanceWindow.ExitRequested += (_, _) => Exit_Click(this, new RoutedEventArgs());
+            }
+            _taskbarPerformanceWindow.ApplySettings(
+                _settings,
+                _currentX);
+        }
+
         // ... (Media Events kept as is, not shown here to avoid huge replacement) ...
 
         
@@ -835,6 +854,7 @@ namespace TaskbarInfo
                 
                 // InfoText.Text = "Attached"; // Don't overwrite lyrics during update
                 _currentX = xPos;
+                _taskbarPerformanceWindow?.UpdateLyricsPosition(xPos);
             }
             catch (Exception)
             {
