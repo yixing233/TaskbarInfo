@@ -35,7 +35,7 @@ namespace TaskbarInfo
                 StopSharedSettingsApplyNotification();
                 _taskbarPerformanceWindow?.Dispose();
                 _taskbarTranslateButtonWindow?.Dispose();
-                CloseQuickTranslateHost();
+                CloseQuickTranslatePopup();
                 CloseSettingsHost();
                 UnregisterQuickTranslateHotkey();
             };
@@ -91,7 +91,7 @@ namespace TaskbarInfo
         private DispatcherTimer? _processMonitorTimer;
         private TaskbarPerformanceWindow? _taskbarPerformanceWindow;
         private TaskbarTranslateButtonWindow? _taskbarTranslateButtonWindow;
-        private System.Diagnostics.Process? _quickTranslateProcess;
+        private QuickTranslatePopupWindow? _quickTranslatePopup;
         private System.Diagnostics.Process? _settingsProcess;
         private HwndSource? _mainWindowSource;
         private bool _quickTranslateHotkeyRegistered;
@@ -373,7 +373,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? "发生了未知错误。");
+                        UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? "发生了未知错误。", _settings.SettingsWindowMaterial);
                     }
                     return;
                 }
@@ -382,7 +382,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForResult(this, result);
+                        UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
                     }
                     return;
                 }
@@ -391,7 +391,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForResult(this, result);
+                        UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
                     }
                     return;
                 }
@@ -408,13 +408,13 @@ namespace TaskbarInfo
                     return;
                 }
 
-                UpdateDialogWindow.ShowForResult(this, result);
+                UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
             }
             catch (Exception ex)
             {
                 if (!isStartupCheck)
                 {
-                    UpdateDialogWindow.ShowForError(this, ex.Message);
+                    UpdateDialogWindow.ShowForError(this, ex.Message, _settings.SettingsWindowMaterial);
                 }
             }
             finally
@@ -689,7 +689,11 @@ namespace TaskbarInfo
 
         private void ShowQuickTranslate()
         {
-            if (CloseExistingQuickTranslateHost()) return;
+            if (_quickTranslatePopup?.IsVisible == true)
+            {
+                CloseQuickTranslatePopup();
+                return;
+            }
 
             if (!TryGetQuickTranslateLaunchOptions(out QuickTranslateLaunchOptions options))
             {
@@ -697,78 +701,30 @@ namespace TaskbarInfo
                 return;
             }
 
-            string settingsHost = System.IO.Path.Combine(
-                AppDomain.CurrentDomain.BaseDirectory,
-                "SettingsHost",
-                "TaskbarInfo.Settings.exe");
-            if (!System.IO.File.Exists(settingsHost))
-            {
-                ShowTrayWarning("快捷翻译组件未找到，请重新生成开发版本。");
-                return;
-            }
-
             try
             {
-                var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                var popup = new QuickTranslatePopupWindow(_settings);
+                _quickTranslatePopup = popup;
+                popup.Closed += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    FileName = settingsHost,
-                    Arguments = QuickTranslateHostLauncher.BuildArguments(
-                        AppSettings.SettingsPath,
-                        options),
-                    WorkingDirectory = System.IO.Path.GetDirectoryName(settingsHost),
-                    UseShellExecute = false
-                });
-                if (process == null)
-                {
-                    ShowTrayWarning("快捷翻译窗口未能启动。");
-                    return;
-                }
-
-                _quickTranslateProcess = process;
-                int processId = process.Id;
-                process.EnableRaisingEvents = true;
-                process.Exited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    if (_quickTranslateProcess?.Id != processId) return;
-                    _quickTranslateProcess.Dispose();
-                    _quickTranslateProcess = null;
+                    if (ReferenceEquals(_quickTranslatePopup, popup))
+                    {
+                        _quickTranslatePopup = null;
+                    }
                 }));
+                popup.ShowAt(options);
             }
             catch (Exception exception)
             {
+                _quickTranslatePopup = null;
                 ShowTrayWarning("快捷翻译窗口启动失败: " + exception.Message);
-            }
-        }
-
-        private bool CloseExistingQuickTranslateHost()
-        {
-            System.Diagnostics.Process? process = _quickTranslateProcess;
-            if (process == null) return false;
-
-            try
-            {
-                if (process.HasExited)
-                {
-                    process.Dispose();
-                    _quickTranslateProcess = null;
-                    return false;
-                }
-
-                process.CloseMainWindow();
-                return true;
-            }
-            catch
-            {
-                process.Dispose();
-                _quickTranslateProcess = null;
-                return false;
             }
         }
 
         private bool TryGetQuickTranslateLaunchOptions(out QuickTranslateLaunchOptions options)
         {
             options = null!;
-            IntPtr taskbarHandle = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarMonitorDeviceName);
+            IntPtr taskbarHandle = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarTranslateButtonMonitorDeviceName);
             if (taskbarHandle == IntPtr.Zero ||
                 !UnmanagedMethods.GetWindowRect(taskbarHandle, out UnmanagedMethods.RECT taskbarRect))
             {
@@ -792,24 +748,16 @@ namespace TaskbarInfo
             return true;
         }
 
-        private void CloseQuickTranslateHost()
+        private void CloseQuickTranslatePopup()
         {
-            if (_quickTranslateProcess == null) return;
-
+            QuickTranslatePopupWindow? popup = _quickTranslatePopup;
+            _quickTranslatePopup = null;
             try
             {
-                if (!_quickTranslateProcess.HasExited)
-                {
-                    _quickTranslateProcess.CloseMainWindow();
-                }
+                popup?.Close();
             }
             catch
             {
-            }
-            finally
-            {
-                _quickTranslateProcess.Dispose();
-                _quickTranslateProcess = null;
             }
         }
 
@@ -1076,6 +1024,7 @@ namespace TaskbarInfo
 
         private void ReloadSettingsFromHost()
         {
+            CloseQuickTranslatePopup();
             _settings = AppSettings.Load();
             _mediaManager.FilterAppIds = _settings.IncludedAppIds;
             _mediaManager.RefreshSession();
@@ -1127,7 +1076,6 @@ namespace TaskbarInfo
             {
                 _taskbarPerformanceWindow = new TaskbarPerformanceWindow();
                 _taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(0);
-                _taskbarPerformanceWindow.CheckForUpdatesRequested += async (_, _) => await CheckForUpdatesAsync(false);
             }
             _taskbarPerformanceWindow.ApplySettings(
                 _settings,
@@ -1138,6 +1086,7 @@ namespace TaskbarInfo
         {
             if (!_settings.EnableTaskbarTranslateButton)
             {
+                CloseQuickTranslatePopup();
                 _taskbarTranslateButtonWindow?.Dispose();
                 _taskbarTranslateButtonWindow = null;
                 return;

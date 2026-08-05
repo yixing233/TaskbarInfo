@@ -16,12 +16,11 @@ public sealed partial class QuickTranslateWindow : Window
 {
     private const int WindowWidth = 420;
     private const int WindowHeight = 350;
-    private const double AcrylicTintOpacity = 0.42;
-    private const double AcrylicTintLuminosityOpacity = 0.35;
+    private const int WindowCompositionAttributeAccentPolicy = 19;
+    private const int AccentEnableAcrylicBlurBehind = 4;
+    private const int AcrylicGradientColor = unchecked((int)0x70FAF3EE);
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNotTopmost = new(-2);
-    private static readonly Windows.UI.Color AcrylicTintColor = Windows.UI.Color.FromArgb(255, 225, 238, 255);
-    private static readonly Windows.UI.Color AcrylicFallbackColor = Windows.UI.Color.FromArgb(255, 238, 244, 252);
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
     private const uint SwpNoActivate = 0x0010;
@@ -42,7 +41,6 @@ public sealed partial class QuickTranslateWindow : Window
         InitializeComponent();
         PopulateProviderBox();
 
-        ApplyWindowMaterial();
         IntPtr initialWindowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         uint dpi = initialWindowHandle == IntPtr.Zero ? 96 : GetDpiForWindow(initialWindowHandle);
         AppWindow.Resize(ScaleWindowSizeForDpi(WindowWidth, WindowHeight, dpi));
@@ -55,6 +53,7 @@ public sealed partial class QuickTranslateWindow : Window
             presenter.SetBorderAndTitleBar(true, false);
         }
 
+        ApplyWindowMaterial();
         PositionOnTargetScreen();
         Activated += Window_Activated;
         Closed += (_, _) => _translationCancellation?.Cancel();
@@ -69,6 +68,11 @@ public sealed partial class QuickTranslateWindow : Window
         }
 
         PositionOnTargetScreen();
+        if (QuickTranslateWindowMaterialParser.Parse(_settings.QuickTranslateWindowMaterial) ==
+            QuickTranslateWindowMaterial.Acrylic)
+        {
+            DispatcherQueue.TryEnqueue(ApplyNativeAcrylicBackdrop);
+        }
         InputTextBox.Focus(FocusState.Programmatic);
     }
 
@@ -99,20 +103,50 @@ public sealed partial class QuickTranslateWindow : Window
             _settings.QuickTranslateWindowMaterial);
         SystemBackdrop = material switch
         {
-            QuickTranslateWindowMaterial.Acrylic => new DesktopAcrylicBackdrop(),
             QuickTranslateWindowMaterial.Solid => null,
+            QuickTranslateWindowMaterial.Acrylic => null,
             _ => new MicaBackdrop()
         };
 
         RootLayout.Background = material == QuickTranslateWindowMaterial.Acrylic
-            ? new AcrylicBrush
-            {
-                TintColor = AcrylicTintColor,
-                TintOpacity = AcrylicTintOpacity,
-                TintLuminosityOpacity = AcrylicTintLuminosityOpacity,
-                FallbackColor = AcrylicFallbackColor
-            }
+            ? new SolidColorBrush(Windows.UI.Color.FromArgb(1, 255, 255, 255))
             : null;
+
+        if (material == QuickTranslateWindowMaterial.Acrylic)
+        {
+            ApplyNativeAcrylicBackdrop();
+        }
+    }
+
+    private void ApplyNativeAcrylicBackdrop()
+    {
+        IntPtr handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        if (handle == IntPtr.Zero) return;
+
+        var accent = new AccentPolicy
+        {
+            AccentState = AccentEnableAcrylicBlurBehind,
+            AccentFlags = 0,
+            GradientColor = AcrylicGradientColor,
+            AnimationId = 0
+        };
+        int size = Marshal.SizeOf<AccentPolicy>();
+        IntPtr data = Marshal.AllocHGlobal(size);
+        try
+        {
+            Marshal.StructureToPtr(accent, data, false);
+            var attribute = new WindowCompositionAttributeData
+            {
+                Attribute = WindowCompositionAttributeAccentPolicy,
+                Data = data,
+                SizeOfData = size
+            };
+            SetWindowCompositionAttribute(handle, ref attribute);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(data);
+        }
     }
 
     private async void Translate_Click(object sender, RoutedEventArgs e)
@@ -205,7 +239,8 @@ public sealed partial class QuickTranslateWindow : Window
                     provider.AppId,
                     provider.AppSecret,
                     provider.ApiBaseUrl,
-                    provider.ExtraCredential),
+                    provider.ExtraCredential,
+                    provider.SystemPrompt),
                 cancellationToken);
         }
         catch (OperationCanceledException)
@@ -276,5 +311,27 @@ public sealed partial class QuickTranslateWindow : Window
 
     [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr windowHandle);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AccentPolicy
+    {
+        public int AccentState;
+        public int AccentFlags;
+        public int GradientColor;
+        public int AnimationId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowCompositionAttributeData
+    {
+        public int Attribute;
+        public IntPtr Data;
+        public int SizeOfData;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowCompositionAttribute(
+        IntPtr windowHandle,
+        ref WindowCompositionAttributeData data);
 
 }

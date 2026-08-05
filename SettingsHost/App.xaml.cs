@@ -17,17 +17,8 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         string[] commandLine = Environment.GetCommandLineArgs().Skip(1).ToArray();
-        if (QuickTranslateLaunchOptions.TryParse(commandLine, out QuickTranslateLaunchOptions quickTranslateOptions))
-        {
-            _window = new QuickTranslateWindow(
-                quickTranslateOptions,
-                ResolveSettingsPath(commandLine));
-        }
-        else
-        {
-            bool keepAlive = commandLine.Contains("--keep-alive", StringComparer.OrdinalIgnoreCase);
-            _window = new MainWindow(keepAlive);
-        }
+        bool keepAlive = commandLine.Contains("--keep-alive", StringComparer.OrdinalIgnoreCase);
+        _window = new MainWindow(keepAlive);
         _window.Activate();
 
         if (_window is MainWindow settingsWindow && commandLine.Contains("--keep-alive", StringComparer.OrdinalIgnoreCase))
@@ -38,14 +29,6 @@ public partial class App : Application
             }
             StartParentProcessMonitor(ResolveParentProcessId(commandLine));
         }
-    }
-
-    private static string ResolveSettingsPath(IEnumerable<string> arguments)
-    {
-        string? argument = arguments.FirstOrDefault(value => !value.StartsWith("-", StringComparison.Ordinal));
-        return string.IsNullOrWhiteSpace(argument)
-            ? SettingsStorage.CurrentPath
-            : Path.GetFullPath(argument);
     }
 
     private void StartParentProcessMonitor(int parentProcessId)

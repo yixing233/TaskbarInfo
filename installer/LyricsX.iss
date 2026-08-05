@@ -1,5 +1,5 @@
 #define MyAppName "TaskbarInfo"
-#define MyAppVersion "1.1.3"
+#define MyAppVersion "1.1.4"
 #define MyAppPublisher "TaskbarInfo"
 #define MyAppExeName "TaskbarInfo.exe"
 

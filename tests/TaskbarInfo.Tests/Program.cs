@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Text.Json;
 using TaskbarInfo;
 
 var tests = new (string Name, Action Test)[]
@@ -44,6 +45,10 @@ var tests = new (string Name, Action Test)[]
     ("Untimed floating lyric disables active color", UntimedFloatingLyricDisablesActiveColor),
     ("Taskbar monitor selection uses configured display", TaskbarMonitorSelectionUsesConfiguredDisplay),
     ("Taskbar monitor selection falls back to primary taskbar", TaskbarMonitorSelectionFallsBackToPrimaryTaskbar),
+    ("Taskbar component monitor assignments inherit legacy lyric display", TaskbarComponentMonitorAssignmentsInheritLegacyLyricDisplay),
+    ("Taskbar components resolve their dedicated display", TaskbarComponentsResolveDedicatedDisplay),
+    ("Taskbar component settings expose independent display selectors", TaskbarComponentSettingsExposeIndependentDisplaySelectors),
+    ("Taskbar application is PerMonitorV2 aware", TaskbarApplicationUsesPerMonitorV2),
     ("Baidu translation response combines text segments", BaiduTranslationResponseCombinesTextSegments),
     ("Translation services parse built-in cloud responses", TranslationServicesParseBuiltInCloudResponses),
     ("Quick translate opens above a bottom taskbar", QuickTranslateOpensAboveBottomTaskbar),
@@ -53,26 +58,40 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar translate button defaults to visible", TaskbarTranslateButtonDefaultsToVisible),
     ("Taskbar translate button window initializes", TaskbarTranslateButtonWindowInitializes),
     ("Taskbar translate button exposes a settings-only menu", TaskbarTranslateButtonExposesSettingsMenu),
-    ("Taskbar component menus exclude lifecycle commands", TaskbarComponentMenusExcludeLifecycleCommands),
+    ("Taskbar component menus exclude application commands", TaskbarComponentMenusExcludeApplicationCommands),
     ("Settings host opens quick translate page from taskbar menu", SettingsHostOpensQuickTranslatePageFromTaskbarMenu),
     ("Performance details reveal after final positioning", PerformanceDetailsRevealAfterFinalPositioning),
     ("Settings navigation groups lyric component pages", SettingsNavigationGroupsLyricComponentPages),
     ("Quick translate launch arguments preserve monitor coordinates", QuickTranslateLaunchArgumentsPreserveMonitorCoordinates),
     ("Translation configuration keeps provider credentials", TranslationConfigurationKeepsProviderCredentials),
+    ("Translation domains retain General and custom choices", TranslationDomainsRetainGeneralAndCustomChoices),
+    ("Quick translate target language restores a supported selection", QuickTranslateTargetLanguageRestoresSupportedSelection),
+    ("AI phonetic option persists and extends AI prompts", AiPhoneticOptionPersistsAndExtendsAiPrompts),
     ("Translation provider profiles migrate legacy credentials", TranslationProviderProfilesMigrateLegacyCredentials),
     ("Translation provider catalog exposes supported built-ins", TranslationProviderCatalogExposesSupportedBuiltIns),
     ("AI translation providers expose compatible model routes", AiTranslationProvidersExposeCompatibleModelRoutes),
+    ("AI model suggestions close when the editor loses focus", AiModelSuggestionsCloseWhenEditorLosesFocus),
+    ("AI translation providers preserve prompts and build SiliconFlow requests", AiTranslationProvidersPreservePromptsAndBuildSiliconFlowRequests),
     ("New translation provider profile is an empty draft", NewTranslationProviderProfileIsAnEmptyDraft),
     ("Quick translate settings page scrolls as a whole", QuickTranslateSettingsPageScrollsAsAWhole),
+    ("Quick translate settings use compact heading hierarchy", QuickTranslateSettingsUseCompactHeadingHierarchy),
     ("Quick translate host launcher emits mode and geometry", QuickTranslateHostLauncherEmitsModeAndGeometry),
-    ("Quick translate host collapses its inactive status area", QuickTranslateHostCollapsesInactiveStatusArea),
-    ("Quick translate host uses a borderless popup frame", QuickTranslateHostUsesBorderlessPopupFrame),
+    ("Quick translate popup collapses its inactive status area", QuickTranslatePopupCollapsesInactiveStatusArea),
+    ("Quick translate popup balances idle and result layouts", QuickTranslatePopupBalancesIdleAndResultLayouts),
+    ("Quick translate popup caches its target language", QuickTranslatePopupCachesTargetLanguage),
+    ("Quick translate popup shows cancellable translation progress", QuickTranslatePopupShowsCancellableTranslationProgress),
+    ("Quick translate popup uses responsive transitions", QuickTranslatePopupUsesResponsiveTransitions),
+    ("Quick translate reveals domains for AI providers", QuickTranslateRevealsDomainsForAiProviders),
+    ("Quick translate popup uses a borderless WPF frame", QuickTranslatePopupUsesBorderlessWpfFrame),
     ("Quick translate button closes an existing popup", QuickTranslateButtonClosesExistingPopup),
     ("Quick translate popup provides an always-on-top control", QuickTranslatePopupProvidesAlwaysOnTopControl),
     ("Quick translate hotkey parses supported gestures", QuickTranslateHotkeyParsesSupportedGestures),
     ("Quick translate material normalizes configured values", QuickTranslateMaterialNormalizesConfiguredValues),
-    ("Quick translate acrylic uses a visible host-backdrop layer", QuickTranslateAcrylicUsesVisibleHostBackdropLayer),
+    ("Quick translate uses an in-process WPF acrylic popup", QuickTranslateUsesInProcessWpfPopup),
+    ("Quick translate acrylic reapplies after popup rendering", QuickTranslateAcrylicReappliesAfterPopupRendering),
     ("Tray menu excludes lyric component controls", TrayMenuExcludesLyricComponentControls),
+    ("Update dialog uses a compact centered layout and settings material", UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial),
+    ("Quick translate font setting is independent", QuickTranslateFontSettingIsIndependent),
 };
 
 var failures = new List<string>();
@@ -235,6 +254,13 @@ static void TranslationServicesParseBuiltInCloudResponses()
         "{\"translated_text\":\"你好\"}"), "Huawei response");
     AssertEqual("你好", TranslationService.ExtractIFlytekTranslatedText(
         "{\"code\":0,\"data\":{\"result\":{\"trans_result\":{\"dst\":\"你好\"}}}}"), "iFlytek response");
+
+    string translationServiceCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory, "TranslationService.cs"));
+    AssertEqual(true, translationServiceCode.Contains(
+        "request.Headers.TryAddWithoutValidation(\"Authorization\", CreateTencentAuthorization",
+        StringComparison.Ordinal),
+        "Tencent TC3 authorization must bypass the restrictive managed header parser");
 
     foreach (string provider in TranslationProviderProfiles.BuiltInProviders)
     {
@@ -447,6 +473,75 @@ static void TranslationConfigurationKeepsProviderCredentials()
     AssertEqual("https://openapi.youdao.com/api", configuration.ApiBaseUrl, "provider endpoint");
 }
 
+static void TranslationDomainsRetainGeneralAndCustomChoices()
+{
+    string[] domains = TranslationDomainCatalog.Normalize(["医学", "通用领域", "医学", " "]).ToArray();
+    AssertEqual("通用领域|医学", string.Join('|', domains),
+        "domain normalization should retain General and unique custom names");
+    AssertEqual("通用领域", TranslationDomainCatalog.ResolveSelected(domains, "法律"),
+        "unknown selected domains should fall back to General");
+
+    var configuration = new TranslationConfiguration(
+        "provider", "OpenAI", "key", "", "https://api.example.com/v1/chat/completions", "model", "", "医学");
+    AssertEqual("医学", configuration.Domain, "translation configuration should carry the selected domain");
+
+    string settingsHostCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory, "SettingsHost", "MainWindow.xaml.cs"));
+    AssertEqual(true, settingsHostCode.Contains("QuickTranslateDomains", StringComparison.Ordinal) &&
+        settingsHostCode.Contains("SelectedQuickTranslateDomain", StringComparison.Ordinal),
+        "the settings host must preserve quick translate domain settings");
+}
+
+static void QuickTranslateTargetLanguageRestoresSupportedSelection()
+{
+    AssertEqual("zh-CN", QuickTranslateTargetLanguages.Normalize(null),
+        "a missing cached target language should use Simplified Chinese");
+    AssertEqual("ja", QuickTranslateTargetLanguages.Normalize("ja"),
+        "a supported cached target language should be retained");
+    AssertEqual("zh-CN", QuickTranslateTargetLanguages.Normalize("invalid"),
+        "an obsolete cached target language should fall back safely");
+    AssertEqual("zh-CN", new AppSettings().QuickTranslateTargetLanguage,
+        "new settings should default to Simplified Chinese");
+}
+
+static void AiPhoneticOptionPersistsAndExtendsAiPrompts()
+{
+    AssertEqual(false, new AppSettings().EnableQuickTranslateAiPhonetic,
+        "AI phonetic generation should remain opt-in by default");
+
+    var configuration = new TranslationConfiguration(
+        "provider",
+        "OpenAI",
+        "key",
+        "",
+        "https://api.example.com/v1/chat/completions",
+        "model",
+        GeneratePhonetic: true);
+    using JsonDocument document = JsonDocument.Parse(
+        TranslationService.CreateOpenAiCompatibleRequestBody("hello", "zh-CN", configuration));
+    string prompt = document.RootElement.GetProperty("messages")[0].GetProperty("content").GetString() ?? string.Empty;
+    AssertEqual(true, prompt.Contains("IPA: /.../", StringComparison.Ordinal),
+        "enabled AI phonetic generation should request a slash-delimited IPA line");
+    AssertEqual("I am a big crab.\nIPA: /aɪ æm ə bɪɡ kræb/",
+        TranslationService.NormalizeAiPhoneticFormat("I am a big crab.\nIPA: aɪ æm ə bɪɡ kræb"),
+        "bare IPA returned by an AI model should be normalized with slash delimiters");
+    AssertEqual("Hello\nIPA: /həˈloʊ/",
+        TranslationService.NormalizeAiPhoneticFormat("Hello\n音标： [həˈloʊ]"),
+        "a localized bracketed phonetic label should normalize to the same IPA format");
+
+    string settingsHostCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "MainWindow.xaml.cs"));
+    string popupCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+    AssertEqual(true, settingsHostCode.Contains("AI 生成音标", StringComparison.Ordinal) &&
+        settingsHostCode.Contains("EnableQuickTranslateAiPhonetic", StringComparison.Ordinal) &&
+        popupCode.Contains("_settings.EnableQuickTranslateAiPhonetic", StringComparison.Ordinal),
+        "the settings toggle should persist and reach the quick translate AI request");
+}
+
 static void TranslationProviderProfilesMigrateLegacyCredentials()
 {
     var profiles = TranslationProviderProfiles.Normalize(
@@ -478,7 +573,7 @@ static void TranslationProviderProfilesMigrateLegacyCredentials()
         "settings should add provider configurations instead of switching one global provider");
     AssertEqual(true, settingsCode.Contains("服务商 ID", StringComparison.Ordinal),
         "settings should expose the custom provider ID field");
-    AssertEqual(true, settingsCode.Contains("提供商源", StringComparison.Ordinal),
+    AssertEqual(true, settingsCode.Contains("翻译服务商", StringComparison.Ordinal),
         "settings should expose a dedicated provider list");
     AssertEqual(true, settingsCode.Contains("API Base URL", StringComparison.Ordinal),
         "selected provider should expose an API endpoint editor");
@@ -505,6 +600,10 @@ static void TranslationProviderCatalogExposesSupportedBuiltIns()
     AssertEqual("", xfyun.ExtraCredential, "new providers must not invent credentials");
     AssertEqual("API Key", TranslationProviderProfiles.GetExtraCredentialLabel("iFlytek"),
         "iFlytek needs an API key in addition to App ID and API Secret");
+
+    TranslationProviderProfile tencent = TranslationProviderProfiles.CreateNew([], "Tencent");
+    AssertEqual("腾讯云机器翻译", tencent.DisplayName,
+        "Tencent should be labelled as the active Tencent Cloud translation service");
 }
 
 static void AiTranslationProvidersExposeCompatibleModelRoutes()
@@ -540,6 +639,74 @@ static void AiTranslationProvidersExposeCompatibleModelRoutes()
         "model editor must offer searchable candidates");
     AssertEqual(true, settingsCode.Contains("GetAvailableModelsAsync", StringComparison.Ordinal),
         "model candidates must be fetched on demand");
+}
+
+static void AiModelSuggestionsCloseWhenEditorLosesFocus()
+{
+    string settingsCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory, "SettingsHost", "MainWindow.xaml.cs"));
+    AssertEqual(true, settingsCode.Contains(
+        "extraCredentialBox.LostFocus += (_, _) => extraCredentialBox.IsSuggestionListOpen = false;",
+        StringComparison.Ordinal),
+        "AI model suggestions must close when the editor loses focus");
+}
+
+static void AiTranslationProvidersPreservePromptsAndBuildSiliconFlowRequests()
+{
+    const string prompt = "Translate into {target_language}. Return only the result.";
+    var profile = new TranslationProviderProfile
+    {
+        Id = "siliconflow",
+        DisplayName = "硅基流动",
+        Provider = "SiliconFlow",
+        AppId = "token",
+        ExtraCredential = "Qwen/Qwen2.5-7B-Instruct",
+        ApiBaseUrl = "https://api.siliconflow.cn/v1/chat/completions",
+        SystemPrompt = prompt
+    };
+
+    TranslationProviderProfile normalized = TranslationProviderProfiles.Normalize([profile], "Baidu", "", "", "", "")[0];
+    AssertEqual(prompt, normalized.SystemPrompt, "provider normalization must preserve the AI prompt");
+
+    var configuration = new TranslationConfiguration(
+        profile.Id,
+        profile.Provider,
+        profile.AppId,
+        profile.AppSecret,
+        profile.ApiBaseUrl,
+        profile.ExtraCredential,
+        profile.SystemPrompt);
+    string payload = TranslationService.CreateOpenAiCompatibleRequestBody("hello", "zh-CN", configuration);
+    using JsonDocument document = JsonDocument.Parse(payload);
+
+    AssertEqual(false, document.RootElement.GetProperty("stream").GetBoolean(),
+        "SiliconFlow translations must request a non-streaming response");
+    AssertEqual("Qwen/Qwen2.5-7B-Instruct", document.RootElement.GetProperty("model").GetString(),
+        "SiliconFlow must send the selected model ID");
+    AssertEqual("Translate into Simplified Chinese. Return only the result.",
+        document.RootElement.GetProperty("messages")[0].GetProperty("content").GetString(),
+        "the system prompt must substitute the target language");
+    AssertEqual("hello", document.RootElement.GetProperty("messages")[1].GetProperty("content").GetString(),
+        "the source text must remain a separate user message");
+
+    TranslationConfiguration domainConfiguration = configuration with
+    {
+        SystemPrompt = "Translate into {target_language}. Domain: {domain}.",
+        Domain = "医学"
+    };
+    using JsonDocument domainDocument = JsonDocument.Parse(
+        TranslationService.CreateOpenAiCompatibleRequestBody("hello", "zh-CN", domainConfiguration));
+    AssertEqual("Translate into Simplified Chinese. Domain: 医学.",
+        domainDocument.RootElement.GetProperty("messages")[0].GetProperty("content").GetString(),
+        "the system prompt must substitute the selected domain");
+
+    string settingsCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "MainWindow.xaml.cs"));
+    AssertEqual(true, settingsCode.Contains("系统提示词", StringComparison.Ordinal) &&
+        settingsCode.Contains("{target_language}", StringComparison.Ordinal),
+        "AI provider settings should expose a target-language-aware system prompt editor");
 }
 
 static void NewTranslationProviderProfileIsAnEmptyDraft()
@@ -600,6 +767,29 @@ static void QuickTranslateSettingsPageScrollsAsAWhole()
         "provider details should not have a competing inner scrollbar");
 }
 
+static void QuickTranslateSettingsUseCompactHeadingHierarchy()
+{
+    string settingsCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "MainWindow.xaml.cs"));
+
+    AssertEqual(true, settingsCode.Contains(
+        "NewPanel(\"快捷翻译\", \"配置任务栏翻译入口与窗口行为。\", titleFontSize: 24)",
+        StringComparison.Ordinal),
+        "quick translate should not use the oversized default page heading");
+    AssertEqual(true, settingsCode.Contains("Text = \"翻译服务商\",\n            FontSize = 16,",
+        StringComparison.Ordinal),
+        "provider list heading should use a compact section size");
+    AssertEqual(true, settingsCode.Contains("var detailTitle = new TextBlock\n        {\n            FontSize = 20,",
+        StringComparison.Ordinal),
+        "provider detail title should remain distinct without competing with the page heading");
+    AssertEqual(true, settingsCode.Contains("SectionHeader(\"任务栏入口\")", StringComparison.Ordinal) &&
+        settingsCode.Contains("SectionHeader(\"快捷操作\")", StringComparison.Ordinal) &&
+        settingsCode.Contains("var providerSection = new Border", StringComparison.Ordinal),
+        "quick translate should separate entry, interaction, and provider configuration groups");
+}
+
 static void QuickTranslateHostLauncherEmitsModeAndGeometry()
 {
     var options = new QuickTranslateLaunchOptions(
@@ -620,48 +810,145 @@ static void QuickTranslateHostLauncherEmitsModeAndGeometry()
         "launcher must quote the shared settings path");
 }
 
-static void QuickTranslateHostCollapsesInactiveStatusArea()
+static void QuickTranslatePopupCollapsesInactiveStatusArea()
 {
     string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml"));
-    int infoBarStart = windowXaml.IndexOf("x:Name=\"StatusInfoBar\"", StringComparison.Ordinal);
-    if (infoBarStart < 0)
+        "QuickTranslatePopupWindow.xaml"));
+    int statusStart = windowXaml.IndexOf("x:Name=\"StatusPanel\"", StringComparison.Ordinal);
+    if (statusStart < 0)
     {
-        throw new InvalidOperationException("quick translate window must expose a status InfoBar");
+        throw new InvalidOperationException("quick translate popup must expose a status panel");
     }
 
-    string infoBar = windowXaml[infoBarStart..Math.Min(windowXaml.Length, infoBarStart + 280)];
-    AssertEqual(true, infoBar.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal),
-        "inactive status InfoBar must not reserve vertical space");
+    string statusPanel = windowXaml[statusStart..Math.Min(windowXaml.Length, statusStart + 480)];
+    AssertEqual(true, statusPanel.Contains("Visibility=\"Collapsed\"", StringComparison.Ordinal),
+        "inactive status panel must not reserve vertical space");
 }
 
-static void QuickTranslateHostUsesBorderlessPopupFrame()
+static void QuickTranslatePopupBalancesIdleAndResultLayouts()
 {
     string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml.cs"));
+        "QuickTranslatePopupWindow.xaml.cs"));
     string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml"));
+        "QuickTranslatePopupWindow.xaml"));
 
-    AssertEqual(true, windowCode.Contains("presenter.SetBorderAndTitleBar(true, false)", StringComparison.Ordinal),
+    AssertEqual(true, windowXaml.Contains("Height=\"294\"", StringComparison.Ordinal),
+        "the empty quick translate popup should use a compact height");
+    AssertEqual(true, windowXaml.Contains("Height=\"64\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("VerticalScrollBarVisibility=\"Auto\"", StringComparison.Ordinal) &&
+        windowCode.Contains("CalculateResultTextBoxHeight", StringComparison.Ordinal) &&
+        windowCode.Contains("ResultTextBox.Height", StringComparison.Ordinal) &&
+        windowCode.Contains("ResizeForContent(!string.IsNullOrWhiteSpace(ResultTextBox.Text))", StringComparison.Ordinal),
+        "a completed translation should size the result area to its content instead of filling spare space");
+    AssertEqual(true, windowXaml.Contains("BorderBrush=\"{TemplateBinding BorderBrush}\"", StringComparison.Ordinal),
+        "the always-on-top control should render as a framed icon button");
+}
+
+static void QuickTranslatePopupCachesTargetLanguage()
+{
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+
+    AssertEqual(true, windowXaml.Contains(
+        "SelectionChanged=\"TargetLanguageBox_SelectionChanged\"",
+        StringComparison.Ordinal),
+        "target language selection should notify the popup");
+    AssertEqual(true, windowCode.Contains("PopulateTargetLanguageBox();", StringComparison.Ordinal) &&
+        windowCode.Contains("_settings.QuickTranslateTargetLanguage", StringComparison.Ordinal),
+        "the popup should restore and persist its target language");
+}
+
+static void QuickTranslatePopupShowsCancellableTranslationProgress()
+{
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+
+    AssertEqual(true, windowXaml.Contains(
+        "<Grid x:Name=\"ProgressPanel\"\n                      Grid.Row=\"7\"",
+        StringComparison.Ordinal) &&
+        windowXaml.Contains("IsIndeterminate=\"True\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"ResultLabel\"", StringComparison.Ordinal),
+        "translation progress should replace the result label without reserving a status row");
+    AssertEqual(true, windowCode.Contains("SetTranslationState(true, provider);", StringComparison.Ordinal) &&
+        windowCode.Contains("_translationElapsedTimer", StringComparison.Ordinal) &&
+        windowCode.Contains("TranslateButton.Content = translating ? \"取消\" : \"翻译\";", StringComparison.Ordinal) &&
+        windowCode.Contains("CancelActiveTranslation", StringComparison.Ordinal),
+        "the primary action should become cancellation while translation is in progress");
+}
+
+static void QuickTranslatePopupUsesResponsiveTransitions()
+{
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+
+    AssertEqual(true, windowXaml.Contains("x:Name=\"PopupTranslation\"", StringComparison.Ordinal),
+        "the popup should have a content transform for its entrance motion");
+    AssertEqual(true, windowCode.Contains("BeginOpenAnimation", StringComparison.Ordinal) &&
+        windowCode.Contains("AnimatePopupSize", StringComparison.Ordinal) &&
+        windowCode.Contains("PopupTransitionDuration", StringComparison.Ordinal),
+        "the popup should animate opening and compact-to-result size transitions");
+}
+
+static void QuickTranslateRevealsDomainsForAiProviders()
+{
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+
+    AssertEqual(true, windowXaml.Contains("x:Name=\"DomainBox\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"AddDomainButton\"", StringComparison.Ordinal),
+        "quick translate should expose domain selection and custom-domain commands");
+    AssertEqual(true, windowCode.Contains("TranslationService.IsAiProvider", StringComparison.Ordinal) &&
+        windowCode.Contains("UpdateDomainControls", StringComparison.Ordinal),
+        "domain controls should only be visible for AI providers");
+    AssertEqual(true, windowCode.Contains("QuickTranslateDomainDialog", StringComparison.Ordinal),
+        "custom domains should be added through a focused dialog");
+    AssertEqual(true, windowCode.Contains("_isShowingDomainDialog", StringComparison.Ordinal) &&
+        windowCode.Contains("!_isAlwaysOnTop && !_isShowingDomainDialog", StringComparison.Ordinal),
+        "the parent popup must stay open while the custom-domain dialog is active");
+}
+
+static void QuickTranslatePopupUsesBorderlessWpfFrame()
+{
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+
+    AssertEqual(true, windowXaml.Contains("WindowStyle=\"None\"", StringComparison.Ordinal),
         "taskbar popup should not retain a system title bar");
     AssertEqual(false, windowXaml.Contains("Click=\"Close_Click\"", StringComparison.Ordinal),
         "borderless popup should not retain a manual close command");
-    AssertEqual(true, windowCode.Contains("WindowActivationState.Deactivated", StringComparison.Ordinal),
+    AssertEqual(true, windowCode.Contains("Window_Deactivated", StringComparison.Ordinal),
         "taskbar popup should close after an outside click deactivates it");
-    AssertEqual(true, windowCode.Contains("&& !_isAlwaysOnTop", StringComparison.Ordinal),
+    AssertEqual(true, windowCode.Contains("if (!_isAlwaysOnTop && !_isShowingDomainDialog) Close();", StringComparison.Ordinal),
         "a pinned taskbar popup should remain open after deactivation");
     AssertEqual(true, windowXaml.Contains("x:Name=\"ProviderBox\"", StringComparison.Ordinal),
         "quick translate popup should allow provider selection");
 
-    int initialPositioning = windowCode.IndexOf("PositionOnTargetScreen();", StringComparison.Ordinal);
-    int activatedSubscription = windowCode.IndexOf("Activated += Window_Activated;", StringComparison.Ordinal);
-    if (initialPositioning < 0 || activatedSubscription < 0 || initialPositioning > activatedSubscription)
+    int initialPositioning = windowCode.IndexOf("PositionBeforeShow(options);", StringComparison.Ordinal);
+    int showCall = windowCode.IndexOf("Show();", StringComparison.Ordinal);
+    if (initialPositioning < 0 || showCall < 0 || initialPositioning > showCall)
     {
         throw new InvalidOperationException(
             "quick translate popup must be positioned before it is activated to avoid a top-left flash");
@@ -674,7 +961,8 @@ static void QuickTranslateButtonClosesExistingPopup()
         Environment.CurrentDirectory,
         "MainWindow.xaml.cs"));
 
-    AssertEqual(true, mainWindowCode.Contains("if (CloseExistingQuickTranslateHost()) return;", StringComparison.Ordinal),
+    AssertEqual(true, mainWindowCode.Contains("if (_quickTranslatePopup?.IsVisible == true)", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("CloseQuickTranslatePopup();", StringComparison.Ordinal),
         "repeated taskbar-button invocation should close an existing popup");
 }
 
@@ -682,18 +970,16 @@ static void QuickTranslatePopupProvidesAlwaysOnTopControl()
 {
     string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml"));
+        "QuickTranslatePopupWindow.xaml"));
     string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml.cs"));
+        "QuickTranslatePopupWindow.xaml.cs"));
 
     AssertEqual(true, windowXaml.Contains("x:Name=\"AlwaysOnTopButton\"", StringComparison.Ordinal),
         "popup must expose an always-on-top control");
     AssertEqual(true, windowCode.Contains("HwndTopmost", StringComparison.Ordinal),
         "always-on-top control must use the native topmost z-order");
-    AssertEqual(true, windowCode.Contains("ScaleWindowSizeForDpi", StringComparison.Ordinal),
+    AssertEqual(true, windowCode.Contains("GetTargetDpiScale", StringComparison.Ordinal),
         "popup size must scale with DPI so the pin control is not clipped");
 }
 
@@ -722,23 +1008,55 @@ static void QuickTranslateMaterialNormalizesConfiguredValues()
         QuickTranslateWindowMaterialParser.Parse("unexpected"), "unknown material should fall back to Mica");
 }
 
-static void QuickTranslateAcrylicUsesVisibleHostBackdropLayer()
+static void QuickTranslateUsesInProcessWpfPopup()
+{
+    string mainWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "MainWindow.xaml.cs"));
+    string popupPath = System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs");
+    string settingsHostAppCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "App.xaml.cs"));
+
+    AssertEqual(true, System.IO.File.Exists(popupPath),
+        "the in-process quick translate popup source should exist");
+    if (!System.IO.File.Exists(popupPath)) return;
+
+    string popupCode = System.IO.File.ReadAllText(popupPath);
+    AssertEqual(true, mainWindowCode.Contains("QuickTranslatePopupWindow? _quickTranslatePopup", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("new QuickTranslatePopupWindow", StringComparison.Ordinal),
+        "the main process should own a single WPF quick translate popup");
+    AssertEqual(false, mainWindowCode.Contains("_quickTranslateProcess", StringComparison.Ordinal) ||
+        mainWindowCode.Contains("QuickTranslateHostLauncher.BuildArguments", StringComparison.Ordinal),
+        "quick translate should no longer launch a SettingsHost process");
+    AssertEqual(false, settingsHostAppCode.Contains("new QuickTranslateWindow", StringComparison.Ordinal),
+        "SettingsHost should remain responsible for settings pages only");
+    AssertEqual(true, popupCode.Contains("ApplyAcrylicBackdrop", StringComparison.Ordinal) &&
+        popupCode.Contains("SetWindowCompositionAttribute", StringComparison.Ordinal),
+        "the WPF popup should apply the native acrylic composition effect");
+}
+
+static void QuickTranslateAcrylicReappliesAfterPopupRendering()
 {
     string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml.cs"));
+        "QuickTranslatePopupWindow.xaml.cs"));
     string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
-        "SettingsHost",
-        "QuickTranslateWindow.xaml"));
+        "QuickTranslatePopupWindow.xaml"));
 
-    AssertEqual(true, windowXaml.Contains("x:Name=\"RootLayout\"", StringComparison.Ordinal),
+    AssertEqual(true, windowXaml.Contains("x:Name=\"RootCard\"", StringComparison.Ordinal),
         "quick translate popup needs a root surface for the selected material");
-    AssertEqual(true, windowCode.Contains("new AcrylicBrush", StringComparison.Ordinal),
-        "Acrylic mode should paint a host-backdrop acrylic surface instead of relying on the opaque default page background");
-    AssertEqual(true, windowCode.Contains("RootLayout.Background", StringComparison.Ordinal),
-        "the acrylic surface should cover the popup content area");
+    AssertEqual(true, windowCode.Contains("ApplyAcrylicBackdrop", StringComparison.Ordinal) &&
+        windowCode.Contains("SetWindowCompositionAttribute", StringComparison.Ordinal),
+        "Acrylic mode should use the native window acrylic composition effect");
+    AssertEqual(true, windowCode.Contains(
+        "ContentRendered += Window_ContentRendered", StringComparison.Ordinal) &&
+        windowCode.Contains("Dispatcher.BeginInvoke", StringComparison.Ordinal),
+        "native acrylic must be reapplied after the WPF popup finishes rendering");
 }
 
 static void TrayMenuExcludesLyricComponentControls()
@@ -766,11 +1084,89 @@ static void TrayMenuExcludesLyricComponentControls()
     AssertEqual(false, trayMenu.Contains("FloatingLyricsCtx_Checked", StringComparison.Ordinal),
         "tray menu should not include the floating-lyrics click-through switch");
     AssertEqual(true, trayMenu.Contains("Header=\"设置\"", StringComparison.Ordinal) &&
+        trayMenu.Contains("Header=\"检查更新...\"", StringComparison.Ordinal) &&
         trayMenu.Contains("Header=\"重启\"", StringComparison.Ordinal) &&
         trayMenu.Contains("Header=\"退出\"", StringComparison.Ordinal),
         "tray menu should retain application-level commands");
     AssertEqual(true, code.Contains("FindResource(\"TrayContextMenu\")", StringComparison.Ordinal),
         "tray icon should open its dedicated context menu");
+    AssertEqual(true, markup.Contains("<Grid Background=\"Transparent\" Margin=\"12\">", StringComparison.Ordinal),
+        "the tray menu should reserve a transparent margin so its rounded shadow is not clipped by the popup bounds");
+}
+
+static void UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial()
+{
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "UpdateDialogWindow.xaml"));
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "UpdateDialogWindow.xaml.cs"));
+    string mainWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "MainWindow.xaml.cs"));
+
+    AssertEqual(true, windowXaml.Contains("SizeToContent=\"Height\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"ResultHeader\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("HorizontalAlignment=\"Center\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"NotesPanel\"", StringComparison.Ordinal),
+        "the update dialog should center its result header and only occupy the height its visible sections need");
+    AssertEqual(false, windowXaml.Contains("Content=\"关闭\"", StringComparison.Ordinal),
+        "the update dialog should use the title-bar close control instead of a redundant bottom close button");
+    AssertEqual(true, windowCode.Contains("NotesPanel.Visibility = Visibility.Collapsed;", StringComparison.Ordinal) &&
+        windowCode.Contains("ApplyWindowMaterial", StringComparison.Ordinal) &&
+        windowCode.Contains("QuickTranslateWindowMaterialParser.Parse(_settingsWindowMaterial)", StringComparison.Ordinal),
+        "the dialog should hide unused notes and apply the configured settings-window material");
+    AssertEqual(true, mainWindowCode.Contains(
+        "UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial)",
+        StringComparison.Ordinal) &&
+        mainWindowCode.Contains(
+            "UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? \"发生了未知错误。\", _settings.SettingsWindowMaterial)",
+            StringComparison.Ordinal),
+        "update checks should pass the active settings-window material to the dialog");
+}
+
+static void QuickTranslateFontSettingIsIndependent()
+{
+    string appSettings = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "AppSettings.cs"));
+    string settingsDocument = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "MainWindow.xaml.cs"));
+
+    AssertEqual(true, appSettings.Contains(
+        "public string QuickTranslateFontFamily { get; set; } = \"Microsoft YaHei UI\";",
+        StringComparison.Ordinal),
+        "the main app must persist an independent quick-translate font family");
+    AssertEqual(true, settingsDocument.Contains(
+        "public string QuickTranslateFontFamily { get; set; } = \"Microsoft YaHei UI\";",
+        StringComparison.Ordinal),
+        "the settings host must preserve the same quick-translate font family field");
+    AssertEqual(true, settingsDocument.Contains(
+        "\"翻译窗口字体\",\n            _settings.QuickTranslateFontFamily,",
+        StringComparison.Ordinal) &&
+        settingsDocument.Contains(
+            "value => _settings.QuickTranslateFontFamily = value",
+            StringComparison.Ordinal),
+        "quick translate settings should use the shared searchable font-picker pattern");
+
+    string popupCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+    AssertEqual(true, popupCode.Contains(
+        "ApplyConfiguredFontFamily();",
+        StringComparison.Ordinal) &&
+        popupCode.Contains(
+            "new FontFamily(_settings.QuickTranslateFontFamily)",
+            StringComparison.Ordinal),
+        "the quick-translate popup should apply only its dedicated font setting");
+    AssertEqual(false, popupCode.Contains(
+        "TaskbarPerformanceFontFamily",
+        StringComparison.Ordinal) ||
+        popupCode.Contains("_settings.FontFamily", StringComparison.Ordinal),
+        "quick-translate typography must remain independent from performance and lyric fonts");
 }
 
 static void TaskbarMonitorSelectionUsesConfiguredDisplay()
@@ -794,6 +1190,72 @@ static void TaskbarMonitorSelectionFallsBackToPrimaryTaskbar()
         "an empty setting must keep the primary taskbar behavior");
     AssertEqual(primary, TaskbarMonitorLocator.Select([primary, secondary], "\\\\.\\MISSING"),
         "a disconnected display must fall back to the primary taskbar");
+}
+
+static void TaskbarComponentMonitorAssignmentsInheritLegacyLyricDisplay()
+{
+    AssertEqual("\\\\.\\DISPLAY2",
+        TaskbarComponentMonitorSelection.Resolve("", "\\\\.\\DISPLAY2"),
+        "blank component monitor should inherit the legacy lyric monitor");
+    AssertEqual("\\\\.\\DISPLAY3",
+        TaskbarComponentMonitorSelection.Resolve("\\\\.\\DISPLAY3", "\\\\.\\DISPLAY2"),
+        "an explicit component monitor should take precedence");
+    AssertEqual("", TaskbarComponentMonitorSelection.Resolve(null, null),
+        "a fresh configuration should retain primary-taskbar fallback behavior");
+}
+
+static void TaskbarComponentsResolveDedicatedDisplay()
+{
+    string performanceCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "TaskbarPerformanceWindow.xaml.cs"));
+    string translateButtonCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "TaskbarTranslateButtonWindow.xaml.cs"));
+    string mainWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "MainWindow.xaml.cs"));
+
+    AssertEqual(true, performanceCode.Contains(
+        "FindTaskbarWindow(_settings.TaskbarPerformanceMonitorDeviceName)", StringComparison.Ordinal),
+        "performance monitor should resolve its own selected taskbar");
+    AssertEqual(true, translateButtonCode.Contains(
+        "FindTaskbarWindow(_settings.TaskbarTranslateButtonMonitorDeviceName)", StringComparison.Ordinal),
+        "translation button should resolve its own selected taskbar");
+    AssertEqual(true, mainWindowCode.Contains(
+        "FindTaskbarWindow(_settings.TaskbarTranslateButtonMonitorDeviceName)", StringComparison.Ordinal),
+        "translation popup placement should follow the translation button display");
+}
+
+static void TaskbarComponentSettingsExposeIndependentDisplaySelectors()
+{
+    string settingsCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "SettingsHost",
+        "MainWindow.xaml.cs"));
+
+    AssertEqual(true, settingsCode.Contains(
+        "LabeledDisplaySelector(_settings.TaskbarPerformanceMonitorDeviceName",
+        StringComparison.Ordinal),
+        "performance page should expose a display selector");
+    AssertEqual(true, settingsCode.Contains(
+        "LabeledDisplaySelector(_settings.TaskbarTranslateButtonMonitorDeviceName",
+        StringComparison.Ordinal),
+        "quick translate page should expose a display selector");
+}
+
+static void TaskbarApplicationUsesPerMonitorV2()
+{
+    string projectPath = System.IO.Path.Combine(Environment.CurrentDirectory, "TaskbarInfo.csproj");
+    string manifestPath = System.IO.Path.Combine(Environment.CurrentDirectory, "app.manifest");
+    string projectCode = System.IO.File.ReadAllText(projectPath);
+    string manifestCode = System.IO.File.Exists(manifestPath)
+        ? System.IO.File.ReadAllText(manifestPath)
+        : string.Empty;
+
+    AssertEqual(true, projectCode.Contains("<ApplicationManifest>app.manifest</ApplicationManifest>", StringComparison.Ordinal) &&
+        manifestCode.Contains("PerMonitorV2", StringComparison.Ordinal),
+        "taskbar windows must use per-monitor DPI awareness before they are hosted by another display's taskbar");
 }
 
 static void CloneCopiesAppFilterListIndependently()
@@ -1053,7 +1515,7 @@ static void TaskbarTranslateButtonExposesSettingsMenu()
         "translate button should not publish exit command");
 }
 
-static void TaskbarComponentMenusExcludeLifecycleCommands()
+static void TaskbarComponentMenusExcludeApplicationCommands()
 {
     foreach (var menuTarget in new[]
     {
@@ -1075,6 +1537,8 @@ static void TaskbarComponentMenusExcludeLifecycleCommands()
             $"{menuTarget.Item1} should leave restart to the tray menu");
         AssertEqual(false, menu.Contains("Header=\"退出\"", StringComparison.Ordinal),
             $"{menuTarget.Item1} should leave exit to the tray menu");
+        AssertEqual(false, menu.Contains("Header=\"检查更新...\"", StringComparison.Ordinal),
+            $"{menuTarget.Item1} should leave update checks to the tray menu");
     }
 
     string mainWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
@@ -1086,6 +1550,8 @@ static void TaskbarComponentMenusExcludeLifecycleCommands()
     AssertEqual(false, mainWindowCode.Contains("_taskbarPerformanceWindow.ExitRequested", StringComparison.Ordinal) ||
         mainWindowCode.Contains("_taskbarTranslateButtonWindow.ExitRequested", StringComparison.Ordinal),
         "taskbar components should not forward exit commands");
+    AssertEqual(false, mainWindowCode.Contains("_taskbarPerformanceWindow.CheckForUpdatesRequested", StringComparison.Ordinal),
+        "taskbar components should not forward update commands");
 }
 
 static void SettingsHostOpensQuickTranslatePageFromTaskbarMenu()

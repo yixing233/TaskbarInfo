@@ -154,7 +154,7 @@ public partial class TaskbarTranslateButtonWindow : Window, IDisposable
         IntPtr handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
 
-        IntPtr taskbar = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarMonitorDeviceName);
+        IntPtr taskbar = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarTranslateButtonMonitorDeviceName);
         if (taskbar == IntPtr.Zero) return;
 
         if (_taskbarWindow != taskbar || UnmanagedMethods.GetParent(handle) != taskbar)

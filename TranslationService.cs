@@ -4,12 +4,16 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace TaskbarInfo;
 
 public static class TranslationService
 {
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(15) };
+    private static readonly Regex AiPhoneticLinePattern = new(
+        @"(?m)^(?<indent>[ \t]*)(?:IPA|音标)[ \t]*[:：][ \t]*(?<value>[^\r\n]+?)[ \t]*(?<ending>\r?)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     public static Task<string> TranslateAsync(
         string text,
@@ -89,6 +93,69 @@ public static class TranslationService
 
     public static string CreateBaiduSignature(string appId, string text, string salt, string appSecret) =>
         Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(appId + text + salt + appSecret))).ToLowerInvariant();
+
+    public static string CreateOpenAiCompatibleRequestBody(
+        string text,
+        string targetLanguage,
+        TranslationConfiguration configuration) => JsonSerializer.Serialize(new
+        {
+            model = configuration.ExtraCredential.Trim(),
+            stream = false,
+            temperature = 0.2,
+            messages = CreateAiMessages(
+                text,
+                targetLanguage,
+                configuration.SystemPrompt,
+                configuration.Domain,
+                configuration.GeneratePhonetic)
+        });
+
+    public static string ResolveAiSystemPrompt(
+        string? prompt,
+        string targetLanguage,
+        string? domain = null,
+        bool generatePhonetic = false)
+    {
+        string template = string.IsNullOrWhiteSpace(prompt)
+            ? TranslationProviderProfiles.DefaultAiSystemPrompt
+            : prompt.Trim();
+        string selectedDomain = TranslationDomainCatalog.NormalizeDomain(domain);
+        bool includesDomain = template.Contains("{domain}", StringComparison.OrdinalIgnoreCase);
+        string resolved = template.Replace(
+            "{target_language}",
+            ToAiTargetLanguage(targetLanguage),
+            StringComparison.OrdinalIgnoreCase)
+            .Replace("{domain}", selectedDomain, StringComparison.OrdinalIgnoreCase);
+        string withDomainContext = !includesDomain && TranslationDomainCatalog.IsCustomDomain(selectedDomain)
+            ? resolved + "\nTranslation domain: " + selectedDomain + ". Use conventional terminology for this domain."
+            : resolved;
+        return generatePhonetic
+            ? withDomainContext + "\nAfter the translation, add a final line exactly in the format " +
+                "IPA: /.../ containing the International Phonetic Alphabet transcription of the translated text. " +
+                "Do not add explanations or Markdown."
+            : withDomainContext;
+    }
+
+    public static string NormalizeAiPhoneticFormat(string translatedText)
+    {
+        if (string.IsNullOrWhiteSpace(translatedText)) return translatedText;
+
+        return AiPhoneticLinePattern.Replace(translatedText, match =>
+        {
+            string phonetic = match.Groups["value"].Value.Trim();
+            if (phonetic.Length >= 2 &&
+                ((phonetic[0] == '[' && phonetic[^1] == ']') ||
+                 (phonetic[0] == '/' && phonetic[^1] == '/')))
+            {
+                phonetic = phonetic[1..^1].Trim();
+            }
+
+            phonetic = phonetic.Trim('/').Trim();
+            return string.IsNullOrWhiteSpace(phonetic)
+                ? match.Value
+                : match.Groups["indent"].Value + "IPA: /" + phonetic + "/" + match.Groups["ending"].Value;
+        });
+    }
 
     private static async Task<string> TranslateWithBaiduAsync(string text, string targetLanguage, TranslationConfiguration configuration, CancellationToken cancellationToken)
     {
@@ -187,7 +254,7 @@ public static class TranslationService
 
     private static async Task<string> TranslateWithTencentAsync(string text, string targetLanguage, TranslationConfiguration configuration, CancellationToken cancellationToken)
     {
-        RequireCredentials(configuration, "腾讯翻译君", ("SecretId", configuration.AppId), ("SecretKey", configuration.AppSecret));
+        RequireCredentials(configuration, "腾讯云机器翻译", ("SecretId", configuration.AppId), ("SecretKey", configuration.AppSecret));
         string body = JsonSerializer.Serialize(new { SourceText = text, Source = "auto", Target = ToTencentTargetLanguage(targetLanguage), ProjectId = 0 });
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string region = string.IsNullOrWhiteSpace(configuration.ExtraCredential) ? "ap-guangzhou" : configuration.ExtraCredential.Trim();
@@ -196,12 +263,20 @@ public static class TranslationService
         {
             Content = new StringContent(body, Encoding.UTF8, "application/json")
         };
-        request.Headers.Add("Authorization", CreateTencentAuthorization(configuration.AppId, configuration.AppSecret, timestamp, body, new Uri(endpoint).Host));
+        if (!request.Headers.TryAddWithoutValidation("Authorization", CreateTencentAuthorization(
+            configuration.AppId,
+            configuration.AppSecret,
+            timestamp,
+            body,
+            new Uri(endpoint).Host)))
+        {
+            throw new InvalidOperationException("无法附加腾讯云机器翻译签名。");
+        }
         request.Headers.Add("X-TC-Action", "TextTranslate");
         request.Headers.Add("X-TC-Version", "2018-03-21");
         request.Headers.Add("X-TC-Timestamp", timestamp.ToString(CultureInfo.InvariantCulture));
         request.Headers.Add("X-TC-Region", region);
-        return await SendAsync(request, "腾讯翻译君", ExtractTencentTranslatedText, cancellationToken);
+        return await SendAsync(request, "腾讯云机器翻译", ExtractTencentTranslatedText, cancellationToken);
     }
 
     private static async Task<string> TranslateWithAlibabaAsync(string text, string targetLanguage, TranslationConfiguration configuration, CancellationToken cancellationToken)
@@ -294,16 +369,15 @@ public static class TranslationService
             ("API Key", configuration.AppId), ("模型 ID", configuration.ExtraCredential));
         using var request = new HttpRequestMessage(HttpMethod.Post, configuration.ApiBaseUrl)
         {
-            Content = new StringContent(JsonSerializer.Serialize(new
-            {
-                model = configuration.ExtraCredential.Trim(),
-                temperature = 0.2,
-                messages = CreateAiMessages(text, targetLanguage)
-            }), Encoding.UTF8, "application/json")
+            Content = new StringContent(
+                CreateOpenAiCompatibleRequestBody(text, targetLanguage, configuration),
+                Encoding.UTF8,
+                "application/json")
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration.AppId.Trim());
-        return await SendAsync(request, TranslationProviderProfiles.GetDefaultDisplayName(configuration.Provider),
+        string translatedText = await SendAsync(request, TranslationProviderProfiles.GetDefaultDisplayName(configuration.Provider),
             ExtractOpenAICompatibleTranslatedText, cancellationToken);
+        return configuration.GeneratePhonetic ? NormalizeAiPhoneticFormat(translatedText) : translatedText;
     }
 
     private static async Task<string> TranslateWithOllamaAsync(string text, string targetLanguage, TranslationConfiguration configuration, CancellationToken cancellationToken)
@@ -315,10 +389,16 @@ public static class TranslationService
             {
                 model = configuration.ExtraCredential.Trim(),
                 stream = false,
-                messages = CreateAiMessages(text, targetLanguage)
+                messages = CreateAiMessages(
+                    text,
+                    targetLanguage,
+                    configuration.SystemPrompt,
+                    configuration.Domain,
+                    configuration.GeneratePhonetic)
             }), Encoding.UTF8, "application/json")
         };
-        return await SendAsync(request, "Ollama 本地模型", ExtractOllamaTranslatedText, cancellationToken);
+        string translatedText = await SendAsync(request, "Ollama 本地模型", ExtractOllamaTranslatedText, cancellationToken);
+        return configuration.GeneratePhonetic ? NormalizeAiPhoneticFormat(translatedText) : translatedText;
     }
 
     private static async Task<string> SendAsync(HttpRequestMessage request, string provider, Func<string, string> parser, CancellationToken cancellationToken)
@@ -384,10 +464,10 @@ public static class TranslationService
         JsonElement root = document.RootElement;
         if (root.TryGetProperty("Response", out JsonElement result))
         {
-            ThrowIfError(result, "腾讯翻译君");
+            ThrowIfError(result, "腾讯云机器翻译");
             return result.TryGetProperty("TargetText", out JsonElement text) ? text.GetString() ?? string.Empty : string.Empty;
         }
-        ThrowIfError(root, "腾讯翻译君");
+        ThrowIfError(root, "腾讯云机器翻译");
         return string.Empty;
     }
 
@@ -589,17 +669,22 @@ public static class TranslationService
         return null;
     }
 
-    private static object[] CreateAiMessages(string text, string targetLanguage) =>
+    private static object[] CreateAiMessages(
+        string text,
+        string targetLanguage,
+        string? systemPrompt,
+        string? domain,
+        bool generatePhonetic) =>
     [
         new
         {
             role = "system",
-            content = "You are a translation engine. Return only the translated text without explanations or quotation marks."
+            content = ResolveAiSystemPrompt(systemPrompt, targetLanguage, domain, generatePhonetic)
         },
         new
         {
             role = "user",
-            content = "Translate the following text into " + ToAiTargetLanguage(targetLanguage) + ":\n" + text
+            content = text
         }
     ];
 

@@ -6,4 +6,7 @@ public sealed record TranslationConfiguration(
     string AppId,
     string AppSecret,
     string ApiBaseUrl,
-    string ExtraCredential = "");
+    string ExtraCredential = "",
+    string SystemPrompt = "",
+    string Domain = TranslationDomainCatalog.General,
+    bool GeneratePhonetic = false);

@@ -9,6 +9,7 @@ public sealed class TranslationProviderProfile
     public string AppSecret { get; set; } = "";
     public string ExtraCredential { get; set; } = "";
     public string ApiBaseUrl { get; set; } = "";
+    public string SystemPrompt { get; set; } = "";
 }
 
 public sealed record TranslationProviderDefinition(
@@ -22,6 +23,13 @@ public sealed record TranslationProviderDefinition(
 
 public static class TranslationProviderProfiles
 {
+    private const string LegacyTencentDisplayName = "腾讯翻译君";
+
+    public const string DefaultAiSystemPrompt =
+        "You are a professional translation engine. Translate the user's text into {target_language}. " +
+        "The translation domain is {domain}; use terminology conventional for that domain. " +
+        "Preserve the original meaning, formatting, and line breaks. Return only the translated text.";
+
     private static readonly IReadOnlyList<TranslationProviderDefinition> ProviderDefinitions =
     [
         new("Baidu", "百度翻译", "https://fanyi-api.baidu.com/api/trans/vip/translate", "App ID", "API Secret", ""),
@@ -29,7 +37,7 @@ public static class TranslationProviderProfiles
         new("Google", "Google Cloud Translation", "https://translation.googleapis.com/language/translate/v2", "API Key", "", ""),
         new("DeepL", "DeepL", "https://api-free.deepl.com/v2/translate", "Auth Key", "", ""),
         new("Azure", "Microsoft Azure Translator", "https://api.cognitive.microsofttranslator.com/translate", "Subscription Key", "", "资源区域（可选）"),
-        new("Tencent", "腾讯翻译君", "https://tmt.tencentcloudapi.com", "SecretId", "SecretKey", "区域", "ap-guangzhou"),
+        new("Tencent", "腾讯云机器翻译", "https://tmt.tencentcloudapi.com", "SecretId", "SecretKey", "区域", "ap-guangzhou"),
         new("Alibaba", "阿里云机器翻译", "https://mt.cn-hangzhou.aliyuncs.com", "AccessKey ID", "AccessKey Secret", ""),
         new("Volcengine", "火山翻译", "https://translate.volcengineapi.com", "Access Key", "Secret Key", "区域", "cn-north-1"),
         new("Huawei", "华为云机器翻译", "https://nlp-ext.cn-north-4.myhuaweicloud.com", "Access Key", "Secret Key", "项目 ID"),
@@ -73,6 +81,10 @@ public static class TranslationProviderProfiles
             string displayName = string.IsNullOrWhiteSpace(source.DisplayName)
                 ? GetDefaultDisplayName(provider)
                 : source.DisplayName.Trim();
+            if (provider == "Tencent" && string.Equals(displayName, LegacyTencentDisplayName, StringComparison.Ordinal))
+            {
+                displayName = GetDefaultDisplayName(provider);
+            }
             normalized.Add(new TranslationProviderProfile
             {
                 Id = id,
@@ -81,7 +93,8 @@ public static class TranslationProviderProfiles
                 AppId = source.AppId ?? string.Empty,
                 AppSecret = source.AppSecret ?? string.Empty,
                 ExtraCredential = source.ExtraCredential ?? string.Empty,
-                ApiBaseUrl = NormalizeApiBaseUrl(source.ApiBaseUrl, provider)
+                ApiBaseUrl = NormalizeApiBaseUrl(source.ApiBaseUrl, provider),
+                SystemPrompt = source.SystemPrompt ?? string.Empty
             });
         }
 
@@ -155,7 +168,8 @@ public static class TranslationProviderProfiles
         string.IsNullOrWhiteSpace(profile.AppId) &&
         string.IsNullOrWhiteSpace(profile.AppSecret) &&
         string.IsNullOrWhiteSpace(profile.ExtraCredential) &&
-        string.IsNullOrWhiteSpace(profile.ApiBaseUrl);
+        string.IsNullOrWhiteSpace(profile.ApiBaseUrl) &&
+        string.IsNullOrWhiteSpace(profile.SystemPrompt);
 
     public static string NormalizeProvider(string? provider) => FindDefinition(provider)?.Id ?? "";
 

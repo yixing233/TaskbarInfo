@@ -3,10 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="检查更新"
         Width="460"
-        Height="420"
+        SizeToContent="Height"
+        MaxHeight="680"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Background="#F5F7FA"
+        Background="Transparent"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display">
@@ -73,73 +74,58 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="16"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="16"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="20"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Border x:Name="RootSurface" Background="#F5F7FA" Padding="28,26,28,24">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
-            <Border Width="52" Height="52" CornerRadius="16" Background="#EAF4FF" HorizontalAlignment="Left">
-                <TextBlock x:Name="StatusGlyphText" Text="i" FontSize="26" FontWeight="Bold" Foreground="{StaticResource SystemAccentColor}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <StackPanel x:Name="ResultHeader" HorizontalAlignment="Center">
+                <Border x:Name="StatusGlyphBadge" Width="56" Height="56" CornerRadius="18" Background="#EAF4FF" HorizontalAlignment="Center">
+                    <TextBlock x:Name="StatusGlyphText" Text="i" FontSize="26" FontWeight="Bold" Foreground="{StaticResource SystemAccentColor}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock x:Name="TitleText" Margin="0,16,0,4" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
+                <TextBlock x:Name="SummaryText" MaxWidth="350" Style="{StaticResource BodyText}" HorizontalAlignment="Center" TextAlignment="Center"/>
+            </StackPanel>
+
+            <Border Grid.Row="1" Margin="0,20,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="12" Padding="18">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="96"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="当前版本" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock x:Name="CurrentVersionText" Grid.Column="1" FontWeight="SemiBold"/>
+
+                    <TextBlock Grid.Row="2" Text="最新版本" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock x:Name="LatestVersionText" Grid.Row="2" Grid.Column="1" FontWeight="SemiBold"/>
+
+                    <TextBlock Grid.Row="4" Text="发布时间" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock x:Name="PublishedAtText" Grid.Row="4" Grid.Column="1"/>
+                </Grid>
             </Border>
-            <TextBlock x:Name="TitleText" Margin="0,16,0,4" FontSize="22" FontWeight="SemiBold"/>
-            <TextBlock x:Name="SummaryText" Style="{StaticResource BodyText}"/>
-        </StackPanel>
 
-        <Border Grid.Row="2" Background="{StaticResource CardBackground}" BorderBrush="#EEEEEE" BorderThickness="1" CornerRadius="12" Padding="18">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+            <Border x:Name="NotesPanel" Grid.Row="2" Margin="0,16,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="12" Padding="18" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock x:Name="NotesTitleText" Text="说明" FontWeight="SemiBold" FontSize="14"/>
+                    <ScrollViewer Margin="0,10,0,0" MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="NotesText" Style="{StaticResource BodyText}"/>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
 
-                <TextBlock Text="当前版本" Foreground="{StaticResource TextSecondaryColor}" Margin="0,0,16,0"/>
-                <TextBlock x:Name="CurrentVersionText" Grid.Column="1" FontWeight="SemiBold"/>
-
-                <TextBlock Grid.Row="2" Text="最新版本" Foreground="{StaticResource TextSecondaryColor}" Margin="0,0,16,0"/>
-                <TextBlock x:Name="LatestVersionText" Grid.Row="2" Grid.Column="1" FontWeight="SemiBold"/>
-
-                <TextBlock Grid.Row="4" Text="发布时间" Foreground="{StaticResource TextSecondaryColor}" Margin="0,0,16,0"/>
-                <TextBlock x:Name="PublishedAtText" Grid.Row="4" Grid.Column="1"/>
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="4" Background="{StaticResource CardBackground}" BorderBrush="#EEEEEE" BorderThickness="1" CornerRadius="12" Padding="18">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="10"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TextBlock x:Name="NotesTitleText" Text="说明" FontWeight="SemiBold" FontSize="14"/>
-                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                    <TextBlock x:Name="NotesText" Style="{StaticResource BodyText}"/>
-                </ScrollViewer>
-            </Grid>
-        </Border>
-
-        <Grid Grid.Row="6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button Grid.Column="1" Width="92" Content="关闭" Click="Close_Click"/>
-            <Button x:Name="PrimaryButton" Grid.Column="3" Width="118" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click"/>
+            <Button x:Name="PrimaryButton" Grid.Row="3" Width="124" Margin="0,20,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click" Visibility="Collapsed"/>
         </Grid>
-    </Grid>
+    </Border>
 </Window>

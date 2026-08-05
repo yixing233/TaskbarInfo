@@ -49,12 +49,14 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                        <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
-                            </Border.Effect>
-                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                        </Border>
+                        <Grid Background="Transparent" Margin="12">
+                            <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
+                                </Border.Effect>
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </Border>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -191,12 +193,6 @@
                     <MenuItem Header="设置" Click="OpenSettings_Click">
                         <MenuItem.Icon>
                            <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#555555"/> 
-                        </MenuItem.Icon>
-                    </MenuItem>
-
-                    <MenuItem Header="检查更新..." Click="CheckForUpdates_Click">
-                        <MenuItem.Icon>
-                           <TextBlock Text="&#xf0ab;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 
                         </MenuItem.Icon>
                     </MenuItem>
 

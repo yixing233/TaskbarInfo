@@ -333,12 +333,8 @@ public sealed partial class MainWindow : Window
         panel.AddRow(LabeledComboBox("下一句字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.NextLyricFontWeight), value => _settings.NextLyricFontWeight = ToFontWeight(value)));
         panel.AddRow(LabeledToggle("显示双行歌词", _settings.IsDoubleLine, value => _settings.IsDoubleLine = value));
         panel.AddRow(LabeledNumberBox("任务栏歌词宽度", _settings.Width, 180, 1600, value => _settings.Width = value));
-        DisplayOption[] displayOptions = GetDisplayOptions();
-        DisplayOption selectedDisplay = displayOptions.FirstOrDefault(option =>
-            string.Equals(option.DeviceName, _settings.TaskbarMonitorDeviceName, StringComparison.OrdinalIgnoreCase))
-            ?? displayOptions[0];
-        panel.AddRow(LabeledComboBox("显示屏", displayOptions.Select(option => option.Label).ToArray(), selectedDisplay.Label,
-            label => _settings.TaskbarMonitorDeviceName = displayOptions.First(option => option.Label == label).DeviceName));
+        panel.AddRow(LabeledDisplaySelector(_settings.TaskbarMonitorDeviceName,
+            value => _settings.TaskbarMonitorDeviceName = value));
         panel.AddRow(LabeledNumberBox("任务栏右侧偏移", _settings.OffsetX, 0, 200, value =>
         {
             _settings.OffsetX = (int)value;
@@ -435,6 +431,8 @@ public sealed partial class MainWindow : Window
             "启用任务栏性能监控",
             _settings.EnableTaskbarPerformanceMonitor,
             value => _settings.EnableTaskbarPerformanceMonitor = value));
+        panel.AddRow(LabeledDisplaySelector(_settings.TaskbarPerformanceMonitorDeviceName,
+            value => _settings.TaskbarPerformanceMonitorDeviceName = value));
         panel.AddRow(LabeledNumberBox(
             "任务栏摘要数量",
             _settings.TaskbarPerformanceSummaryMetricCount,
@@ -622,23 +620,39 @@ public sealed partial class MainWindow : Window
             Spacing = 16
         };
 
-        var general = NewPanel("快捷翻译", "配置任务栏翻译入口与窗口行为。");
-        general.AddRow(LabeledToggle(
+        var general = NewPanel("快捷翻译", "配置任务栏翻译入口与窗口行为。", titleFontSize: 24);
+        var taskbarEntry = new StackPanel { Spacing = 10 };
+        taskbarEntry.Children.Add(SectionHeader("任务栏入口"));
+        taskbarEntry.Children.Add(LabeledToggle(
             "显示任务栏翻译按钮",
             _settings.EnableTaskbarTranslateButton,
             value => _settings.EnableTaskbarTranslateButton = value));
 
         var resetButtonPosition = new Button
         {
-            Content = "恢复默认按钮位置",
-            HorizontalAlignment = HorizontalAlignment.Left
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Content = new SymbolIcon(Symbol.Refresh)
         };
+        ToolTipService.SetToolTip(resetButtonPosition, "恢复默认按钮位置");
         resetButtonPosition.Click += (_, _) =>
         {
             _settings.TaskbarTranslateButtonOffsetX = null;
             _resetTaskbarTranslateButtonPosition = true;
         };
-        general.AddRow(resetButtonPosition);
+        var displayEditor = new Grid { ColumnSpacing = 8 };
+        displayEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        displayEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var displaySelector = LabeledDisplaySelector(_settings.TaskbarTranslateButtonMonitorDeviceName,
+            value => _settings.TaskbarTranslateButtonMonitorDeviceName = value);
+        Grid.SetColumn(displaySelector, 0);
+        Grid.SetColumn(resetButtonPosition, 1);
+        displayEditor.Children.Add(displaySelector);
+        displayEditor.Children.Add(resetButtonPosition);
+        taskbarEntry.Children.Add(displayEditor);
+        general.AddRow(taskbarEntry);
 
         var hotkeyBox = new TextBox
         {
@@ -684,8 +698,14 @@ public sealed partial class MainWindow : Window
             QuickTranslateWindowMaterial.Solid => "纯色",
             _ => "Mica"
         };
-        general.AddRow(Field("全局快捷键", hotkeyEditor, "点击输入框后按下组合键；移除后不注册全局快捷键。"));
-        general.AddRow(LabeledComboBox("窗口材质", ["Mica", "Acrylic", "纯色"], selectedMaterial, value =>
+        var interaction = new StackPanel { Spacing = 10 };
+        interaction.Children.Add(SectionHeader("快捷操作"));
+        interaction.Children.Add(Field("全局快捷键", hotkeyEditor, "点击输入框后按下组合键；移除后不注册全局快捷键。"));
+        interaction.Children.Add(LabeledFontPicker(
+            "翻译窗口字体",
+            _settings.QuickTranslateFontFamily,
+            value => _settings.QuickTranslateFontFamily = value));
+        interaction.Children.Add(LabeledComboBox("窗口材质", ["Mica", "Acrylic", "纯色"], selectedMaterial, value =>
         {
             _settings.QuickTranslateWindowMaterial = value switch
             {
@@ -694,6 +714,11 @@ public sealed partial class MainWindow : Window
                 _ => "Mica"
             };
         }));
+        interaction.Children.Add(LabeledToggle(
+            "AI 生成音标",
+            _settings.EnableQuickTranslateAiPhonetic,
+            value => _settings.EnableQuickTranslateAiPhonetic = value));
+        general.AddRow(interaction);
 
         root.Children.Add(general);
 
@@ -702,8 +727,16 @@ public sealed partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
         providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
+        providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
         providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        root.Children.Add(providerLayout);
+        var providerSection = new Border
+        {
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            Padding = new Thickness(0, 18, 0, 0),
+            Child = providerLayout
+        };
+        root.Children.Add(providerSection);
 
         var leftColumn = new Grid
         {
@@ -717,8 +750,8 @@ public sealed partial class MainWindow : Window
         providerHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         providerHeader.Children.Add(new TextBlock
         {
-            Text = "提供商源",
-            FontSize = 18,
+            Text = "翻译服务商",
+            FontSize = 16,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
         });
@@ -736,14 +769,21 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(leftColumn, 0);
         providerLayout.Children.Add(leftColumn);
 
+        var providerDivider = new Border
+        {
+            Background = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush
+        };
+        Grid.SetColumn(providerDivider, 1);
+        providerLayout.Children.Add(providerDivider);
+
         var detailPanel = new StackPanel
         {
             Spacing = 12,
-            Padding = new Thickness(28, 0, 0, 12)
+            Padding = new Thickness(24, 0, 0, 12)
         };
         var detailTitle = new TextBlock
         {
-            FontSize = 24,
+            FontSize = 20,
             FontWeight = FontWeights.SemiBold
         };
         var detailEndpoint = new TextBlock
@@ -761,6 +801,14 @@ public sealed partial class MainWindow : Window
         var appIdBox = new TextBox { MinWidth = 360 };
         var secretBox = new PasswordBox { MinWidth = 360 };
         var extraCredentialBox = new AutoSuggestBox { MinWidth = 360 };
+        var systemPromptBox = new TextBox
+        {
+            MinWidth = 360,
+            Height = 112,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            PlaceholderText = TranslationProviderProfiles.DefaultAiSystemPrompt
+        };
         var fetchModelsButton = new Button
         {
             Width = 36,
@@ -776,6 +824,7 @@ public sealed partial class MainWindow : Window
         var appIdField = new StackPanel { Spacing = 4 };
         var appSecretField = new StackPanel { Spacing = 4 };
         var extraCredentialField = new StackPanel { Spacing = 4 };
+        var systemPromptField = new StackPanel { Spacing = 4 };
         var extraCredentialEditor = new Grid { ColumnSpacing = 8 };
         extraCredentialEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         extraCredentialEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -789,6 +838,15 @@ public sealed partial class MainWindow : Window
         extraCredentialEditor.Children.Add(extraCredentialBox);
         extraCredentialEditor.Children.Add(fetchModelsButton);
         extraCredentialField.Children.Add(extraCredentialEditor);
+        systemPromptField.Children.Add(new TextBlock { Text = "系统提示词" });
+        systemPromptField.Children.Add(new TextBlock
+        {
+            Text = "留空时使用默认翻译提示词；可使用 {target_language} 代表当前目标语言，{domain} 代表快捷翻译中选择的领域。",
+            FontSize = 12,
+            Opacity = 0.72,
+            TextWrapping = TextWrapping.Wrap
+        });
+        systemPromptField.Children.Add(systemPromptBox);
         var modelCandidates = new List<string>();
         bool synchronizing = false;
 
@@ -851,6 +909,7 @@ public sealed partial class MainWindow : Window
             profile.AppSecret = secretBox.Password;
             profile.ExtraCredential = extraCredentialBox.Text.Trim();
             profile.ApiBaseUrl = apiBaseUrlBox.Text.Trim();
+            profile.SystemPrompt = systemPromptBox.Text;
             _settings.SelectedTranslationProviderId = profile.Id;
             if (providerList.SelectedItem is ListViewItem item)
             {
@@ -872,6 +931,7 @@ public sealed partial class MainWindow : Window
             extraCredentialBox.IsEnabled = hasProfile;
             apiBaseUrlBox.IsEnabled = hasProfile;
             string provider = profile?.Provider ?? string.Empty;
+            bool isAiProvider = TranslationService.IsAiProvider(provider);
             appIdLabel.Text = TranslationProviderProfiles.GetAppIdLabel(provider);
             appSecretLabel.Text = TranslationProviderProfiles.GetAppSecretLabel(provider);
             extraCredentialLabel.Text = TranslationProviderProfiles.GetExtraCredentialLabel(provider);
@@ -884,7 +944,11 @@ public sealed partial class MainWindow : Window
             extraCredentialField.Visibility = string.IsNullOrEmpty(extraCredentialLabel.Text)
                 ? Visibility.Collapsed
                 : Visibility.Visible;
-            fetchModelsButton.Visibility = hasProfile && TranslationService.IsAiProvider(provider)
+            systemPromptField.Visibility = hasProfile && isAiProvider
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            systemPromptBox.IsEnabled = hasProfile && isAiProvider;
+            fetchModelsButton.Visibility = hasProfile && isAiProvider
                 ? Visibility.Visible
                 : Visibility.Collapsed;
             providerIdBox.Text = profile?.Id ?? string.Empty;
@@ -893,6 +957,7 @@ public sealed partial class MainWindow : Window
             secretBox.Password = profile?.AppSecret ?? string.Empty;
             extraCredentialBox.Text = profile?.ExtraCredential ?? string.Empty;
             apiBaseUrlBox.Text = profile?.ApiBaseUrl ?? string.Empty;
+            systemPromptBox.Text = profile?.SystemPrompt ?? string.Empty;
             detailTitle.Text = profile == null ? "未选择服务商" : GetProviderDisplayName(profile);
             detailEndpoint.Text = profile == null ? string.Empty : GetProviderEndpoint(profile);
             synchronizing = false;
@@ -944,7 +1009,9 @@ public sealed partial class MainWindow : Window
             extraCredentialBox.Text = args.SelectedItem as string ?? extraCredentialBox.Text;
             UpdateSelectedProfile();
         };
+        extraCredentialBox.LostFocus += (_, _) => extraCredentialBox.IsSuggestionListOpen = false;
         apiBaseUrlBox.TextChanged += (_, _) => UpdateSelectedProfile();
+        systemPromptBox.TextChanged += (_, _) => UpdateSelectedProfile();
 
         fetchModelsButton.Click += async (_, _) =>
         {
@@ -1021,7 +1088,7 @@ public sealed partial class MainWindow : Window
         providerMenu.Items.Add(CreateProviderMenuItem("DeepL", "DeepL"));
         providerMenu.Items.Add(CreateProviderMenuItem("Microsoft Azure Translator", "Azure"));
         providerMenu.Items.Add(new MenuFlyoutSeparator());
-        providerMenu.Items.Add(CreateProviderMenuItem("腾讯翻译君", "Tencent"));
+        providerMenu.Items.Add(CreateProviderMenuItem("腾讯云机器翻译", "Tencent"));
         providerMenu.Items.Add(CreateProviderMenuItem("阿里云机器翻译", "Alibaba"));
         providerMenu.Items.Add(CreateProviderMenuItem("火山翻译", "Volcengine"));
         providerMenu.Items.Add(CreateProviderMenuItem("华为云机器翻译", "Huawei"));
@@ -1077,8 +1144,9 @@ public sealed partial class MainWindow : Window
         detailPanel.Children.Add(appIdField);
         detailPanel.Children.Add(appSecretField);
         detailPanel.Children.Add(extraCredentialField);
+        detailPanel.Children.Add(systemPromptField);
         detailPanel.Children.Add(Field("API Base URL", apiBaseUrlBox, "请求地址。可替换为兼容当前服务类型的自建或代理接口。"));
-        Grid.SetColumn(detailPanel, 1);
+        Grid.SetColumn(detailPanel, 2);
         providerLayout.Children.Add(detailPanel);
         TranslationProviderProfile? initiallySelected = _settings.TranslationProviders.FirstOrDefault(profile =>
             string.Equals(profile.Id, _settings.SelectedTranslationProviderId, StringComparison.OrdinalIgnoreCase));
@@ -1248,7 +1316,7 @@ public sealed partial class MainWindow : Window
 
     private Page CreateAboutPage()
     {
-        var panel = NewPanel("关于", "查看版本信息、检查更新和项目来源。");
+        var panel = NewPanel("关于", "TaskbarInfo 是面向 Windows 任务栏的信息组件：集中管理歌词、性能监控与快捷翻译。");
         var identity = new StackPanel { Spacing = 2 };
         identity.Children.Add(new TextBlock
         {
@@ -1258,7 +1326,7 @@ public sealed partial class MainWindow : Window
         });
         identity.Children.Add(new TextBlock
         {
-            Text = "Windows 桌面歌词与媒体组件",
+            Text = "Windows 任务栏信息组件",
             Opacity = 0.72
         });
 
@@ -1471,15 +1539,17 @@ public sealed partial class MainWindow : Window
         return Wrap(panel);
     }
 
-    private static FormPanel NewPanel(string title, string subtitle)
+    private static FormPanel NewPanel(string title, string subtitle, double? titleFontSize = null)
     {
         var panel = new FormPanel();
         var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        header.Children.Add(new TextBlock
+        var titleBlock = new TextBlock
         {
             Text = title,
             Style = Application.Current.Resources["TitleTextBlockStyle"] as Style
-        });
+        };
+        if (titleFontSize is double fontSize) titleBlock.FontSize = fontSize;
+        header.Children.Add(titleBlock);
         if (!string.IsNullOrWhiteSpace(subtitle)) header.Children.Add(InformationButton(subtitle));
         panel.AddRow(header);
         return panel;
@@ -1962,6 +2032,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private static FrameworkElement LabeledDisplaySelector(string selectedDeviceName, Action<string> update)
+    {
+        DisplayOption[] displayOptions = GetDisplayOptions();
+        DisplayOption selectedDisplay = displayOptions.FirstOrDefault(option =>
+            string.Equals(option.DeviceName, selectedDeviceName, StringComparison.OrdinalIgnoreCase))
+            ?? displayOptions[0];
+
+        return LabeledComboBox(
+            "显示屏",
+            displayOptions.Select(option => option.Label).ToArray(),
+            selectedDisplay.Label,
+            label => update(displayOptions.First(option => option.Label == label).DeviceName));
+    }
+
     private void PreserveRuntimeComponentPositions()
     {
         SettingsDocument currentSettings = SettingsDocument.Load(_settingsPath);
@@ -2173,8 +2257,13 @@ public sealed class SettingsDocument
     public string YoudaoTranslationAppSecret { get; set; } = "";
     public List<TranslationProviderProfile> TranslationProviders { get; set; } = [];
     public string SelectedTranslationProviderId { get; set; } = "";
+    public List<string> QuickTranslateDomains { get; set; } = [TranslationDomainCatalog.General];
+    public string SelectedQuickTranslateDomain { get; set; } = TranslationDomainCatalog.General;
+    public string QuickTranslateTargetLanguage { get; set; } = QuickTranslateTargetLanguages.Default;
+    public bool EnableQuickTranslateAiPhonetic { get; set; }
     public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
     public string QuickTranslateWindowMaterial { get; set; } = "Mica";
+    public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
     public string SettingsWindowMaterial { get; set; } = "Mica";
     public bool EnableTaskbarPerformanceMonitor { get; set; }
     public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
@@ -2198,6 +2287,8 @@ public sealed class SettingsDocument
     public bool EnableTaskbarTranslateButton { get; set; } = true;
     public int? TaskbarTranslateButtonOffsetX { get; set; }
     public string TaskbarMonitorDeviceName { get; set; } = "";
+    public string TaskbarPerformanceMonitorDeviceName { get; set; } = "";
+    public string TaskbarTranslateButtonMonitorDeviceName { get; set; } = "";
     public bool IsDoubleLine { get; set; } = true;
     public double LyricOffsetSeconds { get; set; }
     public List<string> IncludedAppIds { get; set; } = [];
@@ -2245,12 +2336,24 @@ public sealed class SettingsDocument
             settings.SelectedTranslationProviderId = TranslationProviderProfiles.ResolveSelectedId(
                 settings.TranslationProviders,
                 settings.SelectedTranslationProviderId);
+            settings.QuickTranslateDomains = TranslationDomainCatalog.Normalize(settings.QuickTranslateDomains);
+            settings.SelectedQuickTranslateDomain = TranslationDomainCatalog.ResolveSelected(
+                settings.QuickTranslateDomains,
+                settings.SelectedQuickTranslateDomain);
+            settings.QuickTranslateTargetLanguage = QuickTranslateTargetLanguages.Normalize(
+                settings.QuickTranslateTargetLanguage);
             settings.IncludedAppIds ??= [];
             settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
             settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
             settings.TaskbarPerformanceRefreshSeconds = settings.TaskbarPerformanceRefreshSeconds is 1 or 2 or 5
                 ? settings.TaskbarPerformanceRefreshSeconds
                 : 1;
+            settings.TaskbarPerformanceMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                settings.TaskbarPerformanceMonitorDeviceName,
+                settings.TaskbarMonitorDeviceName);
+            settings.TaskbarTranslateButtonMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                settings.TaskbarTranslateButtonMonitorDeviceName,
+                settings.TaskbarMonitorDeviceName);
             return settings;
         }
         catch

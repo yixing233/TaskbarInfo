@@ -16,7 +16,7 @@ namespace TaskbarInfo
     {
         private const string RepoOwner = "yixing233";
         private const string RepoName = "TaskbarInfo";
-        private const string DefaultVersion = "1.1.3";
+        private const string DefaultVersion = "1.1.4";
 
         private static readonly HttpClient HttpClient = CreateHttpClient();
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions

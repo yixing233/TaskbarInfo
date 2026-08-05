@@ -28,7 +28,6 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
     private TaskbarPerformanceSnapshot _latestSnapshot = TaskbarPerformanceSnapshot.Empty;
 
     public event EventHandler? SettingsRequested;
-    public event EventHandler? CheckForUpdatesRequested;
 
     public TaskbarPerformanceWindow()
     {
@@ -188,7 +187,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
         IntPtr handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
 
-        IntPtr taskbar = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarMonitorDeviceName);
+        IntPtr taskbar = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarPerformanceMonitorDeviceName);
         if (taskbar == IntPtr.Zero) return;
 
         if (_taskbarWindow != taskbar || UnmanagedMethods.GetParent(handle) != taskbar)
@@ -346,7 +345,6 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
-    private void CheckForUpdates_Click(object sender, RoutedEventArgs e) => CheckForUpdatesRequested?.Invoke(this, EventArgs.Empty);
 
     private void ApplyPalette(AppSettings settings)
     {

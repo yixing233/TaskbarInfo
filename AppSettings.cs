@@ -14,8 +14,13 @@ namespace TaskbarInfo
         public string YoudaoTranslationAppSecret { get; set; } = "";
         public System.Collections.Generic.List<TranslationProviderProfile> TranslationProviders { get; set; } = [];
         public string SelectedTranslationProviderId { get; set; } = "";
+        public System.Collections.Generic.List<string> QuickTranslateDomains { get; set; } = [TranslationDomainCatalog.General];
+        public string SelectedQuickTranslateDomain { get; set; } = TranslationDomainCatalog.General;
+        public string QuickTranslateTargetLanguage { get; set; } = QuickTranslateTargetLanguages.Default;
+        public bool EnableQuickTranslateAiPhonetic { get; set; } = false;
         public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
         public string QuickTranslateWindowMaterial { get; set; } = "Mica";
+        public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
         public string SettingsWindowMaterial { get; set; } = "Mica";
         public bool EnableTaskbarPerformanceMonitor { get; set; } = false;
         public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
@@ -41,6 +46,8 @@ namespace TaskbarInfo
         public bool EnableTaskbarTranslateButton { get; set; } = true;
         public int? TaskbarTranslateButtonOffsetX { get; set; }
         public string TaskbarMonitorDeviceName { get; set; } = "";
+        public string TaskbarPerformanceMonitorDeviceName { get; set; } = "";
+        public string TaskbarTranslateButtonMonitorDeviceName { get; set; } = "";
         public bool IsDoubleLine { get; set; } = true; 
         public double LyricOffsetSeconds { get; set; } = 0; 
         public System.Collections.Generic.List<string> IncludedAppIds { get; set; } = new System.Collections.Generic.List<string>();  
@@ -99,9 +106,21 @@ namespace TaskbarInfo
                     settings.SelectedTranslationProviderId = TranslationProviderProfiles.ResolveSelectedId(
                         settings.TranslationProviders,
                         settings.SelectedTranslationProviderId);
+                    settings.QuickTranslateDomains = TranslationDomainCatalog.Normalize(settings.QuickTranslateDomains);
+                    settings.SelectedQuickTranslateDomain = TranslationDomainCatalog.ResolveSelected(
+                        settings.QuickTranslateDomains,
+                        settings.SelectedQuickTranslateDomain);
+                    settings.QuickTranslateTargetLanguage = QuickTranslateTargetLanguages.Normalize(
+                        settings.QuickTranslateTargetLanguage);
                     settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
                     settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
                     settings.TaskbarPerformanceRefreshSeconds = NormalizeRefreshSeconds(settings.TaskbarPerformanceRefreshSeconds);
+                    settings.TaskbarPerformanceMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                        settings.TaskbarPerformanceMonitorDeviceName,
+                        settings.TaskbarMonitorDeviceName);
+                    settings.TaskbarTranslateButtonMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                        settings.TaskbarTranslateButtonMonitorDeviceName,
+                        settings.TaskbarMonitorDeviceName);
                     return settings;
                 }
             }
@@ -138,6 +157,7 @@ namespace TaskbarInfo
             var clone = (AppSettings)this.MemberwiseClone();
             clone.IncludedAppIds = new System.Collections.Generic.List<string>(IncludedAppIds);
             clone.TaskbarPerformanceMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceMetrics);
+            clone.QuickTranslateDomains = new System.Collections.Generic.List<string>(QuickTranslateDomains);
             clone.TranslationProviders = TranslationProviders.Select(profile => new TranslationProviderProfile
             {
                 Id = profile.Id,
@@ -146,7 +166,8 @@ namespace TaskbarInfo
                 AppId = profile.AppId,
                 AppSecret = profile.AppSecret,
                 ExtraCredential = profile.ExtraCredential,
-                ApiBaseUrl = profile.ApiBaseUrl
+                ApiBaseUrl = profile.ApiBaseUrl,
+                SystemPrompt = profile.SystemPrompt
             }).ToList();
             return clone;
         }
