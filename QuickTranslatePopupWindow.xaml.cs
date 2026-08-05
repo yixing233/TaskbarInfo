@@ -27,6 +27,7 @@ public partial class QuickTranslatePopupWindow : Window
     private const int ResultDisplayUnitsPerLine = 42;
     private const byte AcrylicTintOpacity = 96;
     private static readonly Duration PopupTransitionDuration = new(TimeSpan.FromMilliseconds(160));
+    private static readonly Duration ProgressRingDuration = new(TimeSpan.FromMilliseconds(900));
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNotTopmost = new(-2);
 
@@ -574,10 +575,18 @@ public partial class QuickTranslatePopupWindow : Window
         if (!translating)
         {
             _translationElapsedTimer.Stop();
+            ProgressRingRotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            ProgressRingRotation.Angle = 0;
             return;
         }
 
         StatusPanel.Visibility = Visibility.Collapsed;
+        ProgressRingRotation.BeginAnimation(
+            RotateTransform.AngleProperty,
+            new DoubleAnimation(0, 360, ProgressRingDuration)
+            {
+                RepeatBehavior = RepeatBehavior.Forever
+            });
         _translationStartedAt = DateTimeOffset.UtcNow;
         _translationProgressPrefix = TranslationService.IsAiProvider(provider?.Provider)
             ? "AI 正在生成译文"

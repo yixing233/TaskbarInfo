@@ -24,6 +24,7 @@ namespace TaskbarInfo
         private const string SharedSettingsAppliedEventName = "TaskbarInfo.Settings.Apply";
         private const int QuickTranslateHotkeyId = 0x4C58;
         private const int QuickTranslateSettingsPage = 6;
+        private const int TaskbarPerformanceSettingsPage = 7;
         private static readonly uint SettingsNavigateMessage =
             UnmanagedMethods.RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
 
@@ -1136,7 +1137,7 @@ namespace TaskbarInfo
             if (_taskbarPerformanceWindow == null)
             {
                 _taskbarPerformanceWindow = new TaskbarPerformanceWindow();
-                _taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(0);
+                _taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(TaskbarPerformanceSettingsPage);
             }
             _taskbarPerformanceWindow.ApplySettings(
                 _settings,

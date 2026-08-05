@@ -28,6 +28,8 @@ namespace TaskbarInfo
         public bool EnableEnhancedTemperatureSensors { get; set; } = false;
         public System.Collections.Generic.List<string> TaskbarPerformanceMetrics { get; set; } =
             TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+        public System.Collections.Generic.List<string> TaskbarPerformanceSummaryMetrics { get; set; } =
+            TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
         public int TaskbarPerformanceRefreshSeconds { get; set; } = 1;
         public bool TaskbarPerformanceIsDoubleLine { get; set; } = false;
         public string TaskbarPerformanceFontFamily { get; set; } = "Microsoft YaHei";
@@ -95,6 +97,9 @@ namespace TaskbarInfo
                 if (File.Exists(configPath))
                 {
                     string json = File.ReadAllText(configPath);
+                    using JsonDocument document = JsonDocument.Parse(json);
+                    bool hasSummaryMetrics = document.RootElement.TryGetProperty(
+                        nameof(TaskbarPerformanceSummaryMetrics), out _);
                     var settings = JsonSerializer.Deserialize<AppSettings>(json);
                     if (settings == null) return new AppSettings();
                     settings.TranslationProviders = TranslationProviderProfiles.Normalize(
@@ -115,6 +120,20 @@ namespace TaskbarInfo
                         settings.QuickTranslateTargetLanguage);
                     settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
                     settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
+                    settings.TaskbarPerformanceSummaryMetricCount = Math.Clamp(
+                        settings.TaskbarPerformanceSummaryMetricCount,
+                        1,
+                        TaskbarPerformanceMetricCatalog.Definitions.Count);
+                    if (!hasSummaryMetrics)
+                    {
+                        settings.TaskbarPerformanceSummaryMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                            settings.TaskbarPerformanceMetrics,
+                            settings.TaskbarPerformanceSummaryMetricCount);
+                    }
+                    settings.TaskbarPerformanceSummaryMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                        settings.TaskbarPerformanceMetrics,
+                        settings.TaskbarPerformanceSummaryMetrics,
+                        settings.TaskbarPerformanceSummaryMetricCount);
                     settings.TaskbarPerformanceRefreshSeconds = NormalizeRefreshSeconds(settings.TaskbarPerformanceRefreshSeconds);
                     settings.TaskbarPerformanceMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
                         settings.TaskbarPerformanceMonitorDeviceName,
@@ -158,6 +177,7 @@ namespace TaskbarInfo
             var clone = (AppSettings)this.MemberwiseClone();
             clone.IncludedAppIds = new System.Collections.Generic.List<string>(IncludedAppIds);
             clone.TaskbarPerformanceMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceMetrics);
+            clone.TaskbarPerformanceSummaryMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceSummaryMetrics);
             clone.QuickTranslateDomains = new System.Collections.Generic.List<string>(QuickTranslateDomains);
             clone.TranslationProviders = TranslationProviders.Select(profile => new TranslationProviderProfile
             {

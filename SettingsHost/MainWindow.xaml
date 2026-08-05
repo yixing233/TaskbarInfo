@@ -4,14 +4,50 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     Title="TaskbarInfo 设置">
-    <Grid x:Name="RootLayout">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <NavigationView x:Name="NavMenu"
+                    PaneDisplayMode="Auto"
+                    IsPaneOpen="True"
+                    IsPaneToggleButtonVisible="True"
+                    PaneTitle="TaskbarInfo"
+                    OpenPaneLength="224"
+                    CompactPaneLength="48"
+                    ExpandedModeThresholdWidth="880"
+                    CompactModeThresholdWidth="760"
+                    IsBackButtonVisible="Collapsed"
+                    IsSettingsVisible="False"
+                    DisplayModeChanged="NavMenu_DisplayModeChanged"
+                    SelectionChanged="NavMenu_SelectionChanged">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="歌词组件" SelectsOnInvoked="False" IsExpanded="True">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon>
+                <NavigationViewItem.MenuItems>
+                    <NavigationViewItem Content="布局与显示" Tag="Typography" />
+                    <NavigationViewItem Content="其他效果" Tag="Visual" />
+                    <NavigationViewItem Content="悬浮歌词" Tag="Floating" />
+                    <NavigationViewItem Content="桌面歌词" Tag="DesktopWidget" />
+                    <NavigationViewItem Content="应用筛选" Tag="Applications" />
+                </NavigationViewItem.MenuItems>
+            </NavigationViewItem>
+            <NavigationViewItem Content="性能监控" Tag="TaskbarPerformance">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Repair" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="快捷翻译" Tag="QuickTranslate">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Globe" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.MenuItems>
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem Content="关于" Tag="About">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.FooterMenuItems>
+        <Grid x:Name="RootLayout">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <Grid x:Name="AppTitleBar" Grid.Row="0">
+            <Grid x:Name="AppTitleBar" Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -19,11 +55,7 @@
             <Grid x:Name="TitleDragRegion"
                   Grid.Column="0"
                   Background="Transparent"
-                  PointerPressed="TitleDragRegion_PointerPressed">
-                <TextBlock Text="TaskbarInfo 设置"
-                           Margin="18,0"
-                           VerticalAlignment="Center" />
-            </Grid>
+                  PointerPressed="TitleDragRegion_PointerPressed" />
             <StackPanel Grid.Column="1" Orientation="Horizontal">
                 <Button Width="46"
                         Height="48"
@@ -46,40 +78,11 @@
                     <SymbolIcon Symbol="Cancel" />
                 </Button>
             </StackPanel>
-        </Grid>
+            </Grid>
 
-        <NavigationView x:Name="NavMenu"
-                        Grid.Row="1"
-                        PaneDisplayMode="Left"
-                         OpenPaneLength="176"
-                        IsBackButtonVisible="Collapsed"
-                        IsSettingsVisible="False"
-                        SelectionChanged="NavMenu_SelectionChanged">
-            <NavigationView.MenuItems>
-                <NavigationViewItem Content="歌词组件" SelectsOnInvoked="False" IsExpanded="True">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon>
-                    <NavigationViewItem.MenuItems>
-                        <NavigationViewItem Content="布局与显示" Tag="Typography" />
-                        <NavigationViewItem Content="其他效果" Tag="Visual" />
-                        <NavigationViewItem Content="悬浮歌词" Tag="Floating" />
-                        <NavigationViewItem Content="桌面歌词" Tag="DesktopWidget" />
-                        <NavigationViewItem Content="应用筛选" Tag="Applications" />
-                    </NavigationViewItem.MenuItems>
-                </NavigationViewItem>
-                <NavigationViewItem Content="性能监控" Tag="TaskbarPerformance">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="Repair" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="快捷翻译" Tag="QuickTranslate">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="Globe" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="关于" Tag="About">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.MenuItems>
-            <Frame x:Name="ContentFrame" />
-        </NavigationView>
+            <Frame x:Name="ContentFrame" Grid.Row="1" />
 
-        <Grid Grid.Row="2" MinHeight="64" Height="Auto">
+            <Grid Grid.Row="2" MinHeight="64" Height="Auto">
             <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
             <Grid Padding="12,8" MinHeight="64">
                 <Grid.ColumnDefinitions>
@@ -119,6 +122,7 @@
                             Style="{StaticResource AccentButtonStyle}" />
                 </StackPanel>
             </Grid>
+            </Grid>
         </Grid>
-    </Grid>
+    </NavigationView>
 </Window>

@@ -19,6 +19,10 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar performance defaults are compact", TaskbarPerformanceDefaultsAreCompact),
     ("Enhanced temperature mode defaults off and rejects invalid tokens", EnhancedTemperatureModeDefaultsOffAndRejectsInvalidTokens),
     ("Taskbar performance selection removes unknown and duplicate metrics", TaskbarPerformanceSelectionIsNormalized),
+    ("Taskbar performance summary honors per-metric opt-ins", TaskbarPerformanceSummaryHonorsMetricOptIns),
+    ("Taskbar performance summary excludes disabled metrics and enforces its limit", TaskbarPerformanceSummaryRejectsDisabledAndExcessMetrics),
+    ("Taskbar performance summary selection persists independently", TaskbarPerformanceSummaryMetricsPersistIndependently),
+    ("Taskbar performance summary headers align with metric switches", TaskbarPerformanceSummaryHeadersAlignWithMetricSwitches),
     ("Taskbar performance formatter follows selected metrics", TaskbarPerformanceFormatterFollowsSelection),
     ("Taskbar performance formatter splits detail labels and values", TaskbarPerformanceFormatterSplitsDetailValues),
     ("Taskbar performance formatter shows temperatures", TaskbarPerformanceFormatterShowsTemperatures),
@@ -66,6 +70,7 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar translate button exposes a settings-only menu", TaskbarTranslateButtonExposesSettingsMenu),
     ("Taskbar component menus exclude application commands", TaskbarComponentMenusExcludeApplicationCommands),
     ("Settings host opens quick translate page from taskbar menu", SettingsHostOpensQuickTranslatePageFromTaskbarMenu),
+    ("Performance monitor settings opens its own page", PerformanceMonitorSettingsOpensItsOwnPage),
     ("Performance details reveal after final positioning", PerformanceDetailsRevealAfterFinalPositioning),
     ("Settings navigation groups lyric component pages", SettingsNavigationGroupsLyricComponentPages),
     ("Quick translate launch arguments preserve monitor coordinates", QuickTranslateLaunchArgumentsPreserveMonitorCoordinates),
@@ -241,15 +246,18 @@ static void SettingsHostExposesAndAppliesApplicationTheme()
     string settingsWindowCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
     string settingsAppCode = ReadSourceFile("SettingsHost", "App.xaml.cs");
 
-    AssertEqual(true, settingsWindowXaml.Contains("x:Name=\"RootLayout\"", StringComparison.Ordinal),
-        "settings host root should expose a theme target");
+    AssertEqual(true, settingsWindowXaml.Contains("x:Name=\"NavMenu\"", StringComparison.Ordinal),
+        "settings host should expose the root navigation as the theme target");
     AssertEqual(true, settingsWindowCode.Contains("\"应用主题\"", StringComparison.Ordinal) &&
         settingsWindowCode.Contains("\"跟随系统\", \"浅色\", \"深色\"", StringComparison.Ordinal),
         "settings host should expose all application theme choices");
     AssertEqual(true, settingsWindowCode.Contains("ElementTheme.Default", StringComparison.Ordinal) &&
         settingsWindowCode.Contains("ElementTheme.Light", StringComparison.Ordinal) &&
-        settingsWindowCode.Contains("ElementTheme.Dark", StringComparison.Ordinal),
-        "settings host should map every preference to a WinUI theme");
+        settingsWindowCode.Contains("ElementTheme.Dark", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("NavMenu.RequestedTheme =", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("ApplyWindowBorderTheme();", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("DwmSetWindowAttribute", StringComparison.Ordinal),
+        "settings host should apply every WinUI theme at the root navigation level and native window border");
     AssertEqual(true, settingsAppCode.Contains("ColorValuesChanged", StringComparison.Ordinal) &&
         settingsAppCode.Contains("RefreshSystemTheme", StringComparison.Ordinal),
         "settings host should refresh while following the system theme");
@@ -515,29 +523,36 @@ static void SettingsNavigationGroupsLyricComponentPages()
 {
     string markupPath = System.IO.Path.Combine(Environment.CurrentDirectory, "SettingsHost", "MainWindow.xaml");
     string markup = System.IO.File.ReadAllText(markupPath);
-    string expected = """
-                <NavigationViewItem Content="歌词组件" SelectsOnInvoked="False" IsExpanded="True">
-                    <NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon>
-                    <NavigationViewItem.MenuItems>
-                        <NavigationViewItem Content="布局与显示" Tag="Typography" />
-                        <NavigationViewItem Content="其他效果" Tag="Visual" />
-                        <NavigationViewItem Content="悬浮歌词" Tag="Floating" />
-                        <NavigationViewItem Content="桌面歌词" Tag="DesktopWidget" />
-                        <NavigationViewItem Content="应用筛选" Tag="Applications" />
-                    </NavigationViewItem.MenuItems>
-                </NavigationViewItem>
-""";
-
-    if (!markup.Contains(expected, StringComparison.Ordinal))
+    const string lyricParent = "<NavigationViewItem Content=\"歌词组件\" SelectsOnInvoked=\"False\" IsExpanded=\"True\">";
+    const string performanceItem = "<NavigationViewItem Content=\"性能监控\" Tag=\"TaskbarPerformance\"";
+    int lyricStart = markup.IndexOf(lyricParent, StringComparison.Ordinal);
+    int lyricEnd = lyricStart < 0 ? -1 : markup.IndexOf(performanceItem, lyricStart, StringComparison.Ordinal);
+    if (lyricStart < 0 || lyricEnd < 0)
     {
         throw new InvalidOperationException("lyric component navigation hierarchy does not match the product structure");
+    }
+
+    string lyricMenu = markup[lyricStart..lyricEnd];
+    foreach (string lyricItem in new[]
+    {
+        "<NavigationViewItem.Icon><SymbolIcon Symbol=\"MusicInfo\" /></NavigationViewItem.Icon>",
+        "<NavigationViewItem Content=\"布局与显示\" Tag=\"Typography\" />",
+        "<NavigationViewItem Content=\"其他效果\" Tag=\"Visual\" />",
+        "<NavigationViewItem Content=\"悬浮歌词\" Tag=\"Floating\" />",
+        "<NavigationViewItem Content=\"桌面歌词\" Tag=\"DesktopWidget\" />",
+        "<NavigationViewItem Content=\"应用筛选\" Tag=\"Applications\" />"
+    })
+    {
+        if (!lyricMenu.Contains(lyricItem, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"missing lyric component navigation item: {lyricItem}");
+        }
     }
 
     foreach (string topLevelItem in new[]
     {
         "<NavigationViewItem Content=\"性能监控\" Tag=\"TaskbarPerformance\"",
-        "<NavigationViewItem Content=\"快捷翻译\" Tag=\"QuickTranslate\"",
-        "<NavigationViewItem Content=\"关于\" Tag=\"About\""
+        "<NavigationViewItem Content=\"快捷翻译\" Tag=\"QuickTranslate\""
     })
     {
         if (!markup.Contains(topLevelItem, StringComparison.Ordinal))
@@ -546,8 +561,33 @@ static void SettingsNavigationGroupsLyricComponentPages()
         }
     }
 
+    AssertEqual(true,
+        markup.Contains("PaneDisplayMode=\"Auto\"", StringComparison.Ordinal) &&
+        markup.Contains("IsPaneOpen=\"True\"", StringComparison.Ordinal) &&
+        markup.Contains("IsPaneToggleButtonVisible=\"True\"", StringComparison.Ordinal) &&
+        markup.Contains("ExpandedModeThresholdWidth=\"880\"", StringComparison.Ordinal) &&
+        markup.Contains("CompactModeThresholdWidth=\"760\"", StringComparison.Ordinal) &&
+        markup.Contains("DisplayModeChanged=\"NavMenu_DisplayModeChanged\"", StringComparison.Ordinal) &&
+        markup.Contains("PaneTitle=\"TaskbarInfo\"", StringComparison.Ordinal) &&
+        !markup.Contains("<StaticResource x:Key=\"NavigationViewDefaultPaneBackground\"", StringComparison.Ordinal) &&
+        markup.Contains("<NavigationView.FooterMenuItems>", StringComparison.Ordinal) &&
+        markup.Contains("<NavigationViewItem Content=\"关于\" Tag=\"About\"", StringComparison.Ordinal),
+        "settings should use a complete adaptive NavigationView and preserve WinUI's theme-aware acrylic overlay pane");
+
     string codePath = System.IO.Path.Combine(Environment.CurrentDirectory, "SettingsHost", "MainWindow.xaml.cs");
     string code = System.IO.File.ReadAllText(codePath);
+    AssertEqual(true, code.Contains("NavMenu.FooterMenuItems", StringComparison.Ordinal),
+        "programmatic navigation should include footer items such as About");
+    AssertEqual(true, code.Contains("NavigationViewDisplayMode.Compact or NavigationViewDisplayMode.Minimal", StringComparison.Ordinal) &&
+        code.Contains("sender.IsPaneOpen = false;", StringComparison.Ordinal),
+        "compact and minimal navigation modes should close the pane until the user opens the native floating sidebar");
+    AssertEqual(true,
+        markup.IndexOf("<NavigationView x:Name=\"NavMenu\"", StringComparison.Ordinal) <
+            markup.IndexOf("<Grid x:Name=\"RootLayout\"", StringComparison.Ordinal) &&
+        markup.Contains("<Grid x:Name=\"RootLayout\">", StringComparison.Ordinal) &&
+        markup.Contains("<Frame x:Name=\"ContentFrame\" Grid.Row=\"1\" />", StringComparison.Ordinal) &&
+        !markup.Contains("<TextBlock Text=\"TaskbarInfo 设置\"", StringComparison.Ordinal),
+        "NavigationView should own the settings-window navigation header without a competing custom title");
     foreach (string heading in new[]
     {
         "NewPanel(\"其他效果\"",
@@ -913,9 +953,9 @@ static void QuickTranslateSettingsUseCompactHeadingHierarchy()
         StringComparison.Ordinal),
         "provider detail title should remain distinct without competing with the page heading");
     AssertEqual(true, settingsCode.Contains("SectionHeader(\"任务栏入口\")", StringComparison.Ordinal) &&
-        settingsCode.Contains("SectionHeader(\"快捷操作\")", StringComparison.Ordinal) &&
+        !settingsCode.Contains("SectionHeader(\"快捷操作\")", StringComparison.Ordinal) &&
         settingsCode.Contains("var providerSection = new Border", StringComparison.Ordinal),
-        "quick translate should separate entry, interaction, and provider configuration groups");
+        "quick translate should separate the taskbar entry and provider configuration without a redundant interaction heading");
 }
 
 static void QuickTranslateHostLauncherEmitsModeAndGeometry()
@@ -999,11 +1039,14 @@ static void QuickTranslatePopupShowsCancellableTranslationProgress()
     AssertEqual(true, windowXaml.Contains(
         "<Grid x:Name=\"ProgressPanel\"\n                      Grid.Row=\"7\"",
         StringComparison.Ordinal) &&
-        windowXaml.Contains("IsIndeterminate=\"True\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"TranslationProgressRing\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"ProgressRingRotation\"", StringComparison.Ordinal) &&
+        !windowXaml.Contains("<ProgressBar", StringComparison.Ordinal) &&
         windowXaml.Contains("x:Name=\"ResultLabel\"", StringComparison.Ordinal),
-        "translation progress should replace the result label without reserving a status row");
+        "translation progress should use a compact ring without reserving a status row");
     AssertEqual(true, windowCode.Contains("SetTranslationState(true, provider);", StringComparison.Ordinal) &&
         windowCode.Contains("_translationElapsedTimer", StringComparison.Ordinal) &&
+        windowCode.Contains("ProgressRingRotation.BeginAnimation", StringComparison.Ordinal) &&
         windowCode.Contains("TranslateButton.Content = translating ? \"取消\" : \"翻译\";", StringComparison.Ordinal) &&
         windowCode.Contains("CancelActiveTranslation", StringComparison.Ordinal),
         "the primary action should become cancellation while translation is in progress");
@@ -1518,6 +1561,98 @@ static void TaskbarPerformanceSelectionIsNormalized()
     AssertEqual(TaskbarPerformanceMetricCatalog.Gpu, normalized[2], "GPU id should be normalized");
 }
 
+static void TaskbarPerformanceSummaryHonorsMetricOptIns()
+{
+    List<string> summary = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+        [
+            TaskbarPerformanceMetricCatalog.Cpu,
+            TaskbarPerformanceMetricCatalog.CpuTemperature,
+            TaskbarPerformanceMetricCatalog.Download
+        ],
+        [
+            TaskbarPerformanceMetricCatalog.CpuTemperature,
+            TaskbarPerformanceMetricCatalog.Download
+        ],
+        2);
+
+    AssertEqual(2, summary.Count, "summary should include every opted-in metric up to the maximum");
+    AssertEqual(TaskbarPerformanceMetricCatalog.CpuTemperature, summary[0],
+        "temperature should be eligible when explicitly opted in");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Download, summary[1],
+        "summary order should follow the enabled metric order");
+}
+
+static void TaskbarPerformanceSummaryRejectsDisabledAndExcessMetrics()
+{
+    List<string> summary = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+        [
+            TaskbarPerformanceMetricCatalog.Cpu,
+            TaskbarPerformanceMetricCatalog.Memory,
+            TaskbarPerformanceMetricCatalog.Gpu
+        ],
+        [
+            TaskbarPerformanceMetricCatalog.Gpu,
+            TaskbarPerformanceMetricCatalog.Download,
+            TaskbarPerformanceMetricCatalog.Memory
+        ],
+        1);
+
+    AssertEqual(1, summary.Count, "summary must never exceed the configured maximum");
+    AssertEqual(TaskbarPerformanceMetricCatalog.Memory, summary[0],
+        "disabled metrics must not consume a summary slot");
+}
+
+static void TaskbarPerformanceSummaryMetricsPersistIndependently()
+{
+    var settings = new AppSettings();
+    AssertEqual(true,
+        settings.TaskbarPerformanceSummaryMetrics.SequenceEqual(TaskbarPerformanceMetricCatalog.DefaultSelection),
+        "new settings should preserve the existing default taskbar summary");
+
+    AppSettings clone = settings.Clone();
+    clone.TaskbarPerformanceSummaryMetrics.RemoveAt(0);
+    AssertEqual(5, settings.TaskbarPerformanceSummaryMetrics.Count,
+        "cloning should not share the summary metric list");
+
+    string settingsCode = ReadSourceFile("AppSettings.cs");
+    string hostCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+    string taskbarWindowCode = ReadSourceFile("TaskbarPerformanceWindow.xaml.cs");
+    AssertEqual(true,
+        settingsCode.Contains("nameof(TaskbarPerformanceSummaryMetrics)", StringComparison.Ordinal) &&
+        hostCode.Contains("nameof(TaskbarPerformanceSummaryMetrics)", StringComparison.Ordinal) &&
+        hostCode.Contains("TaskbarPerformanceSummaryMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(", StringComparison.Ordinal),
+        "main app and settings host should migrate existing settings to explicit summary selections");
+    AssertEqual(true,
+        taskbarWindowCode.Contains("settings.TaskbarPerformanceSummaryMetrics", StringComparison.Ordinal) &&
+        taskbarWindowCode.Contains("_settings.TaskbarPerformanceSummaryMetrics", StringComparison.Ordinal),
+        "taskbar rendering and layout should use the explicit summary metric selection");
+    AssertEqual(true,
+        hostCode.Contains("摘要显示", StringComparison.Ordinal) &&
+        hostCode.Contains("摘要最多显示", StringComparison.Ordinal),
+        "performance metric rows should expose an enforceable summary switch");
+}
+
+static void TaskbarPerformanceSummaryHeadersAlignWithMetricSwitches()
+{
+    string hostCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+
+    AssertEqual(true,
+        hostCode.Contains("orderEditor.Items.Add(CreateMetricColumnHeader());", StringComparison.Ordinal),
+        "summary column headers should share the ListView item width and padding with metric switches");
+    AssertEqual(true,
+        hostCode.Contains("IsHitTestVisible = false", StringComparison.Ordinal),
+        "the summary column header must not participate in metric dragging");
+
+    int displayToggleStart = hostCode.IndexOf("var displayToggle = new ToggleSwitch", StringComparison.Ordinal);
+    int summaryToggleStart = hostCode.IndexOf("var summaryToggle = new ToggleSwitch", StringComparison.Ordinal);
+    int summaryHandlerStart = hostCode.IndexOf("summaryToggle.Toggled", StringComparison.Ordinal);
+    AssertEqual(true,
+        displayToggleStart >= 0 && summaryToggleStart > displayToggleStart && summaryHandlerStart > summaryToggleStart &&
+        hostCode[displayToggleStart..summaryToggleStart].Contains("MinWidth = 0", StringComparison.Ordinal) &&
+        hostCode[summaryToggleStart..summaryHandlerStart].Contains("MinWidth = 0", StringComparison.Ordinal),
+        "fixed-width summary columns must opt out of the default ToggleSwitch minimum width");
+}
+
 static void TaskbarPerformanceFormatterFollowsSelection()
 {
     var snapshot = new TaskbarPerformanceSnapshot(12.4, 54.1, 0.4, 4.2 * 1024 * 1024, 512, null, null, null);
@@ -1800,6 +1935,20 @@ static void SettingsHostOpensQuickTranslatePageFromTaskbarMenu()
         "settings host should map quick translate page requests");
     AssertEqual(true, settingsHostCode.Contains("SettingsNavigateMessage", StringComparison.Ordinal),
         "settings host should receive navigation requests");
+}
+
+static void PerformanceMonitorSettingsOpensItsOwnPage()
+{
+    string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
+    string settingsHostCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+
+    AssertEqual(true,
+        mainWindowCode.Contains("private const int TaskbarPerformanceSettingsPage = 7;", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("_taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(TaskbarPerformanceSettingsPage);", StringComparison.Ordinal),
+        "performance monitor settings command should request its dedicated settings page");
+    AssertEqual(true,
+        settingsHostCode.Contains("\"7\" => \"TaskbarPerformance\"", StringComparison.Ordinal),
+        "settings host should map the performance monitor settings page");
 }
 
 static void PerformanceDetailsRevealAfterFinalPositioning()

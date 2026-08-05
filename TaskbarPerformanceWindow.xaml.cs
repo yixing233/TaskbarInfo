@@ -44,6 +44,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
         var selectedMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
             settings.TaskbarPerformanceMetrics,
+            settings.TaskbarPerformanceSummaryMetrics,
             settings.TaskbarPerformanceSummaryMetricCount);
         bool enabled = settings.EnableTaskbarPerformanceMonitor && selectedMetrics.Count > 0;
         if (!enabled)
@@ -118,6 +119,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             offsetX,
             TaskbarPerformanceMetricCatalog.GetSummarySelection(
                 _settings.TaskbarPerformanceMetrics,
+                _settings.TaskbarPerformanceSummaryMetrics,
                 _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
@@ -173,6 +175,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
                 snapshot,
                 TaskbarPerformanceMetricCatalog.GetSummarySelection(
                     _settings.TaskbarPerformanceMetrics,
+                    _settings.TaskbarPerformanceSummaryMetrics,
                     _settings.TaskbarPerformanceSummaryMetricCount),
                 _settings.TaskbarPerformanceIsDoubleLine);
             PerformanceText.Text = lines.First;
@@ -240,11 +243,15 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
         int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.GetSummarySelection(
             _settings.TaskbarPerformanceMetrics,
+            _settings.TaskbarPerformanceSummaryMetrics,
             _settings.TaskbarPerformanceSummaryMetricCount));
         int defaultLeft = TaskbarPerformanceLayout.GetLeftBesideLyrics(
             taskbarWidth,
             _lyricLeft,
-            TaskbarPerformanceMetricCatalog.GetSummarySelection(_settings.TaskbarPerformanceMetrics, _settings.TaskbarPerformanceSummaryMetricCount),
+            TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                _settings.TaskbarPerformanceMetrics,
+                _settings.TaskbarPerformanceSummaryMetrics,
+                _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
             _settings.TaskbarPerformanceFontSize,
@@ -274,11 +281,15 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
         int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.GetSummarySelection(
             _settings.TaskbarPerformanceMetrics,
+            _settings.TaskbarPerformanceSummaryMetrics,
             _settings.TaskbarPerformanceSummaryMetricCount));
         int defaultLeft = TaskbarPerformanceLayout.GetLeftBesideLyrics(
             taskbarWidth,
             _lyricLeft,
-            TaskbarPerformanceMetricCatalog.GetSummarySelection(_settings.TaskbarPerformanceMetrics, _settings.TaskbarPerformanceSummaryMetricCount),
+            TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                _settings.TaskbarPerformanceMetrics,
+                _settings.TaskbarPerformanceSummaryMetrics,
+                _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
             _settings.TaskbarPerformanceFontSize,

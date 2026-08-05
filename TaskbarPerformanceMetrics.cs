@@ -64,6 +64,20 @@ public static class TaskbarPerformanceMetricCatalog
             .Take(Math.Clamp(count, 1, Definitions.Count))
             .ToList();
     }
+
+    public static List<string> GetSummarySelection(
+        IEnumerable<string>? enabledMetricIds,
+        IEnumerable<string>? summaryMetricIds,
+        int count)
+    {
+        var optedIn = Normalize(summaryMetricIds)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return Normalize(enabledMetricIds)
+            .Where(optedIn.Contains)
+            .Take(Math.Clamp(count, 1, Definitions.Count))
+            .ToList();
+    }
 }
 
 public sealed record TaskbarPerformanceSnapshot(

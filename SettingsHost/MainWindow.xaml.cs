@@ -35,6 +35,9 @@ public sealed partial class MainWindow : Window
     private const uint WmNcLButtonDown = 0x00A1;
     private const uint HtCaption = 0x0002;
     private const uint WmGetMinMaxInfo = 0x0024;
+    private const int DwmwaBorderColor = 34;
+    private const int LightWindowBorderColor = 0x00E6E6E6;
+    private const int DarkWindowBorderColor = 0x00404040;
     private static readonly UIntPtr WindowSizeSubclassId = new(1);
     private static readonly uint SettingsNavigateMessage =
         RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
@@ -84,6 +87,7 @@ public sealed partial class MainWindow : Window
     {
         Navigate(tag);
         IEnumerable<NavigationViewItem> navigationItems = NavMenu.MenuItems
+            .Concat(NavMenu.FooterMenuItems)
             .OfType<NavigationViewItem>()
             .SelectMany(item => item.MenuItems.OfType<NavigationViewItem>().Append(item));
         NavMenu.SelectedItem = navigationItems.FirstOrDefault(item => item.Tag as string == tag)
@@ -124,6 +128,7 @@ public sealed partial class MainWindow : Window
         SetWindowLongPtr(_windowHandle, GwlStyle, new IntPtr(style & ~WsMaximizeBox));
         SetWindowPos(_windowHandle, IntPtr.Zero, 0, 0, 0, 0,
             SwpNoSize | SwpNoMove | SwpNoZOrder | SwpFrameChanged);
+        ApplyWindowBorderTheme();
     }
 
     private void InstallWindowSizeConstraints()
@@ -242,6 +247,13 @@ public sealed partial class MainWindow : Window
         int height,
         uint flags);
 
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(
+        IntPtr windowHandle,
+        int attribute,
+        ref int value,
+        int valueSize);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool ReleaseCapture();
@@ -283,6 +295,16 @@ public sealed partial class MainWindow : Window
         if (args.SelectedItem is NavigationViewItem item && item.Tag is string tag)
         {
             Navigate(tag);
+        }
+    }
+
+    private void NavMenu_DisplayModeChanged(
+        NavigationView sender,
+        NavigationViewDisplayModeChangedEventArgs args)
+    {
+        if (args.DisplayMode is NavigationViewDisplayMode.Compact or NavigationViewDisplayMode.Minimal)
+        {
+            sender.IsPaneOpen = false;
         }
     }
 
@@ -430,6 +452,23 @@ public sealed partial class MainWindow : Window
     private Page CreateTaskbarPerformancePage()
     {
         var panel = NewPanel("性能监控", "独立于任务栏歌词显示的性能组件；GPU 计数器不可用时会自动隐藏 GPU 数据。");
+        var selectedMetrics = TaskbarPerformanceMetricCatalog
+            .Normalize(_settings.TaskbarPerformanceMetrics)
+            .ToList();
+        var summaryMetrics = TaskbarPerformanceMetricCatalog
+            .GetSummarySelection(
+                selectedMetrics,
+                _settings.TaskbarPerformanceSummaryMetrics,
+                _settings.TaskbarPerformanceSummaryMetricCount)
+            .ToList();
+        _settings.TaskbarPerformanceSummaryMetrics = new List<string>(summaryMetrics);
+        var metricOrder = selectedMetrics
+            .Concat(TaskbarPerformanceMetricCatalog.Definitions
+                .Select(definition => definition.Id)
+                .Where(id => !selectedMetrics.Contains(id, StringComparer.OrdinalIgnoreCase)))
+            .ToList();
+        ListView? orderEditor = null;
+        const double MetricToggleColumnWidth = 56;
         panel.AddRow(LabeledToggle(
             "启用任务栏性能监控",
             _settings.EnableTaskbarPerformanceMonitor,
@@ -441,9 +480,14 @@ public sealed partial class MainWindow : Window
             _settings.TaskbarPerformanceSummaryMetricCount,
             1,
             TaskbarPerformanceMetricCatalog.Definitions.Count,
-            value => _settings.TaskbarPerformanceSummaryMetricCount = (int)value));
+            value =>
+            {
+                _settings.TaskbarPerformanceSummaryMetricCount = (int)value;
+                NormalizeSummaryMetrics();
+                RefreshMetricOrderEditor();
+            }));
         panel.AddRow(LabeledToggle(
-            "增强温度读取（需要管理员权限）",
+            "增强温度读取（管理员权限）",
             _settings.EnableEnhancedTemperatureSensors,
             value => _settings.EnableEnhancedTemperatureSensors = value));
 
@@ -484,15 +528,7 @@ public sealed partial class MainWindow : Window
             ToChineseFontWeight(_settings.TaskbarPerformanceFontWeight),
             value => _settings.TaskbarPerformanceFontWeight = ToFontWeight(value)));
 
-        var selectedMetrics = TaskbarPerformanceMetricCatalog
-            .Normalize(_settings.TaskbarPerformanceMetrics)
-            .ToList();
-        var metricOrder = selectedMetrics
-            .Concat(TaskbarPerformanceMetricCatalog.Definitions
-                .Select(definition => definition.Id)
-                .Where(id => !selectedMetrics.Contains(id, StringComparer.OrdinalIgnoreCase)))
-            .ToList();
-        var orderEditor = new ListView
+        orderEditor = new ListView
         {
             CanDragItems = true,
             CanReorderItems = true,
@@ -507,6 +543,51 @@ public sealed partial class MainWindow : Window
         ScrollViewer.SetVerticalScrollMode(orderEditor, ScrollMode.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(orderEditor, ScrollBarVisibility.Disabled);
 
+        void AddMetricColumns(Grid grid)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(34) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(MetricToggleColumnWidth) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(MetricToggleColumnWidth) });
+        }
+
+        ListViewItem CreateMetricColumnHeader()
+        {
+            var header = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
+            AddMetricColumns(header);
+
+            var displayHeader = new TextBlock
+            {
+                Text = "显示",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.72
+            };
+            var summaryHeader = new TextBlock
+            {
+                Text = "摘要",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.72
+            };
+            Grid.SetColumn(displayHeader, 2);
+            Grid.SetColumn(summaryHeader, 4);
+            header.Children.Add(displayHeader);
+            header.Children.Add(summaryHeader);
+
+            return new ListViewItem
+            {
+                Content = header,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(10, 0, 10, 2),
+                IsHitTestVisible = false,
+                CanDrag = false,
+                AllowDrop = false
+            };
+        }
+
         void SaveMetricOrder()
         {
             var enabledMetricIds = selectedMetrics
@@ -516,22 +597,47 @@ public sealed partial class MainWindow : Window
                 .Where(enabledMetricIds.Contains)
                 .Select(id => id));
             _settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(selectedMetrics);
+            NormalizeSummaryMetrics();
         }
 
         bool IsMetricEnabled(string metricId) => selectedMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase);
 
+        bool IsSummaryMetricEnabled(string metricId) =>
+            summaryMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase);
+
+        void NormalizeSummaryMetrics()
+        {
+            List<string> normalized = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                selectedMetrics,
+                summaryMetrics,
+                _settings.TaskbarPerformanceSummaryMetricCount);
+            summaryMetrics.Clear();
+            summaryMetrics.AddRange(normalized);
+            _settings.TaskbarPerformanceSummaryMetrics = new List<string>(summaryMetrics);
+        }
+
+        void ShowSummaryLimitWarning()
+        {
+            ErrorInfoBar.Severity = InfoBarSeverity.Warning;
+            ErrorInfoBar.Message = $"摘要最多显示 {_settings.TaskbarPerformanceSummaryMetricCount} 项指标。";
+            ErrorInfoBar.IsOpen = true;
+            _successInfoBarTimer.Stop();
+            _successInfoBarTimer.Start();
+        }
+
         void RefreshMetricOrderEditor()
         {
+            if (orderEditor == null) return;
+
             orderEditor.Items.Clear();
+            orderEditor.Items.Add(CreateMetricColumnHeader());
             foreach (string metricId in metricOrder)
             {
                 TaskbarPerformanceMetricDefinition definition = TaskbarPerformanceMetricCatalog.Definitions
                     .First(definition => string.Equals(definition.Id, metricId, StringComparison.OrdinalIgnoreCase));
 
                 var row = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                AddMetricColumns(row);
                 var dragGrip = CreateMetricDragGrip();
                 dragGrip.Margin = new Thickness(0, 0, 12, 0);
                 Grid.SetColumn(dragGrip, 0);
@@ -540,17 +646,19 @@ public sealed partial class MainWindow : Window
                 Grid.SetColumn(metricName, 1);
                 row.Children.Add(metricName);
 
-                var toggle = new ToggleSwitch
+                var displayToggle = new ToggleSwitch
                 {
                     IsOn = IsMetricEnabled(metricId),
+                    MinWidth = 0,
                     OnContent = null,
                     OffContent = null,
-                    HorizontalAlignment = HorizontalAlignment.Right,
+                    HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
-                toggle.Toggled += (_, _) =>
+                ToolTipService.SetToolTip(displayToggle, "显示详细信息");
+                displayToggle.Toggled += (_, _) =>
                 {
-                    if (toggle.IsOn)
+                    if (displayToggle.IsOn)
                     {
                         if (!selectedMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase))
                         {
@@ -560,11 +668,56 @@ public sealed partial class MainWindow : Window
                     else
                     {
                         selectedMetrics.RemoveAll(id => string.Equals(id, metricId, StringComparison.OrdinalIgnoreCase));
+                        summaryMetrics.RemoveAll(id => string.Equals(id, metricId, StringComparison.OrdinalIgnoreCase));
                     }
                     _settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(selectedMetrics);
+                    NormalizeSummaryMetrics();
+                    RefreshMetricOrderEditor();
                 };
-                Grid.SetColumn(toggle, 2);
-                row.Children.Add(toggle);
+                Grid.SetColumn(displayToggle, 2);
+                row.Children.Add(displayToggle);
+
+                var summaryToggle = new ToggleSwitch
+                {
+                    IsOn = IsSummaryMetricEnabled(metricId),
+                    IsEnabled = IsMetricEnabled(metricId),
+                    MinWidth = 0,
+                    OnContent = null,
+                    OffContent = null,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                ToolTipService.SetToolTip(summaryToggle, "摘要显示");
+                summaryToggle.Toggled += (_, _) =>
+                {
+                    if (!IsMetricEnabled(metricId))
+                    {
+                        if (summaryToggle.IsOn) summaryToggle.IsOn = false;
+                        return;
+                    }
+
+                    if (summaryToggle.IsOn)
+                    {
+                        if (!IsSummaryMetricEnabled(metricId) &&
+                            summaryMetrics.Count >= _settings.TaskbarPerformanceSummaryMetricCount)
+                        {
+                            summaryToggle.IsOn = false;
+                            ShowSummaryLimitWarning();
+                            return;
+                        }
+
+                        if (!IsSummaryMetricEnabled(metricId)) summaryMetrics.Add(metricId);
+                    }
+                    else
+                    {
+                        summaryMetrics.RemoveAll(id => string.Equals(id, metricId, StringComparison.OrdinalIgnoreCase));
+                    }
+
+                    NormalizeSummaryMetrics();
+                    RefreshMetricOrderEditor();
+                };
+                Grid.SetColumn(summaryToggle, 4);
+                row.Children.Add(summaryToggle);
 
                 orderEditor.Items.Add(new ListViewItem
                 {
@@ -589,6 +742,7 @@ public sealed partial class MainWindow : Window
             metricOrder.Clear();
             metricOrder.AddRange(reordered);
             SaveMetricOrder();
+            RefreshMetricOrderEditor();
         };
 
         RefreshMetricOrderEditor();
@@ -618,12 +772,23 @@ public sealed partial class MainWindow : Window
 
     private void ApplyApplicationTheme()
     {
-        RootLayout.RequestedTheme = ApplicationThemeParser.Parse(_settings.ApplicationTheme) switch
+        NavMenu.RequestedTheme = ApplicationThemeParser.Parse(_settings.ApplicationTheme) switch
         {
             ApplicationThemePreference.Light => ElementTheme.Light,
             ApplicationThemePreference.Dark => ElementTheme.Dark,
             _ => ElementTheme.Default
         };
+        ApplyWindowBorderTheme();
+    }
+
+    private void ApplyWindowBorderTheme()
+    {
+        if (_windowHandle == IntPtr.Zero || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)) return;
+
+        int borderColor = ApplicationThemeParser.Resolve(_settings.ApplicationTheme) == ResolvedApplicationTheme.Dark
+            ? DarkWindowBorderColor
+            : LightWindowBorderColor;
+        DwmSetWindowAttribute(_windowHandle, DwmwaBorderColor, ref borderColor, sizeof(int));
     }
 
     internal bool UsesSystemApplicationTheme =>
@@ -721,7 +886,6 @@ public sealed partial class MainWindow : Window
             _ => "Mica"
         };
         var interaction = new StackPanel { Spacing = 10 };
-        interaction.Children.Add(SectionHeader("快捷操作"));
         interaction.Children.Add(Field("全局快捷键", hotkeyEditor, "点击输入框后按下组合键；移除后不注册全局快捷键。"));
         interaction.Children.Add(LabeledFontPicker(
             "翻译窗口字体",
@@ -2337,6 +2501,7 @@ public sealed class SettingsDocument
     public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
     public bool EnableEnhancedTemperatureSensors { get; set; }
     public List<string> TaskbarPerformanceMetrics { get; set; } = TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
+    public List<string> TaskbarPerformanceSummaryMetrics { get; set; } = TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
     public int TaskbarPerformanceRefreshSeconds { get; set; } = 1;
     public bool TaskbarPerformanceIsDoubleLine { get; set; }
     public string TaskbarPerformanceFontFamily { get; set; } = "Microsoft YaHei";
@@ -2393,7 +2558,11 @@ public sealed class SettingsDocument
         {
             if (!File.Exists(path)) return new SettingsDocument();
 
-            SettingsDocument settings = JsonSerializer.Deserialize<SettingsDocument>(File.ReadAllText(path)) ?? new SettingsDocument();
+            string json = File.ReadAllText(path);
+            using JsonDocument document = JsonDocument.Parse(json);
+            bool hasSummaryMetrics = document.RootElement.TryGetProperty(
+                nameof(TaskbarPerformanceSummaryMetrics), out _);
+            SettingsDocument settings = JsonSerializer.Deserialize<SettingsDocument>(json) ?? new SettingsDocument();
             settings.TranslationProviders = TranslationProviderProfiles.Normalize(
                 settings.TranslationProviders,
                 settings.TranslationProvider,
@@ -2413,6 +2582,20 @@ public sealed class SettingsDocument
             settings.IncludedAppIds ??= [];
             settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
             settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
+            settings.TaskbarPerformanceSummaryMetricCount = Math.Clamp(
+                settings.TaskbarPerformanceSummaryMetricCount,
+                1,
+                TaskbarPerformanceMetricCatalog.Definitions.Count);
+            if (!hasSummaryMetrics)
+            {
+                settings.TaskbarPerformanceSummaryMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                    settings.TaskbarPerformanceMetrics,
+                    settings.TaskbarPerformanceSummaryMetricCount);
+            }
+            settings.TaskbarPerformanceSummaryMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                settings.TaskbarPerformanceMetrics,
+                settings.TaskbarPerformanceSummaryMetrics,
+                settings.TaskbarPerformanceSummaryMetricCount);
             settings.TaskbarPerformanceRefreshSeconds = settings.TaskbarPerformanceRefreshSeconds is 1 or 2 or 5
                 ? settings.TaskbarPerformanceRefreshSeconds
                 : 1;
