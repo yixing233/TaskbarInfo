@@ -1344,6 +1344,8 @@ static void InstallerSupportsInAppUpdateHandoff()
 
     AssertEqual(true, installer.Contains("CloseApplications=yes", StringComparison.Ordinal),
         "the installer should close a lingering TaskbarInfo process during an in-app update handoff");
+    AssertEqual(true, installer.Contains("OutputBaseFilename=TaskbarInfo-Setup-v{#MyAppVersion}", StringComparison.Ordinal),
+        "the installer filename should include the released application version");
     AssertEqual(true, readme.Contains("应用内下载并安装", StringComparison.Ordinal),
         "the README should describe the in-app update flow");
 }
