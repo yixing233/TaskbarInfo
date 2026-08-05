@@ -9,6 +9,15 @@ namespace TaskbarInfo;
 /// </summary>
 public partial class App : System.Windows.Application
 {
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        if (TemperatureSensorHelper.TryRun(e.Args))
+        {
+            Shutdown();
+            return;
+        }
+        base.OnStartup(e);
+    }
     public static System.Windows.Media.ImageSource? GetAppIcon()
     {
         try

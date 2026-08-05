@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TaskbarInfo"
         mc:Ignorable="d"
-        Title="LyricsX" Height="30" Width="200"
+        Title="TaskbarInfo" Height="30" Width="200"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True"
         ShowInTaskbar="False"
@@ -38,6 +38,108 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style TargetType="ContextMenu">
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Grid.IsSharedSizeScope" Value="True" />
+            <Setter Property="HasDropShadow" Value="True" />
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, sans-serif"/>
+            <Setter Property="MinWidth" Value="150"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
+                            </Border.Effect>
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="MenuItem">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Border" Background="Transparent" SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="40"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="15"/>
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0" ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xf00c;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#F2F2F2"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#F0F7FF"/>
+                                <Setter TargetName="CheckIcon" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="Separator">
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Separator">
+                        <Border Height="1" Background="#E8E8E8" SnapsToDevicePixels="True"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PassiveMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border Background="Transparent" Padding="0,4">
+                            <ContentPresenter ContentSource="Header"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <ContextMenu x:Key="TrayContextMenu" Placement="MousePoint">
+            <MenuItem Header="设置" Click="OpenSettings_Click">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#555555"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="检查更新..." Click="CheckForUpdates_Click">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xf0ab;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <Separator/>
+            <MenuItem Header="重启" Click="Restart_Click">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xf021;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="退出" Click="Exit_Click">
+                <MenuItem.Icon>
+                    <TextBlock Text="&#xf00d;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#FF4D4F"/>
+                </MenuItem.Icon>
+            </MenuItem>
+        </ContextMenu>
     </Window.Resources>
 
     <Grid>
@@ -61,97 +163,6 @@
             </Border.ToolTip>
             <Border.ContextMenu>
                 <ContextMenu>
-                    <ContextMenu.Resources>
-                        <!-- Premium Menu Styles -->
-                        <Style TargetType="ContextMenu">
-                            <Setter Property="SnapsToDevicePixels" Value="True" />
-                            <Setter Property="OverridesDefaultStyle" Value="True" />
-                            <Setter Property="Grid.IsSharedSizeScope" Value="True" />
-                            <Setter Property="HasDropShadow" Value="True" />
-                            <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, sans-serif"/>
-                            <Setter Property="MinWidth" Value="150"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ContextMenu">
-                                        <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
-                                            <Border.Effect>
-                                                <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
-                                            </Border.Effect>
-                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-
-                        <!-- Standard Interactive MenuItem -->
-                        <Style TargetType="MenuItem">
-                            <Setter Property="Height" Value="32"/>
-                            <Setter Property="FontSize" Value="13"/>
-                            <Setter Property="Foreground" Value="#333333"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="MenuItem">
-                                        <Border x:Name="Border" Background="Transparent" SnapsToDevicePixels="True">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="40"/> <!-- Icon Width -->
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/> <!-- Shortcut -->
-                                                    <ColumnDefinition Width="15"/>
-                                                </Grid.ColumnDefinitions>
-                                                
-                                                <!-- Icon -->
-                                                <ContentPresenter Grid.Column="0" ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                                
-                                                <!-- Header -->
-                                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,10,0"/>
-                                                
-                                                <!-- Checkmark Overlay -->
-                                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xf00c;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsHighlighted" Value="True">
-                                                <Setter TargetName="Border" Property="Background" Value="#F2F2F2"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="Border" Property="Background" Value="#F0F7FF"/>
-                                                <Setter TargetName="CheckIcon" Property="Visibility" Value="Visible"/>
-                                                <!-- Hide default icon if checked? No, keep logic simple. -->
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-
-                        <!-- Full Width Solid Separator -->
-                        <Style TargetType="Separator">
-                            <Setter Property="Margin" Value="0,4"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Separator">
-                                        <Border Height="1" Background="#E8E8E8" SnapsToDevicePixels="True"/>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-
-                        <!-- Non-interactive Container (for Media Buttons) -->
-                        <Style x:Key="PassiveMenuItemStyle" TargetType="MenuItem">
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="MenuItem">
-                                        <Border Background="Transparent" Padding="0,4">
-                                            <ContentPresenter ContentSource="Header"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ContextMenu.Resources>
-
                     <!-- Media Controls Row -->
                     <MenuItem Style="{StaticResource PassiveMenuItemStyle}">
                         <MenuItem.Header>
@@ -201,19 +212,6 @@
                          </MenuItem.Icon>
                     </MenuItem>
                     
-                    <Separator/>
-                    
-                    <MenuItem Header="重启" Click="Restart_Click">
-                        <MenuItem.Icon>
-                           <TextBlock Text="&#xf021;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/> 
-                        </MenuItem.Icon>
-                    </MenuItem>
-
-                    <MenuItem Header="退出" Click="Exit_Click">
-                        <MenuItem.Icon>
-                           <TextBlock Text="&#xf00d;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#FF4D4F"/> 
-                        </MenuItem.Icon>
-                    </MenuItem>
                 </ContextMenu>
             </Border.ContextMenu>
             <Grid>
@@ -249,7 +247,7 @@
                        Visibility="Collapsed" Cursor="Hand" MouseLeftButtonDown="AppIcon_MouseLeftButtonDown"/>
 
                 <Canvas x:Name="TextContainer" Grid.Column="2" ClipToBounds="True" Height="20" VerticalAlignment="Center">
-                    <TextBlock x:Name="InfoText" Text="歌词加载中..." 
+                    <TextBlock x:Name="InfoText" Text="开始播放音乐吧"
                                FontSize="12" FontWeight="SemiBold"
                                Canvas.Left="0" Canvas.Top="2">
                         <TextBlock.Foreground>

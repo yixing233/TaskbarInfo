@@ -1,6 +1,6 @@
-# LyricsX
+# TaskbarInfo
 
-LyricsX 是一款 Windows 桌面音乐歌词工具，用于在任务栏、桌面和独立悬浮窗口中展示当前播放歌曲的歌词与媒体信息，适合日常听歌与桌面展示。
+TaskbarInfo 是一款 Windows 桌面音乐歌词工具，用于在任务栏、桌面和独立悬浮窗口中展示当前播放歌曲的歌词与媒体信息，适合日常听歌与桌面展示。
 
 ## 功能亮点
 
@@ -9,7 +9,7 @@ LyricsX 是一款 Windows 桌面音乐歌词工具，用于在任务栏、桌面
 - **桌面媒体组件**：在桌面上显示封面、歌曲信息、播放进度和歌词，并提供上一首、播放/暂停、下一首等媒体控制。
 - **主题与个性化**：支持深色、浅色和跟随系统主题；可自定义歌词与组件的颜色、字体和显示效果。
 - **歌词服务**：自动从多个歌词来源搜索歌曲歌词，并缓存已获取的结果以提升后续加载速度。
-- **媒体来源筛选**：可选择希望 LyricsX 响应的播放应用，减少多媒体应用同时运行时的干扰。
+- **媒体来源筛选**：可选择希望 TaskbarInfo 响应的播放应用，减少多媒体应用同时运行时的干扰。
 - **便捷设置**：提供集中式设置窗口，可快速管理任务栏歌词、悬浮歌词、桌面组件、外观与更新检查。
 - **自动更新检查**：可在“关于”页面检查 GitHub Release 中的最新版本。
 
@@ -21,7 +21,7 @@ LyricsX 是一款 Windows 桌面音乐歌词工具，用于在任务栏、桌面
 
 ## 安装
 
-前往 [Releases](https://github.com/yixing233/LyricsX/releases) 下载最新的 `LyricsX-Setup.exe`，运行安装程序后即可使用。
+前往 [Releases](https://github.com/yixing233/TaskbarInfo/releases) 下载最新的 `TaskbarInfo-Setup.exe`，运行安装程序后即可使用。
 
 ### 系统要求
 
@@ -47,7 +47,7 @@ dotnet run
 
 ## 反馈与建议
 
-欢迎通过 [Issues](https://github.com/yixing233/LyricsX/issues) 提交问题反馈或功能建议。
+欢迎通过 [Issues](https://github.com/yixing233/TaskbarInfo/issues) 提交问题反馈或功能建议。
 
 ## 许可证
 

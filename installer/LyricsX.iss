@@ -1,7 +1,7 @@
-#define MyAppName "LyricsX"
+#define MyAppName "TaskbarInfo"
 #define MyAppVersion "1.1.3"
-#define MyAppPublisher "LyricsX"
-#define MyAppExeName "LyricsX.exe"
+#define MyAppPublisher "TaskbarInfo"
+#define MyAppExeName "TaskbarInfo.exe"
 
 #ifndef PublishDirectory
   #define PublishDirectory "..\publish\win-x64"
@@ -24,7 +24,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#SetupOutputDirectory}
-OutputBaseFilename=LyricsX-Setup
+OutputBaseFilename=TaskbarInfo-Setup
 SetupIconFile=..\src\icons\LyricsX.ico
 Compression={#SetupCompression}
 SolidCompression=yes
@@ -109,8 +109,8 @@ begin
   if not Result then
   begin
     if MsgBox(
-      'LyricsX 需要 .NET 9 Desktop Runtime (x64) 才能运行。' + #13#10 + #13#10 +
-      '是否现在打开微软官方下载页？安装运行库后，请重新运行 LyricsX 安装程序。',
+      'TaskbarInfo 需要 .NET 9 Desktop Runtime (x64) 才能运行。' + #13#10 + #13#10 +
+      '是否现在打开微软官方下载页？安装运行库后，请重新运行 TaskbarInfo 安装程序。',
       mbConfirmation, MB_YESNO) = IDYES then
     begin
       ShellExec('open', DotNetDesktopRuntimeUrl, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
@@ -124,8 +124,8 @@ begin
     Exit;
 
   if MsgBox(
-    'LyricsX 的设置窗口需要 Windows App Runtime 1.8 (x64)。' + #13#10 + #13#10 +
-    '是否现在打开微软官方下载页？安装运行库后，请重新运行 LyricsX 安装程序。',
+    'TaskbarInfo 的设置窗口需要 Windows App Runtime 1.8 (x64)。' + #13#10 + #13#10 +
+    '是否现在打开微软官方下载页？安装运行库后，请重新运行 TaskbarInfo 安装程序。',
     mbConfirmation, MB_YESNO) = IDYES then
   begin
     ShellExec('open', WindowsAppRuntimeUrl, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);

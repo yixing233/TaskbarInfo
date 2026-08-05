@@ -15,7 +15,7 @@ namespace TaskbarInfo
     public sealed class UpdateService
     {
         private const string RepoOwner = "yixing233";
-        private const string RepoName = "LyricsX";
+        private const string RepoName = "TaskbarInfo";
         private const string DefaultVersion = "1.1.3";
 
         private static readonly HttpClient HttpClient = CreateHttpClient();
@@ -124,7 +124,7 @@ namespace TaskbarInfo
             var client = new HttpClient();
             var version = ToDisplayVersion(GetCurrentVersion());
 
-            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("LyricsX", version));
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("TaskbarInfo", version));
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
             client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
 

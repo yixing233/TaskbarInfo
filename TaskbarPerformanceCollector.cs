@@ -8,6 +8,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     private const uint PdhSuccess = 0x00000000;
     private const uint PdhMoreData = 0x800007D2;
     private const uint PdhFmtDouble = 0x00000200;
+    private static readonly TimeSpan NetworkInterfaceRefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TemperatureRefreshInterval = TimeSpan.FromSeconds(2);
 
     private readonly object _sync = new();
     private System.Threading.Timer? _timer;
@@ -19,6 +21,13 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     private long _previousReceived;
     private long _previousSent;
     private DateTime _previousNetworkTime;
+    private readonly NetworkAddressChangedEventHandler _networkAddressChangedHandler;
+    private readonly TaskbarTemperatureReader _temperatureReader = new();
+    private NetworkInterface[] _networkInterfaces = Array.Empty<NetworkInterface>();
+    private DateTime _nextNetworkInterfaceRefresh;
+    private int _networkInterfacesDirty = 1;
+    private TaskbarTemperatureSnapshot _temperatureSnapshot = TaskbarTemperatureSnapshot.Empty;
+    private DateTime _nextTemperatureRefresh;
     private IntPtr _pdhQuery;
     private IntPtr _gpuCounter;
     private bool _gpuPrimed;
@@ -26,9 +35,12 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     public event EventHandler<TaskbarPerformanceSnapshot>? SnapshotUpdated;
 
     public bool IsRunning => _timer != null;
+    public void SetEnhancedTemperatureSensorsEnabled(bool enabled) => _temperatureReader.SetEnhancedMode(enabled);
 
     public TaskbarPerformanceCollector()
     {
+        _networkAddressChangedHandler = (_, _) => Volatile.Write(ref _networkInterfacesDirty, 1);
+        NetworkChange.NetworkAddressChanged += _networkAddressChangedHandler;
         TryInitializeGpuCounter();
     }
 
@@ -69,6 +81,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             _disposed = true;
             _timer?.Dispose();
             _timer = null;
+            NetworkChange.NetworkAddressChanged -= _networkAddressChangedHandler;
+            _temperatureReader.Dispose();
 
             if (_gpuCounter != IntPtr.Zero)
             {
@@ -109,7 +123,26 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         double? memory = ReadMemoryUsage();
         double? gpu = ReadGpuUsage();
         (double download, double upload) = ReadNetworkRates();
-        return new TaskbarPerformanceSnapshot(cpu, memory, gpu, download, upload);
+        TaskbarTemperatureSnapshot temperatures = ReadTemperatures();
+        return new TaskbarPerformanceSnapshot(
+            cpu,
+            memory,
+            gpu,
+            download,
+            upload,
+            temperatures.CpuTemperatureCelsius,
+            temperatures.GpuTemperatureCelsius,
+            temperatures.DiskTemperatureCelsius);
+    }
+
+    private TaskbarTemperatureSnapshot ReadTemperatures()
+    {
+        DateTime now = DateTime.UtcNow;
+        if (now < _nextTemperatureRefresh) return _temperatureSnapshot;
+
+        _temperatureSnapshot = _temperatureReader.Read();
+        _nextTemperatureRefresh = now.Add(TemperatureRefreshInterval);
+        return _temperatureSnapshot;
     }
 
     private double? ReadCpuUsage()
@@ -153,7 +186,7 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         long sent = 0;
         try
         {
-            foreach (NetworkInterface networkInterface in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (NetworkInterface networkInterface in GetNetworkInterfaces())
             {
                 if (networkInterface.OperationalStatus != OperationalStatus.Up ||
                     networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
@@ -194,6 +227,36 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         _previousSent = sent;
         _previousNetworkTime = now;
         return (download, upload);
+    }
+
+    private NetworkInterface[] GetNetworkInterfaces()
+    {
+        DateTime now = DateTime.UtcNow;
+        if (Volatile.Read(ref _networkInterfacesDirty) == 0 && now < _nextNetworkInterfaceRefresh)
+        {
+            return _networkInterfaces;
+        }
+
+        lock (_sync)
+        {
+            if (Volatile.Read(ref _networkInterfacesDirty) == 0 && now < _nextNetworkInterfaceRefresh)
+            {
+                return _networkInterfaces;
+            }
+
+            try
+            {
+                _networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+            }
+            catch
+            {
+                _networkInterfaces = Array.Empty<NetworkInterface>();
+            }
+
+            _nextNetworkInterfaceRefresh = now.Add(NetworkInterfaceRefreshInterval);
+            Volatile.Write(ref _networkInterfacesDirty, 0);
+            return _networkInterfaces;
+        }
     }
 
     private double? ReadGpuUsage()

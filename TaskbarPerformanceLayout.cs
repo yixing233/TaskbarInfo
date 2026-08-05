@@ -26,6 +26,9 @@ public static class TaskbarPerformanceLayout
             TaskbarPerformanceMetricCatalog.Cpu => 58,
             TaskbarPerformanceMetricCatalog.Memory => 66,
             TaskbarPerformanceMetricCatalog.Gpu => 58,
+            TaskbarPerformanceMetricCatalog.CpuTemperature => 67,
+            TaskbarPerformanceMetricCatalog.GpuTemperature => 67,
+            TaskbarPerformanceMetricCatalog.DiskTemperature => 72,
             TaskbarPerformanceMetricCatalog.Download or TaskbarPerformanceMetricCatalog.Upload => 82,
             _ => 0
         };
@@ -74,6 +77,9 @@ public static class TaskbarPerformanceLayout
             TaskbarPerformanceMetricCatalog.Cpu => "CPU 100%",
             TaskbarPerformanceMetricCatalog.Memory => "内存 100%",
             TaskbarPerformanceMetricCatalog.Gpu => "GPU 100%",
+            TaskbarPerformanceMetricCatalog.CpuTemperature => "CPU 100°C",
+            TaskbarPerformanceMetricCatalog.GpuTemperature => "GPU 100°C",
+            TaskbarPerformanceMetricCatalog.DiskTemperature => "磁盘 100°C",
             TaskbarPerformanceMetricCatalog.Download or TaskbarPerformanceMetricCatalog.Upload => "↓ 999.99 GB/s",
             _ => string.Empty
         };

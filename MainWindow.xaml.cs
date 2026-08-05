@@ -21,7 +21,11 @@ namespace TaskbarInfo
 {
     public partial class MainWindow : Window
     {
-        private const string SharedSettingsAppliedEventName = "LyricsX.Settings.Apply";
+        private const string SharedSettingsAppliedEventName = "TaskbarInfo.Settings.Apply";
+        private const int QuickTranslateHotkeyId = 0x4C58;
+        private const int QuickTranslateSettingsPage = 6;
+        private static readonly uint SettingsNavigateMessage =
+            UnmanagedMethods.RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
 
         public MainWindow()
         {
@@ -30,6 +34,10 @@ namespace TaskbarInfo
             {
                 StopSharedSettingsApplyNotification();
                 _taskbarPerformanceWindow?.Dispose();
+                _taskbarTranslateButtonWindow?.Dispose();
+                CloseQuickTranslateHost();
+                CloseSettingsHost();
+                UnregisterQuickTranslateHotkey();
             };
             
             // Initialize references first
@@ -82,6 +90,11 @@ namespace TaskbarInfo
         
         private DispatcherTimer? _processMonitorTimer;
         private TaskbarPerformanceWindow? _taskbarPerformanceWindow;
+        private TaskbarTranslateButtonWindow? _taskbarTranslateButtonWindow;
+        private System.Diagnostics.Process? _quickTranslateProcess;
+        private System.Diagnostics.Process? _settingsProcess;
+        private HwndSource? _mainWindowSource;
+        private bool _quickTranslateHotkeyRegistered;
         private EventWaitHandle? _sharedSettingsAppliedEvent;
         private RegisteredWaitHandle? _sharedSettingsAppliedWait;
 
@@ -132,7 +145,7 @@ namespace TaskbarInfo
 
             if (found)
             {
-                SetTrayText("LyricsX");
+                SetTrayText("TaskbarInfo");
 
                 if (this.Visibility != Visibility.Visible)
                 {
@@ -145,7 +158,7 @@ namespace TaskbarInfo
             }
             else
             {
-                SetTrayText("LyricsX - 已隐藏，等待播放器运行");
+                SetTrayText("TaskbarInfo - 已隐藏，等待播放器运行");
                 // Hide everything
                 if (this.Visibility == Visibility.Visible)
                 {
@@ -197,7 +210,7 @@ namespace TaskbarInfo
             }
             _notifyIcon.Visible = true;
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "LyricsX";
+            _notifyIcon.Text = "TaskbarInfo";
             _notifyIcon.BalloonTipClicked += NotifyIcon_BalloonTipClicked;
             
             // Handle Mouse Up to show WPF ContextMenu
@@ -209,9 +222,10 @@ namespace TaskbarInfo
                     var helper = new WindowInteropHelper(this);
                     UnmanagedMethods.SetForegroundWindow(helper.Handle);
                     
-                    if (MainBorder.ContextMenu != null)
+                    if (FindResource("TrayContextMenu") is ContextMenu trayMenu)
                     {
-                        MainBorder.ContextMenu.IsOpen = true;
+                        trayMenu.PlacementTarget = MainBorder;
+                        trayMenu.IsOpen = true;
                     }
                 }
             };
@@ -246,6 +260,7 @@ namespace TaskbarInfo
             
             InjectIntoTaskbar();
             ManageTaskbarPerformance();
+            ManageTaskbarTranslateButton();
             
             // Initialize Media Manager
             _mediaManager.FilterAppIds = _settings.IncludedAppIds; // Initialize Filter
@@ -256,7 +271,7 @@ namespace TaskbarInfo
             
             // Setup High-Frequency Smooth Sync Timer for Verse Color
             _lyricSyncTimer = new DispatcherTimer(DispatcherPriority.Render);
-            _lyricSyncTimer.Interval = TimeSpan.FromMilliseconds(30); 
+            _lyricSyncTimer.Interval = TimeSpan.FromMilliseconds(100);
             _lyricSyncTimer.Tick += LyricSyncTimer_Tick;
             _lyricSyncTimer.Start();
 
@@ -267,6 +282,8 @@ namespace TaskbarInfo
             {
                 _ = CheckForUpdatesAsync(isStartupCheck: true);
             }
+
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(PrewarmSettingsHost));
         }
 
         private void NotifyIcon_BalloonTipClicked(object? sender, EventArgs e)
@@ -385,7 +402,7 @@ namespace TaskbarInfo
                 {
                     _notifyIcon?.ShowBalloonTip(
                         5000,
-                        "LyricsX 有新版本",
+                        "TaskbarInfo 有新版本",
                         $"当前 {result.CurrentVersionDisplay}，最新 {result.LatestVersionDisplay}。点击此通知可打开下载页面。",
                         System.Windows.Forms.ToolTipIcon.Info);
                     return;
@@ -431,7 +448,7 @@ namespace TaskbarInfo
         private void ShowTrayWarning(string message)
         {
             if (_notifyIcon == null) return;
-            _notifyIcon.ShowBalloonTip(3000, "LyricsX", message, System.Windows.Forms.ToolTipIcon.Warning);
+            _notifyIcon.ShowBalloonTip(3000, "TaskbarInfo", message, System.Windows.Forms.ToolTipIcon.Warning);
         }
 
         private void ApplySettings()
@@ -439,6 +456,8 @@ namespace TaskbarInfo
             // Sync Process Monitoring
             SetupProcessMonitor();
             ManageTaskbarPerformance();
+            ManageTaskbarTranslateButton();
+            ConfigureQuickTranslateHotkey();
             
             // Sync Floating Window
             _floatingWindow?.ApplySettings(_settings);
@@ -668,28 +687,223 @@ namespace TaskbarInfo
             OpenSettings(0);
         }
 
+        private void ShowQuickTranslate()
+        {
+            if (CloseExistingQuickTranslateHost()) return;
+
+            if (!TryGetQuickTranslateLaunchOptions(out QuickTranslateLaunchOptions options))
+            {
+                ShowTrayWarning("无法获取任务栏位置，快捷翻译未打开。");
+                return;
+            }
+
+            string settingsHost = System.IO.Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "SettingsHost",
+                "TaskbarInfo.Settings.exe");
+            if (!System.IO.File.Exists(settingsHost))
+            {
+                ShowTrayWarning("快捷翻译组件未找到，请重新生成开发版本。");
+                return;
+            }
+
+            try
+            {
+                var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = settingsHost,
+                    Arguments = QuickTranslateHostLauncher.BuildArguments(
+                        AppSettings.SettingsPath,
+                        options),
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(settingsHost),
+                    UseShellExecute = false
+                });
+                if (process == null)
+                {
+                    ShowTrayWarning("快捷翻译窗口未能启动。");
+                    return;
+                }
+
+                _quickTranslateProcess = process;
+                int processId = process.Id;
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_quickTranslateProcess?.Id != processId) return;
+                    _quickTranslateProcess.Dispose();
+                    _quickTranslateProcess = null;
+                }));
+            }
+            catch (Exception exception)
+            {
+                ShowTrayWarning("快捷翻译窗口启动失败: " + exception.Message);
+            }
+        }
+
+        private bool CloseExistingQuickTranslateHost()
+        {
+            System.Diagnostics.Process? process = _quickTranslateProcess;
+            if (process == null) return false;
+
+            try
+            {
+                if (process.HasExited)
+                {
+                    process.Dispose();
+                    _quickTranslateProcess = null;
+                    return false;
+                }
+
+                process.CloseMainWindow();
+                return true;
+            }
+            catch
+            {
+                process.Dispose();
+                _quickTranslateProcess = null;
+                return false;
+            }
+        }
+
+        private bool TryGetQuickTranslateLaunchOptions(out QuickTranslateLaunchOptions options)
+        {
+            options = null!;
+            IntPtr taskbarHandle = TaskbarMonitorLocator.FindTaskbarWindow(_settings.TaskbarMonitorDeviceName);
+            if (taskbarHandle == IntPtr.Zero ||
+                !UnmanagedMethods.GetWindowRect(taskbarHandle, out UnmanagedMethods.RECT taskbarRect))
+            {
+                return false;
+            }
+
+            System.Drawing.Rectangle taskbarBounds = System.Drawing.Rectangle.FromLTRB(
+                taskbarRect.Left, taskbarRect.Top, taskbarRect.Right, taskbarRect.Bottom);
+            System.Drawing.Rectangle buttonBounds;
+            if (_taskbarTranslateButtonWindow?.TryGetScreenBounds(out buttonBounds) != true)
+            {
+                buttonBounds = taskbarBounds;
+            }
+
+            var screen = System.Windows.Forms.Screen.FromHandle(taskbarHandle);
+            options = new QuickTranslateLaunchOptions(
+                buttonBounds,
+                taskbarBounds,
+                screen.Bounds,
+                screen.WorkingArea);
+            return true;
+        }
+
+        private void CloseQuickTranslateHost()
+        {
+            if (_quickTranslateProcess == null) return;
+
+            try
+            {
+                if (!_quickTranslateProcess.HasExited)
+                {
+                    _quickTranslateProcess.CloseMainWindow();
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                _quickTranslateProcess.Dispose();
+                _quickTranslateProcess = null;
+            }
+        }
+
+        private void ConfigureQuickTranslateHotkey()
+        {
+            var source = PresentationSource.FromVisual(this) as HwndSource;
+            if (source == null) return;
+
+            if (_mainWindowSource != source)
+            {
+                _mainWindowSource?.RemoveHook(MainWindowMessageHook);
+                _mainWindowSource = source;
+                _mainWindowSource.AddHook(MainWindowMessageHook);
+            }
+
+            UnregisterQuickTranslateHotkey();
+            string configuredHotkey = _settings.QuickTranslateHotkey?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(configuredHotkey)) return;
+
+            if (!QuickTranslateHotkey.TryParse(configuredHotkey, out QuickTranslateHotkey hotkey))
+            {
+                ShowTrayWarning("快捷翻译快捷键格式无效，请使用 Ctrl+Alt+T 这类格式。");
+                return;
+            }
+
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            _quickTranslateHotkeyRegistered = handle != IntPtr.Zero &&
+                UnmanagedMethods.RegisterHotKey(
+                    handle,
+                    QuickTranslateHotkeyId,
+                    hotkey.Modifiers | UnmanagedMethods.MOD_NOREPEAT,
+                    hotkey.VirtualKey);
+            if (!_quickTranslateHotkeyRegistered)
+            {
+                ShowTrayWarning("快捷翻译快捷键已被其他程序占用。");
+            }
+        }
+
+        private void UnregisterQuickTranslateHotkey()
+        {
+            if (!_quickTranslateHotkeyRegistered) return;
+
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            if (handle != IntPtr.Zero)
+            {
+                UnmanagedMethods.UnregisterHotKey(handle, QuickTranslateHotkeyId);
+            }
+            _quickTranslateHotkeyRegistered = false;
+        }
+
+        private IntPtr MainWindowMessageHook(
+            IntPtr handle,
+            int message,
+            IntPtr wParam,
+            IntPtr lParam,
+            ref bool handled)
+        {
+            if (message == UnmanagedMethods.WM_HOTKEY && wParam.ToInt32() == QuickTranslateHotkeyId)
+            {
+                handled = true;
+                Dispatcher.BeginInvoke(new Action(ShowQuickTranslate));
+            }
+            return IntPtr.Zero;
+        }
+
         private void OpenSettings(int initialNavIndex)
         {
+            if (TryActivateSettingsHost(initialNavIndex)) return;
+
             EventWaitHandle? settingsAppliedEvent = null;
             RegisteredWaitHandle? settingsAppliedWait = null;
+            int settingsApplied = 0;
 
             try
             {
                 string settingsHost = System.IO.Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory,
                     "SettingsHost",
-                    "LyricsX.Settings.exe");
+                    "TaskbarInfo.Settings.exe");
                 if (!System.IO.File.Exists(settingsHost))
                 {
-                    System.Windows.MessageBox.Show("设置窗口组件未找到，请重新生成开发版本。", "LyricsX", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    System.Windows.MessageBox.Show("设置窗口组件未找到，请重新生成开发版本。", "TaskbarInfo", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                string applyEventName = $"LyricsX.Settings.{Environment.ProcessId}.{Guid.NewGuid():N}";
+                string applyEventName = $"TaskbarInfo.Settings.{Environment.ProcessId}.{Guid.NewGuid():N}";
                 settingsAppliedEvent = new EventWaitHandle(false, EventResetMode.AutoReset, applyEventName);
                 settingsAppliedWait = ThreadPool.RegisterWaitForSingleObject(
                     settingsAppliedEvent,
-                    (_, _) => Dispatcher.BeginInvoke(new Action(ReloadSettingsFromHost)),
+                    (_, _) =>
+                    {
+                        Interlocked.Exchange(ref settingsApplied, 1);
+                        Dispatcher.BeginInvoke(new Action(ReloadSettingsFromHost));
+                    },
                     null,
                     Timeout.Infinite,
                     false);
@@ -697,7 +911,7 @@ namespace TaskbarInfo
                 var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = settingsHost,
-                    Arguments = $"\"{System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json")}\" --page={initialNavIndex} --apply-event=\"{applyEventName}\"",
+                    Arguments = $"\"{AppSettings.SettingsPath}\" --page={initialNavIndex} --apply-event=\"{applyEventName}\"",
                     UseShellExecute = false
                 });
                 if (process == null)
@@ -706,18 +920,157 @@ namespace TaskbarInfo
                     return;
                 }
 
+                _settingsProcess = process;
+                int processId = process.Id;
                 process.EnableRaisingEvents = true;
                 process.Exited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    if (process.ExitCode == 0) ReloadSettingsFromHost();
+                    try
+                    {
+                        if (process.ExitCode == 0 && Interlocked.CompareExchange(ref settingsApplied, 0, 0) == 0)
+                        {
+                            ReloadSettingsFromHost();
+                        }
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
                     DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
-                    process.Dispose();
+                    if (_settingsProcess?.Id == processId)
+                    {
+                        _settingsProcess = null;
+                    }
+                    try { process.Dispose(); } catch (InvalidOperationException) { }
                 }));
             }
             catch (Exception exception)
             {
                 DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
-                System.Windows.MessageBox.Show($"无法打开设置窗口：{exception.Message}", "LyricsX", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"无法打开设置窗口：{exception.Message}", "TaskbarInfo", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void PrewarmSettingsHost()
+        {
+            if (_settingsProcess != null) return;
+
+            string settingsHost = System.IO.Path.Combine(
+                AppDomain.CurrentDomain.BaseDirectory,
+                "SettingsHost",
+                "TaskbarInfo.Settings.exe");
+            if (!System.IO.File.Exists(settingsHost)) return;
+
+            try
+            {
+                var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = settingsHost,
+                    Arguments = $"\"{AppSettings.SettingsPath}\" --keep-alive --hidden --parent-pid={Environment.ProcessId}",
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(settingsHost),
+                    UseShellExecute = false
+                });
+                if (process == null) return;
+
+                _settingsProcess = process;
+                int processId = process.Id;
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (_settingsProcess?.Id != processId) return;
+                    _settingsProcess.Dispose();
+                    _settingsProcess = null;
+                }));
+            }
+            catch
+            {
+                // Opening settings remains available through the normal on-demand path.
+            }
+        }
+
+        private bool TryActivateSettingsHost(int initialNavIndex)
+        {
+            System.Diagnostics.Process? process = _settingsProcess;
+            if (process == null) return false;
+
+            try
+            {
+                if (process.HasExited)
+                {
+                    process.Dispose();
+                    _settingsProcess = null;
+                    return false;
+                }
+
+                process.Refresh();
+                IntPtr windowHandle = process.MainWindowHandle;
+                if (windowHandle == IntPtr.Zero)
+                {
+                    process.WaitForInputIdle(1500);
+                    process.Refresh();
+                    windowHandle = process.MainWindowHandle;
+                }
+                if (windowHandle == IntPtr.Zero)
+                {
+                    windowHandle = FindTopLevelWindowForProcess(process.Id);
+                }
+                if (windowHandle != IntPtr.Zero)
+                {
+                    if (SettingsNavigateMessage != 0)
+                    {
+                        UnmanagedMethods.PostMessage(
+                            windowHandle,
+                            SettingsNavigateMessage,
+                            new IntPtr(initialNavIndex),
+                            IntPtr.Zero);
+                    }
+                    UnmanagedMethods.ShowWindow(windowHandle, UnmanagedMethods.SW_RESTORE);
+                    UnmanagedMethods.SetForegroundWindow(windowHandle);
+                }
+                return true;
+            }
+            catch
+            {
+                process.Dispose();
+                _settingsProcess = null;
+                return false;
+            }
+        }
+
+        private static IntPtr FindTopLevelWindowForProcess(int processId)
+        {
+            IntPtr windowHandle = IntPtr.Zero;
+            UnmanagedMethods.EnumWindows((candidate, _) =>
+            {
+                UnmanagedMethods.GetWindowThreadProcessId(candidate, out uint candidateProcessId);
+                if (candidateProcessId != (uint)processId ||
+                    UnmanagedMethods.GetParent(candidate) != IntPtr.Zero ||
+                    !UnmanagedMethods.IsWindow(candidate))
+                {
+                    return true;
+                }
+
+                windowHandle = candidate;
+                return false;
+            }, IntPtr.Zero);
+            return windowHandle;
+        }
+
+        private void CloseSettingsHost()
+        {
+            System.Diagnostics.Process? process = _settingsProcess;
+            _settingsProcess = null;
+            if (process == null) return;
+
+            try
+            {
+                if (!process.HasExited) process.CloseMainWindow();
+            }
+            catch
+            {
+            }
+            finally
+            {
+                process.Dispose();
             }
         }
 
@@ -775,12 +1128,34 @@ namespace TaskbarInfo
                 _taskbarPerformanceWindow = new TaskbarPerformanceWindow();
                 _taskbarPerformanceWindow.SettingsRequested += (_, _) => OpenSettings(0);
                 _taskbarPerformanceWindow.CheckForUpdatesRequested += async (_, _) => await CheckForUpdatesAsync(false);
-                _taskbarPerformanceWindow.RestartRequested += (_, _) => Restart_Click(this, new RoutedEventArgs());
-                _taskbarPerformanceWindow.ExitRequested += (_, _) => Exit_Click(this, new RoutedEventArgs());
             }
             _taskbarPerformanceWindow.ApplySettings(
                 _settings,
-                _currentX);
+                GetPerformanceAnchorLeft());
+        }
+
+        private void ManageTaskbarTranslateButton()
+        {
+            if (!_settings.EnableTaskbarTranslateButton)
+            {
+                _taskbarTranslateButtonWindow?.Dispose();
+                _taskbarTranslateButtonWindow = null;
+                return;
+            }
+
+            if (_taskbarTranslateButtonWindow == null)
+            {
+                _taskbarTranslateButtonWindow = new TaskbarTranslateButtonWindow();
+                _taskbarTranslateButtonWindow.TranslateRequested += (_, _) => ShowQuickTranslate();
+                _taskbarTranslateButtonWindow.SettingsRequested += (_, _) => OpenSettings(QuickTranslateSettingsPage);
+            }
+
+            _taskbarTranslateButtonWindow.ApplySettings(_settings);
+        }
+
+        private int GetPerformanceAnchorLeft()
+        {
+            return _currentX;
         }
 
         // ... (Media Events kept as is, not shown here to avoid huge replacement) ...
@@ -854,7 +1229,7 @@ namespace TaskbarInfo
                 
                 // InfoText.Text = "Attached"; // Don't overwrite lyrics during update
                 _currentX = xPos;
-                _taskbarPerformanceWindow?.UpdateLyricsPosition(xPos);
+                _taskbarPerformanceWindow?.UpdateLyricsPosition(GetPerformanceAnchorLeft());
             }
             catch (Exception)
             {
@@ -1209,10 +1584,6 @@ namespace TaskbarInfo
             _lastSyncTime = DateTime.Now;
             _desktopWidget?.UpdatePlayback(position, GetCurrentTrackDuration());
 
-            if (_hasLyrics)
-            {
-                Dispatcher.Invoke(() => UpdateLyricsUI(position));
-            }
         }
 
         private void UpdateLyricsUI(TimeSpan position)
@@ -1240,9 +1611,8 @@ namespace TaskbarInfo
                         _nextLyricControl.Text = next?.Text ?? "";
                         _nextLyricControl.Visibility = string.IsNullOrEmpty(_nextLyricControl.Text) ? Visibility.Collapsed : Visibility.Visible;
                     }
-                    else
+                    else if (current.HasSyllables)
                     {
-                        // Interpolate/Update Progress Only
                         UpdateSingleLineProgress(_mainLyricControl, current, adjustedPosition);
                     }
                 }
@@ -1256,8 +1626,12 @@ namespace TaskbarInfo
                     if (current.Text != _lastLyricText)
                     {
                         _lastLyricText = current.Text;
+                        UpdateSingleLineProgress(_mainLyricControl, current, adjustedPosition);
                     }
-                    UpdateSingleLineProgress(_mainLyricControl, current, adjustedPosition);
+                    else if (current.HasSyllables)
+                    {
+                        UpdateSingleLineProgress(_mainLyricControl, current, adjustedPosition);
+                    }
                 }
             }
         }
@@ -1272,20 +1646,14 @@ namespace TaskbarInfo
                 UpdateSingleLineScroll(target, line.Text, (line.EndMs - line.StartMs) / 1000.0, !_settings.IsDoubleLine);
             }
 
-            // Calculate Progress (0 to 1)
             double progress = _lyricsEngine.GetLineProgress(line, time);
-            
-            // Apply to Gradient
             var brush = target.Foreground as LinearGradientBrush;
             if (brush != null && brush.GradientStops.Count >= 2)
             {
-                // Smooth transition: we use two stops at the same offset to create a sharp edge,
-                // or slightly apart for a slight glow/soft edge.
                 brush.GradientStops[0].Offset = progress;
-                brush.GradientStops[1].Offset = Math.Min(1.0, progress + 0.05); // Small buffer for softness
+                brush.GradientStops[1].Offset = Math.Min(1.0, progress + 0.05);
             }
 
-            // Floating Window Sync
             if (_settings.EnableFloatingLyrics && _floatingWindow != null && target == _mainLyricControl)
             {
                 _floatingWindow.UpdateLyrics(line.Text);
@@ -1297,7 +1665,7 @@ namespace TaskbarInfo
                 _desktopWidget?.UpdateLyrics(line.Text);
             }
         }
-        
+
         private void AnimateDoubleLyricTransition(string newCurrent, double currentDur, string newNext, double nextDur)
         {
              // Immediate update for floating window

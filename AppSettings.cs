@@ -7,7 +7,19 @@ namespace TaskbarInfo
     public class AppSettings
     {
         public double Width { get; set; } = 400;
+        public string TranslationProvider { get; set; } = "Baidu";
+        public string BaiduTranslationAppId { get; set; } = "";
+        public string BaiduTranslationAppSecret { get; set; } = "";
+        public string YoudaoTranslationAppKey { get; set; } = "";
+        public string YoudaoTranslationAppSecret { get; set; } = "";
+        public System.Collections.Generic.List<TranslationProviderProfile> TranslationProviders { get; set; } = [];
+        public string SelectedTranslationProviderId { get; set; } = "";
+        public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
+        public string QuickTranslateWindowMaterial { get; set; } = "Mica";
+        public string SettingsWindowMaterial { get; set; } = "Mica";
         public bool EnableTaskbarPerformanceMonitor { get; set; } = false;
+        public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
+        public bool EnableEnhancedTemperatureSensors { get; set; } = false;
         public System.Collections.Generic.List<string> TaskbarPerformanceMetrics { get; set; } =
             TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
         public int TaskbarPerformanceRefreshSeconds { get; set; } = 1;
@@ -26,6 +38,8 @@ namespace TaskbarInfo
 
         public int OffsetX { get; set; } = 10;
         public int? TaskbarPerformanceOffsetX { get; set; }
+        public bool EnableTaskbarTranslateButton { get; set; } = true;
+        public int? TaskbarTranslateButtonOffsetX { get; set; }
         public string TaskbarMonitorDeviceName { get; set; } = "";
         public bool IsDoubleLine { get; set; } = true; 
         public double LyricOffsetSeconds { get; set; } = 0; 
@@ -39,7 +53,7 @@ namespace TaskbarInfo
         public string FloatingLyricsTextColor { get; set; } = "#FF1F2937";
         public string FloatingLyricsBackgroundColor { get; set; } = "#FFFFFFFF";
         public bool FloatingLyricsUseAcrylic { get; set; } = false;
-        public bool FloatingLyricsEnableShadow { get; set; } = true;
+        public bool FloatingLyricsEnableShadow { get; set; } = false;
         public double? FloatingLyricsLeft { get; set; } = null;
         public double? FloatingLyricsTop { get; set; } = null;
         public double? FloatingLyricsWidth { get; set; } = null;
@@ -60,17 +74,31 @@ namespace TaskbarInfo
         public string MusicAppProcessNames { get; set; } = "QQMusic,cloudmusic,Spotify,YesPlayMusic,Foobar2000"; 
         public bool AutoCheckUpdates { get; set; } = true;
 
-        private static string ConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.json");
+        public static string SettingsPath => SettingsStorage.CurrentPath;
+
+        public static string GetSettingsPath(string localApplicationDataPath) => SettingsStorage.GetPath(localApplicationDataPath);
 
         public static AppSettings Load()
         {
             try
             {
-                if (File.Exists(ConfigPath))
+                string configPath = SettingsPath;
+                MigrateLegacySettingsIfNeeded(configPath);
+                if (File.Exists(configPath))
                 {
-                    string json = File.ReadAllText(ConfigPath);
+                    string json = File.ReadAllText(configPath);
                     var settings = JsonSerializer.Deserialize<AppSettings>(json);
                     if (settings == null) return new AppSettings();
+                    settings.TranslationProviders = TranslationProviderProfiles.Normalize(
+                        settings.TranslationProviders,
+                        settings.TranslationProvider,
+                        settings.BaiduTranslationAppId,
+                        settings.BaiduTranslationAppSecret,
+                        settings.YoudaoTranslationAppKey,
+                        settings.YoudaoTranslationAppSecret);
+                    settings.SelectedTranslationProviderId = TranslationProviderProfiles.ResolveSelectedId(
+                        settings.TranslationProviders,
+                        settings.SelectedTranslationProviderId);
                     settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
                     settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
                     settings.TaskbarPerformanceRefreshSeconds = NormalizeRefreshSeconds(settings.TaskbarPerformanceRefreshSeconds);
@@ -91,7 +119,10 @@ namespace TaskbarInfo
             try
             {
                 string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(ConfigPath, json);
+                string configPath = SettingsPath;
+                string? directory = Path.GetDirectoryName(configPath);
+                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                File.WriteAllText(configPath, json);
                 errorMessage = null;
                 return true;
             }
@@ -107,9 +138,79 @@ namespace TaskbarInfo
             var clone = (AppSettings)this.MemberwiseClone();
             clone.IncludedAppIds = new System.Collections.Generic.List<string>(IncludedAppIds);
             clone.TaskbarPerformanceMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceMetrics);
+            clone.TranslationProviders = TranslationProviders.Select(profile => new TranslationProviderProfile
+            {
+                Id = profile.Id,
+                DisplayName = profile.DisplayName,
+                Provider = profile.Provider,
+                AppId = profile.AppId,
+                AppSecret = profile.AppSecret,
+                ExtraCredential = profile.ExtraCredential,
+                ApiBaseUrl = profile.ApiBaseUrl
+            }).ToList();
             return clone;
         }
 
         private static int NormalizeRefreshSeconds(int value) => value is 1 or 2 or 5 ? value : 1;
+
+        private static void MigrateLegacySettingsIfNeeded(string destinationPath)
+        {
+            if (File.Exists(destinationPath)) return;
+
+            foreach (string sourcePath in GetLegacySettingsPaths(destinationPath))
+            {
+                try
+                {
+                    string json = File.ReadAllText(sourcePath);
+                    using JsonDocument _ = JsonDocument.Parse(json);
+
+                    string? directory = Path.GetDirectoryName(destinationPath);
+                    if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                    File.WriteAllText(destinationPath, json);
+                    return;
+                }
+                catch
+                {
+                    // Ignore stale or malformed development-build configuration files.
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetLegacySettingsPaths(string destinationPath)
+        {
+            string currentBuildPath = Path.Combine(AppContext.BaseDirectory, "settings.json");
+            if (!PathEquals(currentBuildPath, destinationPath)) yield return currentBuildPath;
+
+            DirectoryInfo? directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory != null && !string.Equals(directory.Name, "artifacts", StringComparison.OrdinalIgnoreCase))
+            {
+                directory = directory.Parent;
+            }
+
+            if (directory == null) yield break;
+
+            IEnumerable<string> candidates;
+            try
+            {
+                candidates = Directory.EnumerateFiles(directory.FullName, "settings.json", SearchOption.AllDirectories)
+                    .Where(path => !PathEquals(path, destinationPath))
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .ToArray();
+            }
+            catch
+            {
+                yield break;
+            }
+
+            foreach (string candidate in candidates)
+            {
+                if (!PathEquals(candidate, currentBuildPath)) yield return candidate;
+            }
+        }
+
+        private static bool PathEquals(string first, string second) => string.Equals(
+            Path.GetFullPath(first),
+            Path.GetFullPath(second),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

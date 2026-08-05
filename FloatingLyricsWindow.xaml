@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TaskbarInfo"
         mc:Ignorable="d"
-        Title="LyricsX 悬浮歌词" SizeToContent="Height"
+        Title="TaskbarInfo 悬浮歌词" SizeToContent="Height"
         MinWidth="200" MinHeight="50"
         WindowStyle="None" ResizeMode="CanResize"
         Background="Transparent" AllowsTransparency="True"
@@ -31,7 +31,7 @@
                                 Canvas.Top="0"
                                 Orientation="Horizontal">
                         <TextBlock x:Name="LyricText"
-                                   Text="歌词加载中..."
+                                   Text="开始播放音乐吧"
                                    FontSize="20"
                                    FontWeight="Bold"
                                    VerticalAlignment="Center"

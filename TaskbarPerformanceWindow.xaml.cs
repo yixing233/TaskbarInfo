@@ -19,15 +19,16 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
     private int _trayLeft;
     private double _pixelsPerDip = 1;
     private bool _isDoubleLine;
+    private bool _isDragPending;
     private bool _isDragging;
     private System.Windows.Point _dragStartMouseScreenPos;
     private int _dragStartOffset;
     private bool _disposed;
+    private TaskbarPerformanceDetailsWindow? _detailsWindow;
+    private TaskbarPerformanceSnapshot _latestSnapshot = TaskbarPerformanceSnapshot.Empty;
 
     public event EventHandler? SettingsRequested;
     public event EventHandler? CheckForUpdatesRequested;
-    public event EventHandler? RestartRequested;
-    public event EventHandler? ExitRequested;
 
     public TaskbarPerformanceWindow()
     {
@@ -42,7 +43,9 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
         _settings = settings;
         _lyricLeft = lyricLeft;
 
-        var selectedMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
+        var selectedMetrics = TaskbarPerformanceMetricCatalog.GetSummarySelection(
+            settings.TaskbarPerformanceMetrics,
+            settings.TaskbarPerformanceSummaryMetricCount);
         bool enabled = settings.EnableTaskbarPerformanceMonitor && selectedMetrics.Count > 0;
         if (!enabled)
         {
@@ -71,7 +74,6 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             ? new GridLength(1, GridUnitType.Star)
             : new GridLength(0);
         Height = settings.TaskbarPerformanceIsDoubleLine ? 60 : 30;
-        DragIndicator.Height = settings.TaskbarPerformanceIsDoubleLine ? 24 : 12;
         ApplyPalette(settings);
 
         if (!IsVisible)
@@ -82,6 +84,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
         EnsureHosted();
         Reposition();
         _collector ??= CreateCollector();
+        _collector.SetEnhancedTemperatureSensorsEnabled(settings.EnableEnhancedTemperatureSensors);
         _collector.Start(settings.TaskbarPerformanceRefreshSeconds);
     }
 
@@ -113,7 +116,9 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             taskbarHeight,
             trayLeft,
             offsetX,
-            _settings.TaskbarPerformanceMetrics,
+            TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                _settings.TaskbarPerformanceMetrics,
+                _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
             _settings.TaskbarPerformanceFontSize,
@@ -139,6 +144,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
         if (_disposed) return;
         _disposed = true;
         _collector?.Dispose();
+        _detailsWindow?.Dispose();
         _collector = null;
         if (IsVisible) Hide();
         Close();
@@ -158,9 +164,16 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
             if (_disposed || !IsVisible) return;
+            _latestSnapshot = snapshot;
+            if (_detailsWindow?.IsOpen == true)
+            {
+                _detailsWindow.Update(snapshot, _settings.TaskbarPerformanceMetrics);
+            }
             var lines = TaskbarPerformanceFormatter.FormatLines(
                 snapshot,
-                _settings.TaskbarPerformanceMetrics,
+                TaskbarPerformanceMetricCatalog.GetSummarySelection(
+                    _settings.TaskbarPerformanceMetrics,
+                    _settings.TaskbarPerformanceSummaryMetricCount),
                 _settings.TaskbarPerformanceIsDoubleLine);
             PerformanceText.Text = lines.First;
             PerformanceTextSecond.Text = lines.Second;
@@ -225,11 +238,13 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             return Math.Max(0, savedOffset);
         }
 
-        int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.Normalize(_settings.TaskbarPerformanceMetrics));
+        int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.GetSummarySelection(
+            _settings.TaskbarPerformanceMetrics,
+            _settings.TaskbarPerformanceSummaryMetricCount));
         int defaultLeft = TaskbarPerformanceLayout.GetLeftBesideLyrics(
             taskbarWidth,
             _lyricLeft,
-            _settings.TaskbarPerformanceMetrics,
+            TaskbarPerformanceMetricCatalog.GetSummarySelection(_settings.TaskbarPerformanceMetrics, _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
             _settings.TaskbarPerformanceFontSize,
@@ -257,11 +272,13 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             trayLeft = Math.Clamp(trayRect.Left - taskbarRect.Left, 0, taskbarWidth);
         }
 
-        int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.Normalize(_settings.TaskbarPerformanceMetrics));
+        int width = GetRenderedWidth(TaskbarPerformanceMetricCatalog.GetSummarySelection(
+            _settings.TaskbarPerformanceMetrics,
+            _settings.TaskbarPerformanceSummaryMetricCount));
         int defaultLeft = TaskbarPerformanceLayout.GetLeftBesideLyrics(
             taskbarWidth,
             _lyricLeft,
-            _settings.TaskbarPerformanceMetrics,
+            TaskbarPerformanceMetricCatalog.GetSummarySelection(_settings.TaskbarPerformanceMetrics, _settings.TaskbarPerformanceSummaryMetricCount),
             _settings.TaskbarPerformanceIsDoubleLine,
             _settings.TaskbarPerformanceFontFamily,
             _settings.TaskbarPerformanceFontSize,
@@ -273,8 +290,9 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
     private void DragHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        _isDragging = true;
-        PerformanceBackground.CaptureMouse();
+        _isDragPending = true;
+        _isDragging = false;
+        DragHandle.CaptureMouse();
         _dragStartMouseScreenPos = PointToScreen(e.GetPosition(this));
         _dragStartOffset = GetEffectiveOffset(_taskbarWidth, _trayLeft);
         e.Handled = true;
@@ -282,9 +300,16 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
     private void DragHandle_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!_isDragging) return;
+        if (!_isDragPending) return;
 
         System.Windows.Point currentMouseScreenPos = PointToScreen(e.GetPosition(this));
+        double horizontalDistance = Math.Abs(currentMouseScreenPos.X - _dragStartMouseScreenPos.X);
+        if (!_isDragging && horizontalDistance < SystemParameters.MinimumHorizontalDragDistance)
+        {
+            return;
+        }
+
+        _isDragging = true;
         int nextOffset = Math.Max(0, _dragStartOffset - (int)Math.Round(currentMouseScreenPos.X - _dragStartMouseScreenPos.X));
         if (_settings.TaskbarPerformanceOffsetX != nextOffset)
         {
@@ -297,18 +322,31 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
 
     private void DragHandle_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_isDragging) return;
+        if (!_isDragPending) return;
 
-        PerformanceBackground.ReleaseMouseCapture();
+        _isDragPending = false;
+        if (DragHandle.IsMouseCaptured) DragHandle.ReleaseMouseCapture();
+        bool wasDragging = _isDragging;
         _isDragging = false;
-        _settings.Save();
+        if (wasDragging) _settings.Save();
         e.Handled = true;
+    }
+
+    private void PerformanceBackground_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isDragging) ToggleDetails();
+    }
+
+    private void ToggleDetails()
+    {
+        if (_detailsWindow?.IsOpen == true) { _detailsWindow.Hide(); return; }
+        _detailsWindow ??= new TaskbarPerformanceDetailsWindow();
+        _detailsWindow.Update(_latestSnapshot, _settings.TaskbarPerformanceMetrics);
+        _detailsWindow.ShowAbove(this);
     }
 
     private void OpenSettings_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(this, EventArgs.Empty);
     private void CheckForUpdates_Click(object sender, RoutedEventArgs e) => CheckForUpdatesRequested?.Invoke(this, EventArgs.Empty);
-    private void Restart_Click(object sender, RoutedEventArgs e) => RestartRequested?.Invoke(this, EventArgs.Empty);
-    private void Exit_Click(object sender, RoutedEventArgs e) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
     private void ApplyPalette(AppSettings settings)
     {

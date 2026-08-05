@@ -107,7 +107,7 @@ namespace TaskbarInfo
             UpdateMonitorPlacement(placement);
 
             var parameters = new HwndSourceParameters(
-                "LyricsX Desktop Widget",
+                "TaskbarInfo Desktop Widget",
                 placement.Width,
                 placement.Height)
             {
@@ -236,7 +236,7 @@ namespace TaskbarInfo
                 TrackTitleText.Text = track.HasTrack ? track.Title : "等待播放";
                 TrackArtistText.Text = track.HasTrack
                     ? (string.IsNullOrWhiteSpace(track.Artist) ? "未知艺术家" : track.Artist)
-                    : "LyricsX";
+                    : "TaskbarInfo";
                 _duration = track.DurationMs is > 0
                     ? TimeSpan.FromMilliseconds(track.DurationMs.Value)
                     : TimeSpan.Zero;

@@ -11,11 +11,24 @@ namespace TaskbarInfo
         [DllImport("user32.dll", SetLastError = true)]
         public static extern IntPtr FindWindowEx(IntPtr parentHandle, IntPtr childAfter, string? className, string? windowTitle);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern uint RegisterWindowMessage(string message);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool PostMessage(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam);
+
         [DllImport("user32.dll", SetLastError = true)]
         public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint modifiers, uint virtualKey);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
         [DllImport("user32.dll")]
         public static extern uint GetDpiForWindow(IntPtr hWnd);
@@ -55,6 +68,8 @@ namespace TaskbarInfo
         public const int VK_LBUTTON = 0x01;
 
         public const int WM_SYSCOMMAND = 0x0112;
+        public const int WM_HOTKEY = 0x0312;
+        public const uint MOD_NOREPEAT = 0x4000;
         public const int WM_NCHITTEST = 0x0084;
         public const int SC_SIZE = 0xF000;
         public const int WMSZ_RIGHT = 2;
