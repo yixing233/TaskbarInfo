@@ -25,7 +25,7 @@ public partial class QuickTranslatePopupWindow : Window
     private const double ResultTextBoxVerticalPadding = 12;
     private const double ErrorStatusHeight = 34;
     private const int ResultDisplayUnitsPerLine = 42;
-    private const byte AcrylicTintOpacity = 64;
+    private const byte AcrylicTintOpacity = 96;
     private static readonly Duration PopupTransitionDuration = new(TimeSpan.FromMilliseconds(160));
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNotTopmost = new(-2);
@@ -276,9 +276,10 @@ public partial class QuickTranslatePopupWindow : Window
             _settings.QuickTranslateWindowMaterial);
         RootCard.Background = material switch
         {
-            QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(31, 35, 46)),
-            QuickTranslateWindowMaterial.Mica => new SolidColorBrush(MediaColor.FromArgb(48, 24, 28, 38)),
-            _ => MediaBrushes.Transparent
+            QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250)),
+            QuickTranslateWindowMaterial.Acrylic => MediaBrushes.Transparent,
+            QuickTranslateWindowMaterial.Mica => MediaBrushes.Transparent,
+            _ => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))
         };
 
         IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -307,6 +308,10 @@ public partial class QuickTranslatePopupWindow : Window
         {
             ApplyAcrylicBackdrop();
         }
+        else
+        {
+            ClearAcrylicBackdrop(handle);
+        }
     }
 
     private void ApplyAcrylicBackdrop()
@@ -318,9 +323,19 @@ public partial class QuickTranslatePopupWindow : Window
         {
             AccentState = UnmanagedMethods.AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
             AccentFlags = 0,
-            GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 24, 28, 38)),
+            GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
             AnimationId = 0
         };
+        SetAccentPolicy(handle, accent);
+    }
+
+    private static void ClearAcrylicBackdrop(IntPtr handle) => SetAccentPolicy(handle, new UnmanagedMethods.AccentPolicy
+    {
+        AccentState = UnmanagedMethods.AccentState.ACCENT_DISABLED
+    });
+
+    private static void SetAccentPolicy(IntPtr handle, UnmanagedMethods.AccentPolicy accent)
+    {
         int size = Marshal.SizeOf<UnmanagedMethods.AccentPolicy>();
         IntPtr data = Marshal.AllocHGlobal(size);
         try

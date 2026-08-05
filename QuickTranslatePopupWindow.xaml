@@ -13,13 +13,16 @@
         WindowStartupLocation="Manual"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Window.Resources>
-        <SolidColorBrush x:Key="ControlBorderBrush" Color="#4CFFFFFF" />
-        <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#3A101923" />
-        <SolidColorBrush x:Key="FocusedBorderBrush" Color="#95A9CEFF" />
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF1B2530" />
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF596675" />
+        <SolidColorBrush x:Key="WatermarkBrush" Color="#FF718096" />
+        <SolidColorBrush x:Key="ControlBorderBrush" Color="#A6C8D0DB" />
+        <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#A8FFFFFF" />
+        <SolidColorBrush x:Key="FocusedBorderBrush" Color="#FF5B8DD1" />
 
         <Style x:Key="GlassTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="CaretBrush" Value="White" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -39,7 +42,7 @@
                                            VerticalAlignment="Top"
                                            IsHitTestVisible="False"
                                            Text="{TemplateBinding Tag}"
-                                           Foreground="#92C3D0E0"
+                                           Foreground="{StaticResource WatermarkBrush}"
                                            FontSize="12">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -64,7 +67,7 @@
                                 <Setter TargetName="InputSurface" Property="BorderBrush" Value="{StaticResource FocusedBorderBrush}" />
                             </Trigger>
                             <Trigger Property="IsReadOnly" Value="True">
-                                <Setter TargetName="InputSurface" Property="Background" Value="#2D0D1721" />
+                                <Setter TargetName="InputSurface" Property="Background" Value="#7AF4F7FA" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="InputSurface" Property="Opacity" Value="0.55" />
@@ -76,7 +79,7 @@
         </Style>
 
         <Style x:Key="GlassComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#F3F7FF" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             <Setter Property="Padding" Value="10,7" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
@@ -87,10 +90,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemSurface" Property="Background" Value="#356EA6E8" />
+                                <Setter TargetName="ItemSurface" Property="Background" Value="#1F5B8DD1" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemSurface" Property="Background" Value="#4C4D88D8" />
+                                <Setter TargetName="ItemSurface" Property="Background" Value="#355B8DD1" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -101,7 +104,7 @@
         <Style x:Key="GlassComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="10,0,8,0" />
-            <Setter Property="Foreground" Value="#F3F7FF" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -126,7 +129,7 @@
                                             <Grid>
                                                 <TextBlock Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType=ComboBox}}"
                                                            VerticalAlignment="Center"
-                                                           Foreground="#F3F7FF"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                            TextTrimming="CharacterEllipsis"
                                                            Text="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
                                                 <TextBlock Margin="0,0,10,0"
@@ -135,12 +138,12 @@
                                                            Text="&#xE70D;"
                                                            FontFamily="Segoe MDL2 Assets"
                                                            FontSize="10"
-                                                           Foreground="#BFDBF6" />
+                                                           Foreground="{StaticResource TextSecondaryBrush}" />
                                             </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="ComboSurface" Property="BorderBrush" Value="#78FFFFFF" />
+                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ComboSurface" Property="BorderBrush" Value="#FFC1CBD7" />
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
                                                 <Setter TargetName="ComboSurface" Property="BorderBrush" Value="{StaticResource FocusedBorderBrush}" />
@@ -157,8 +160,8 @@
                                    PopupAnimation="Fade">
                                 <Border Margin="0,5,0,0"
                                         MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                        Background="#F0182432"
-                                        BorderBrush="#6BFFFFFF"
+                                        Background="#F7FFFFFF"
+                                        BorderBrush="#BFD3DAE4"
                                         BorderThickness="1"
                                         CornerRadius="7"
                                         Padding="4">
@@ -177,7 +180,7 @@
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="#DDEBFF" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -194,8 +197,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="IconSurface" Property="Background" Value="#4CFFFFFF" />
-                                <Setter TargetName="IconSurface" Property="BorderBrush" Value="#78FFFFFF" />
+                                <Setter TargetName="IconSurface" Property="Background" Value="#D9FFFFFF" />
+                                <Setter TargetName="IconSurface" Property="BorderBrush" Value="#FFC1CBD7" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="IconSurface" Property="Background" Value="#3C82E6" />
@@ -211,7 +214,7 @@
             <Setter Property="Width" Value="32" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Foreground" Value="#DDEBFF" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{StaticResource ControlBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -228,11 +231,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="IconSurface" Property="Background" Value="#4CFFFFFF" />
-                                <Setter TargetName="IconSurface" Property="BorderBrush" Value="#78FFFFFF" />
+                                <Setter TargetName="IconSurface" Property="Background" Value="#D9FFFFFF" />
+                                <Setter TargetName="IconSurface" Property="BorderBrush" Value="#FFC1CBD7" />
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="IconSurface" Property="Background" Value="#356EA6E8" />
+                                <Setter TargetName="IconSurface" Property="Background" Value="#265B8DD1" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -342,7 +345,7 @@
                 </ToggleButton>
             </Grid>
 
-            <TextBlock Grid.Row="2" Text="输入内容" Foreground="#DCE6F5" FontSize="12" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="2" Text="输入内容" Foreground="{StaticResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" />
             <TextBox x:Name="InputTextBox"
                      Grid.Row="3"
                      Style="{StaticResource GlassTextBoxStyle}"
@@ -367,11 +370,11 @@
                                  Height="3"
                                  IsIndeterminate="True"
                                  VerticalAlignment="Center"
-                                 Foreground="#9DCCFF" />
+                                 Foreground="#357FD8" />
                     <TextBlock x:Name="ProgressText"
                                Grid.Column="1"
                                Margin="8,0"
-                               Foreground="#EEF6FF"
+                               Foreground="{StaticResource TextSecondaryBrush}"
                                FontSize="12"
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" />
@@ -380,13 +383,13 @@
 
             <Border x:Name="StatusPanel"
                     Grid.Row="5"
-                    Background="#35E74856"
-                    BorderBrush="#8CE74856"
+                    Background="#1EE5484D"
+                    BorderBrush="#80E5484D"
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="8,5"
                     Visibility="Collapsed">
-                <TextBlock x:Name="StatusText" Foreground="#FFFFD8DC" FontSize="12" TextWrapping="Wrap" />
+                <TextBlock x:Name="StatusText" Foreground="#FFB42318" FontSize="12" TextWrapping="Wrap" />
             </Border>
 
             <Grid Grid.Row="7">
@@ -396,7 +399,7 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="ResultLabel"
                            Text="译文"
-                           Foreground="#DCE6F5"
+                           Foreground="{StaticResource TextPrimaryBrush}"
                            VerticalAlignment="Center"
                            FontSize="12"
                            FontWeight="SemiBold" />

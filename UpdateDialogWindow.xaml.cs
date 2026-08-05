@@ -2,7 +2,9 @@ using System;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shell;
 using MediaBrush = System.Windows.Media.Brush;
 using MediaBrushes = System.Windows.Media.Brushes;
 using MediaColor = System.Windows.Media.Color;
@@ -19,6 +21,13 @@ namespace TaskbarInfo
         {
             InitializeComponent();
             Icon = App.GetAppIcon();
+            WindowChrome.SetWindowChrome(this, new WindowChrome
+            {
+                CaptionHeight = 0,
+                CornerRadius = new CornerRadius(10),
+                GlassFrameThickness = new Thickness(-1),
+                ResizeBorderThickness = new Thickness(0)
+            });
             SourceInitialized += (_, _) => ApplyWindowMaterial();
             ContentRendered += (_, _) => ApplyWindowMaterial();
         }
@@ -116,13 +125,14 @@ namespace TaskbarInfo
             RootSurface.Background = material switch
             {
                 QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250)),
-                QuickTranslateWindowMaterial.Mica => new SolidColorBrush(MediaColor.FromArgb(112, 245, 247, 250)),
-                _ => MediaBrushes.Transparent
+                QuickTranslateWindowMaterial.Acrylic => MediaBrushes.Transparent,
+                QuickTranslateWindowMaterial.Mica => MediaBrushes.Transparent,
+                _ => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))
             };
             Resources["CardBackground"] = material switch
             {
-                QuickTranslateWindowMaterial.Acrylic => new SolidColorBrush(MediaColor.FromArgb(224, 255, 255, 255)),
-                QuickTranslateWindowMaterial.Mica => new SolidColorBrush(MediaColor.FromArgb(228, 255, 255, 255)),
+                QuickTranslateWindowMaterial.Acrylic => new SolidColorBrush(MediaColor.FromArgb(132, 255, 255, 255)),
+                QuickTranslateWindowMaterial.Mica => new SolidColorBrush(MediaColor.FromArgb(202, 255, 255, 255)),
                 _ => new SolidColorBrush(MediaColors.White)
             };
 
@@ -131,8 +141,15 @@ namespace TaskbarInfo
 
             if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
             {
+                int cornerPreference = (int)UnmanagedMethods.DwmWindowCornerPreference.DWMWCP_ROUND;
+                UnmanagedMethods.DwmSetWindowAttribute(
+                    handle,
+                    UnmanagedMethods.DWMWA_WINDOW_CORNER_PREFERENCE,
+                    ref cornerPreference,
+                    sizeof(int));
+
                 int backdropType = material == QuickTranslateWindowMaterial.Mica
-                    ? (int)UnmanagedMethods.DwmSystemBackdropType.DWMSBT_MAINWINDOW
+                    ? (int)UnmanagedMethods.DwmSystemBackdropType.DWMSBT_TRANSIENTWINDOW
                     : (int)UnmanagedMethods.DwmSystemBackdropType.DWMSBT_NONE;
                 UnmanagedMethods.DwmSetWindowAttribute(
                     handle,
@@ -198,6 +215,20 @@ namespace TaskbarInfo
 
             StatusGlyphText.Foreground = (MediaBrush)new BrushConverter().ConvertFromString(foreground)!;
             StatusGlyphText.Text = glyph;
+        }
+
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+            {
+                DragMove();
+            }
+        }
+
+        private void Close_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
         }
 
         private void Primary_Click(object sender, RoutedEventArgs e)

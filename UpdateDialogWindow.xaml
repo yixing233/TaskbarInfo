@@ -2,10 +2,13 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="检查更新"
-        Width="460"
+        Width="430"
         SizeToContent="Height"
         MaxHeight="680"
+        WindowStyle="None"
         ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        AllowsTransparency="False"
         WindowStartupLocation="CenterOwner"
         Background="Transparent"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif"
@@ -14,10 +17,10 @@
     <Window.Resources>
         <SolidColorBrush x:Key="SystemAccentColor" Color="#0067C0"/>
         <SolidColorBrush x:Key="SystemAccentHoverColor" Color="#1975C5"/>
-        <SolidColorBrush x:Key="TextPrimaryColor" Color="#202020"/>
-        <SolidColorBrush x:Key="TextSecondaryColor" Color="#666666"/>
+        <SolidColorBrush x:Key="TextPrimaryColor" Color="#1B2530"/>
+        <SolidColorBrush x:Key="TextSecondaryColor" Color="#596675"/>
         <SolidColorBrush x:Key="CardBackground" Color="#FFFFFF"/>
-        <SolidColorBrush x:Key="ControlBorder" Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="ControlBorder" Color="#D9E0E8"/>
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
@@ -72,10 +75,56 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="WindowControlButton" TargetType="Button">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="surface" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="surface" Property="Background" Value="#180F1720"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="surface" Property="Background" Value="#2B0F1720"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
-    <Border x:Name="RootSurface" Background="#F5F7FA" Padding="28,26,28,24">
+    <Border x:Name="RootSurface" Background="#F5F7FA">
         <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TitleBar" Grid.Row="0" Background="Transparent" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="12,4,8,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="34"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="检查更新" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Style="{StaticResource WindowControlButton}" ToolTip="关闭" Click="Close_Click">
+                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="24,8,24,22">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -84,24 +133,24 @@
             </Grid.RowDefinitions>
 
             <StackPanel x:Name="ResultHeader" HorizontalAlignment="Center">
-                <Border x:Name="StatusGlyphBadge" Width="56" Height="56" CornerRadius="18" Background="#EAF4FF" HorizontalAlignment="Center">
+                <Border x:Name="StatusGlyphBadge" Width="52" Height="52" CornerRadius="16" Background="#EAF4FF" HorizontalAlignment="Center">
                     <TextBlock x:Name="StatusGlyphText" Text="i" FontSize="26" FontWeight="Bold" Foreground="{StaticResource SystemAccentColor}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
-                <TextBlock x:Name="TitleText" Margin="0,16,0,4" FontSize="24" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
+                <TextBlock x:Name="TitleText" Margin="0,14,0,4" FontSize="21" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
                 <TextBlock x:Name="SummaryText" MaxWidth="350" Style="{StaticResource BodyText}" HorizontalAlignment="Center" TextAlignment="Center"/>
             </StackPanel>
 
-            <Border Grid.Row="1" Margin="0,20,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="12" Padding="18">
+            <Border Grid.Row="1" Margin="0,18,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="16">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="96"/>
+                        <ColumnDefinition Width="90"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="8"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="8"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
@@ -116,7 +165,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="NotesPanel" Grid.Row="2" Margin="0,16,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="12" Padding="18" Visibility="Collapsed">
+            <Border x:Name="NotesPanel" Grid.Row="2" Margin="0,14,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Visibility="Collapsed">
                 <StackPanel>
                     <TextBlock x:Name="NotesTitleText" Text="说明" FontWeight="SemiBold" FontSize="14"/>
                     <ScrollViewer Margin="0,10,0,0" MaxHeight="150" VerticalScrollBarVisibility="Auto">
@@ -125,7 +174,8 @@
                 </StackPanel>
             </Border>
 
-            <Button x:Name="PrimaryButton" Grid.Row="3" Width="124" Margin="0,20,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click" Visibility="Collapsed"/>
+            <Button x:Name="PrimaryButton" Grid.Row="3" Width="124" Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click" Visibility="Collapsed"/>
+            </Grid>
         </Grid>
     </Border>
 </Window>

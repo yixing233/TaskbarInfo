@@ -14,7 +14,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
 {
     private const double CardWidth = 128;
     private const double CardCornerRadius = 6;
-    private const byte AcrylicTintOpacity = 64;
+    private const byte AcrylicTintOpacity = 96;
     private const int SpacingAboveTaskbar = 6;
     private static readonly IntPtr HwndTopmost = new(-1);
 
@@ -32,7 +32,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
         _card = new Border
         {
             Background = MediaBrushes.Transparent,
-            BorderBrush = new SolidColorBrush(MediaColor.FromArgb(80, 255, 255, 255)),
+            BorderBrush = new SolidColorBrush(MediaColor.FromArgb(166, 200, 208, 219)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(CardCornerRadius),
             Width = CardWidth,
@@ -87,7 +87,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             row.Children.Add(new TextBlock
             {
                 Text = display.Label,
-                Foreground = MediaBrushes.White,
+                Foreground = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48)),
                 FontSize = 12,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
@@ -96,7 +96,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             var value = new TextBlock
             {
                 Text = display.Value,
-                Foreground = MediaBrushes.White,
+                Foreground = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48)),
                 FontSize = 12,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
                 TextAlignment = TextAlignment.Right,
@@ -223,7 +223,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             {
                 AccentState = UnmanagedMethods.AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                 AccentFlags = 0,
-                GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 24, 28, 38)),
+                GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
                 AnimationId = 0
             };
             int size = Marshal.SizeOf<UnmanagedMethods.AccentPolicy>();

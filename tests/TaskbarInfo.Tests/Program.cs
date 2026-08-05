@@ -21,6 +21,7 @@ var tests = new (string Name, Action Test)[]
     ("Temperature sources merge in precedence order", TemperatureSourcesMergeInPrecedenceOrder),
     ("Taskbar performance formatter supports two lines", TaskbarPerformanceFormatterSupportsTwoLines),
     ("Taskbar performance details detect outside clicks", TaskbarPerformanceDetailsDetectOutsideClicks),
+    ("Taskbar performance details use the light acrylic palette", TaskbarPerformanceDetailsUseLightAcrylicPalette),
     ("Taskbar performance layout supports an independent drag offset", TaskbarPerformanceLayoutSupportsIndependentDragOffset),
     ("Taskbar component drag handles share visual metrics", TaskbarComponentDragHandlesShareVisualMetrics),
     ("Taskbar performance layout adapts to font metrics and DPI", TaskbarPerformanceLayoutAdaptsToFontMetricsAndDpi),
@@ -89,6 +90,7 @@ var tests = new (string Name, Action Test)[]
     ("Quick translate material normalizes configured values", QuickTranslateMaterialNormalizesConfiguredValues),
     ("Quick translate uses an in-process WPF acrylic popup", QuickTranslateUsesInProcessWpfPopup),
     ("Quick translate acrylic reapplies after popup rendering", QuickTranslateAcrylicReappliesAfterPopupRendering),
+    ("Quick translate shares the light update-dialog material language", QuickTranslateUsesLightMaterialLanguage),
     ("Tray menu excludes lyric component controls", TrayMenuExcludesLyricComponentControls),
     ("Update dialog uses a compact centered layout and settings material", UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial),
     ("Quick translate font setting is independent", QuickTranslateFontSettingIsIndependent),
@@ -1059,6 +1061,26 @@ static void QuickTranslateAcrylicReappliesAfterPopupRendering()
         "native acrylic must be reapplied after the WPF popup finishes rendering");
 }
 
+static void QuickTranslateUsesLightMaterialLanguage()
+{
+    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml.cs"));
+    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "QuickTranslatePopupWindow.xaml"));
+
+    AssertEqual(true, windowXaml.Contains("x:Key=\"TextPrimaryBrush\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Key=\"ControlBackgroundBrush\" Color=\"#A8FFFFFF\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("Foreground=\"{StaticResource TextPrimaryBrush}\"", StringComparison.Ordinal),
+        "quick translate controls should use the light glass palette and dark readable text");
+    AssertEqual(true, windowCode.Contains("private const byte AcrylicTintOpacity = 96", StringComparison.Ordinal) &&
+        windowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)", StringComparison.Ordinal) &&
+        windowCode.Contains("QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))", StringComparison.Ordinal) &&
+        windowCode.Contains("ClearAcrylicBackdrop", StringComparison.Ordinal),
+        "quick translate should use the same light acrylic tint and clear stale composition state");
+}
+
 static void TrayMenuExcludesLyricComponentControls()
 {
     string markup = System.IO.File.ReadAllText(System.IO.Path.Combine(
@@ -1117,6 +1139,13 @@ static void UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial()
         windowCode.Contains("ApplyWindowMaterial", StringComparison.Ordinal) &&
         windowCode.Contains("QuickTranslateWindowMaterialParser.Parse(_settingsWindowMaterial)", StringComparison.Ordinal),
         "the dialog should hide unused notes and apply the configured settings-window material");
+    AssertEqual(true, windowXaml.Contains("WindowStyle=\"None\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("x:Name=\"TitleBar\"", StringComparison.Ordinal) &&
+        windowCode.Contains("TitleBar_MouseLeftButtonDown", StringComparison.Ordinal) &&
+        windowCode.Contains("QuickTranslateWindowMaterial.Acrylic => MediaBrushes.Transparent", StringComparison.Ordinal) &&
+        windowCode.Contains("WindowChrome.SetWindowChrome", StringComparison.Ordinal) &&
+        windowCode.Contains("GlassFrameThickness = new Thickness(-1)", StringComparison.Ordinal),
+        "the update dialog should use custom chrome and native acrylic instead of an opaque acrylic fallback");
     AssertEqual(true, mainWindowCode.Contains(
         "UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial)",
         StringComparison.Ordinal) &&
@@ -1375,6 +1404,18 @@ static void TaskbarPerformanceDetailsDetectOutsideClicks()
     AssertEqual(false, TaskbarPerformanceDetailsLayout.ContainsScreenPoint(
         bounds, new UnmanagedMethods.POINT { X = 150, Y = 360 }),
         "bottom card edge should be outside");
+}
+
+static void TaskbarPerformanceDetailsUseLightAcrylicPalette()
+{
+    string detailWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "TaskbarPerformanceDetailsWindow.cs"));
+
+    AssertEqual(true, detailWindowCode.Contains("private const byte AcrylicTintOpacity = 96", StringComparison.Ordinal) &&
+        detailWindowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)", StringComparison.Ordinal) &&
+        detailWindowCode.Contains("MediaColor.FromRgb(27, 37, 48)", StringComparison.Ordinal),
+        "performance details should use the shared light acrylic tint with dark readable text");
 }
 
 static void TaskbarPerformanceLayoutSupportsIndependentDragOffset()
