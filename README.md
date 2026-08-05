@@ -11,7 +11,7 @@ TaskbarInfo 是一款 Windows 桌面音乐歌词工具，用于在任务栏、�
 - **歌词服务**：自动从多个歌词来源搜索歌曲歌词，并缓存已获取的结果以提升后续加载速度。
 - **媒体来源筛选**：可选择希望 TaskbarInfo 响应的播放应用，减少多媒体应用同时运行时的干扰。
 - **便捷设置**：提供集中式设置窗口，可快速管理任务栏歌词、悬浮歌词、桌面组件、外观与更新检查。
-- **自动更新检查**：可在“关于”页面检查 GitHub Release 中的最新版本。
+- **应用内更新**：检查到 GitHub Release 后支持应用内下载并安装，下载完成后会校验并启动安装程序。
 
 ## 截图与使用场景
 
@@ -21,7 +21,7 @@ TaskbarInfo 是一款 Windows 桌面音乐歌词工具，用于在任务栏、�
 
 ## 安装
 
-前往 [Releases](https://github.com/yixing233/TaskbarInfo/releases) 下载最新的 `TaskbarInfo-Setup.exe`，运行安装程序后即可使用。
+首次安装请前往 [Releases](https://github.com/yixing233/TaskbarInfo/releases) 下载最新的 `TaskbarInfo-Setup.exe`，运行安装程序后即可使用。后续版本可在软件内检查更新并应用安装包。
 
 ### 系统要求
 

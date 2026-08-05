@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Input;
@@ -8,14 +9,17 @@ using System.Windows.Shell;
 using MediaBrush = System.Windows.Media.Brush;
 using MediaBrushes = System.Windows.Media.Brushes;
 using MediaColor = System.Windows.Media.Color;
-using MediaColors = System.Windows.Media.Colors;
 namespace TaskbarInfo
 {
     public partial class UpdateDialogWindow : Window
     {
         private const byte AcrylicTintOpacity = 96;
+        private readonly InAppUpdateDownloadService _downloadService = new();
         private string? _primaryUrl;
         private string _settingsWindowMaterial = "Mica";
+        private string _applicationTheme = "System";
+        private UpdatePackage? _package;
+        private CancellationTokenSource? _downloadCancellation;
 
         private UpdateDialogWindow()
         {
@@ -32,26 +36,34 @@ namespace TaskbarInfo
             ContentRendered += (_, _) => ApplyWindowMaterial();
         }
 
-        public static bool? ShowForResult(Window owner, UpdateCheckResult result, string settingsWindowMaterial)
+        public static bool? ShowForResult(
+            Window owner,
+            UpdateCheckResult result,
+            string settingsWindowMaterial,
+            string applicationTheme)
         {
             var window = new UpdateDialogWindow
             {
                 Owner = owner
             };
 
-            window.SetSettingsWindowMaterial(settingsWindowMaterial);
+            window.SetWindowAppearance(settingsWindowMaterial, applicationTheme);
             window.ApplyResult(result);
             return window.ShowDialog();
         }
 
-        public static bool? ShowForError(Window owner, string message, string settingsWindowMaterial)
+        public static bool? ShowForError(
+            Window owner,
+            string message,
+            string settingsWindowMaterial,
+            string applicationTheme)
         {
             var window = new UpdateDialogWindow
             {
                 Owner = owner
             };
 
-            window.SetSettingsWindowMaterial(settingsWindowMaterial);
+            window.SetWindowAppearance(settingsWindowMaterial, applicationTheme);
             window.ApplyError(message);
             return window.ShowDialog();
         }
@@ -59,8 +71,11 @@ namespace TaskbarInfo
         private void ApplyResult(UpdateCheckResult result)
         {
             _primaryUrl = null;
+            _package = null;
             NotesPanel.Visibility = Visibility.Collapsed;
+            UpdateProgressPanel.Visibility = Visibility.Collapsed;
             PrimaryButton.Visibility = Visibility.Collapsed;
+            PrimaryButton.IsEnabled = true;
             CurrentVersionText.Text = result.CurrentVersionDisplay;
             LatestVersionText.Text = result.NoReleasePublished ? "-" : result.LatestVersionDisplay;
             PublishedAtText.Text = result.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-";
@@ -73,8 +88,16 @@ namespace TaskbarInfo
                     ? "这个版本暂时没有填写更新说明。"
                     : result.ReleaseNotes.Trim());
                 PrimaryButton.Visibility = Visibility.Visible;
-                PrimaryButton.Content = "打开下载页";
-                _primaryUrl = result.DownloadUrl;
+                _package = result.Package;
+                if (_package != null)
+                {
+                    PrimaryButton.Content = "下载并安装";
+                }
+                else
+                {
+                    PrimaryButton.Content = "打开发布页";
+                    _primaryUrl = result.ReleasePageUrl;
+                }
                 SetAccentVisual("#EAF4FF", "#0067C0", "!");
                 return;
             }
@@ -96,7 +119,9 @@ namespace TaskbarInfo
         private void ApplyError(string message)
         {
             _primaryUrl = null;
+            _package = null;
             PrimaryButton.Visibility = Visibility.Collapsed;
+            UpdateProgressPanel.Visibility = Visibility.Collapsed;
             TitleText.Text = "检查更新失败";
             SummaryText.Text = "这次没有成功拿到更新信息。";
             CurrentVersionText.Text = UpdateService.CurrentVersionDisplay;
@@ -113,27 +138,89 @@ namespace TaskbarInfo
             NotesPanel.Visibility = Visibility.Visible;
         }
 
-        private void SetSettingsWindowMaterial(string settingsWindowMaterial)
+        private async Task DownloadAndInstallAsync()
+        {
+            UpdatePackage? package = _package;
+            if (package == null || _downloadCancellation != null) return;
+
+            using var cancellation = new CancellationTokenSource();
+            _downloadCancellation = cancellation;
+            UpdateProgressPanel.Visibility = Visibility.Visible;
+            UpdateProgressBar.Value = 0;
+            UpdateProgressText.Text = "正在下载更新… 0%";
+            PrimaryButton.IsEnabled = false;
+            PrimaryButton.Content = "下载中";
+
+            try
+            {
+                var progress = new Progress<InAppUpdateDownloadProgress>(value =>
+                {
+                    UpdateProgressBar.Value = value.Fraction;
+                    UpdateProgressText.Text = $"正在下载更新… {Math.Round(value.Fraction * 100):0}%";
+                });
+                string installerPath = await _downloadService.DownloadInstallerAsync(
+                    package,
+                    progress,
+                    cancellation.Token);
+                cancellation.Token.ThrowIfCancellationRequested();
+
+                UpdateProgressBar.Value = 1;
+                UpdateProgressText.Text = "下载完成，正在启动安装程序…";
+                var installer = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(installerPath)
+                {
+                    UseShellExecute = true,
+                    WorkingDirectory = System.IO.Path.GetDirectoryName(installerPath)
+                });
+                if (installer == null)
+                {
+                    throw new InvalidOperationException("无法启动更新安装程序。");
+                }
+
+                DialogResult = true;
+                System.Windows.Application.Current.Shutdown();
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                UpdateProgressPanel.Visibility = Visibility.Collapsed;
+                UpdateProgressText.Text = string.Empty;
+                PrimaryButton.Content = "重试下载";
+                PrimaryButton.IsEnabled = true;
+                SummaryText.Text = "更新下载已取消，可以稍后重新开始。";
+            }
+            catch (Exception ex)
+            {
+                UpdateProgressPanel.Visibility = Visibility.Collapsed;
+                UpdateProgressText.Text = string.Empty;
+                PrimaryButton.Content = "重试下载";
+                PrimaryButton.IsEnabled = true;
+                ShowNotes("下载失败", ex.Message);
+            }
+            finally
+            {
+                if (ReferenceEquals(_downloadCancellation, cancellation))
+                {
+                    _downloadCancellation = null;
+                }
+            }
+        }
+
+        private void SetWindowAppearance(string settingsWindowMaterial, string applicationTheme)
         {
             _settingsWindowMaterial = settingsWindowMaterial;
+            _applicationTheme = applicationTheme;
             ApplyWindowMaterial();
         }
 
         private void ApplyWindowMaterial()
         {
+            ResolvedApplicationTheme theme = ApplicationThemeParser.Resolve(_applicationTheme);
             QuickTranslateWindowMaterial material = QuickTranslateWindowMaterialParser.Parse(_settingsWindowMaterial);
             RootSurface.Background = material switch
             {
-                QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250)),
+                QuickTranslateWindowMaterial.Solid => SolidBackground(theme),
                 QuickTranslateWindowMaterial.Acrylic => MediaBrushes.Transparent,
                 QuickTranslateWindowMaterial.Mica => MediaBrushes.Transparent,
-                _ => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))
-            };
-            Resources["CardBackground"] = material switch
-            {
-                QuickTranslateWindowMaterial.Acrylic => new SolidColorBrush(MediaColor.FromArgb(132, 255, 255, 255)),
-                QuickTranslateWindowMaterial.Mica => new SolidColorBrush(MediaColor.FromArgb(202, 255, 255, 255)),
-                _ => new SolidColorBrush(MediaColors.White)
+                _ => SolidBackground(theme)
             };
 
             IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -160,7 +247,7 @@ namespace TaskbarInfo
 
             if (material == QuickTranslateWindowMaterial.Acrylic)
             {
-                ApplyAcrylicBackdrop(handle);
+                ApplyAcrylicBackdrop(handle, theme);
             }
             else
             {
@@ -168,13 +255,20 @@ namespace TaskbarInfo
             }
         }
 
-        private static void ApplyAcrylicBackdrop(IntPtr handle)
+        private static SolidColorBrush SolidBackground(ResolvedApplicationTheme theme) =>
+            theme == ResolvedApplicationTheme.Dark
+                ? new SolidColorBrush(MediaColor.FromRgb(24, 32, 42))
+                : new SolidColorBrush(MediaColor.FromRgb(245, 247, 250));
+
+        private static void ApplyAcrylicBackdrop(IntPtr handle, ResolvedApplicationTheme theme)
         {
             var accent = new UnmanagedMethods.AccentPolicy
             {
                 AccentState = UnmanagedMethods.AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                 AccentFlags = 0,
-                GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
+                GradientColor = ToAccentColor(theme == ResolvedApplicationTheme.Dark
+                    ? MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)
+                    : MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
                 AnimationId = 0
             };
             SetAccentPolicy(handle, accent);
@@ -227,12 +321,24 @@ namespace TaskbarInfo
 
         private void Close_Click(object sender, RoutedEventArgs e)
         {
+            if (_downloadCancellation != null)
+            {
+                _downloadCancellation.Cancel();
+                return;
+            }
+
             DialogResult = false;
             Close();
         }
 
-        private void Primary_Click(object sender, RoutedEventArgs e)
+        private async void Primary_Click(object sender, RoutedEventArgs e)
         {
+            if (_package != null)
+            {
+                await DownloadAndInstallAsync();
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(_primaryUrl))
             {
                 try

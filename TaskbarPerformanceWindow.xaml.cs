@@ -74,6 +74,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
             : new GridLength(0);
         Height = settings.TaskbarPerformanceIsDoubleLine ? 60 : 30;
         ApplyPalette(settings);
+        _detailsWindow?.ApplyTheme(ApplicationThemeParser.Resolve(settings.ApplicationTheme));
 
         if (!IsVisible)
         {
@@ -340,6 +341,7 @@ public partial class TaskbarPerformanceWindow : Window, IDisposable
     {
         if (_detailsWindow?.IsOpen == true) { _detailsWindow.Hide(); return; }
         _detailsWindow ??= new TaskbarPerformanceDetailsWindow();
+        _detailsWindow.ApplyTheme(ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
         _detailsWindow.Update(_latestSnapshot, _settings.TaskbarPerformanceMetrics);
         _detailsWindow.ShowAbove(this);
     }

@@ -45,6 +45,7 @@ public sealed partial class MainWindow : Window
     private readonly DispatcherQueueTimer _successInfoBarTimer;
     private readonly SubclassProc _windowSizeSubclassProc;
     private readonly bool _keepAlive;
+    private readonly string? _updateEventName;
     private bool _didSave;
     private bool _changedTaskbarLyricOffset;
     private bool _resetTaskbarPerformancePosition;
@@ -52,13 +53,15 @@ public sealed partial class MainWindow : Window
     private IntPtr _windowHandle;
     private bool _windowSizeSubclassInstalled;
 
-    public MainWindow(bool keepAlive = false)
+    public MainWindow(bool keepAlive = false, string? updateEventName = null)
     {
         _keepAlive = keepAlive;
+        _updateEventName = updateEventName;
         _windowSizeSubclassProc = WindowSizeSubclassProc;
         _settingsPath = ResolveSettingsPath();
         _settings = SettingsDocument.Load(_settingsPath);
         InitializeComponent();
+        ApplyApplicationTheme();
         ApplyWindowMaterial();
         ApplyWindowIcon();
         _successInfoBarTimer = DispatcherQueue.CreateTimer();
@@ -611,6 +614,25 @@ public sealed partial class MainWindow : Window
             QuickTranslateWindowMaterial.Solid => null,
             _ => new MicaBackdrop()
         };
+    }
+
+    private void ApplyApplicationTheme()
+    {
+        RootLayout.RequestedTheme = ApplicationThemeParser.Parse(_settings.ApplicationTheme) switch
+        {
+            ApplicationThemePreference.Light => ElementTheme.Light,
+            ApplicationThemePreference.Dark => ElementTheme.Dark,
+            _ => ElementTheme.Default
+        };
+    }
+
+    internal bool UsesSystemApplicationTheme =>
+        ApplicationThemeParser.Parse(_settings.ApplicationTheme) == ApplicationThemePreference.System;
+
+    internal void RefreshSystemTheme()
+    {
+        if (!UsesSystemApplicationTheme) return;
+        ApplyApplicationTheme();
     }
 
     private Page CreateQuickTranslatePage()
@@ -1341,17 +1363,28 @@ public sealed partial class MainWindow : Window
             Opacity = 0.72,
             TextWrapping = TextWrapping.Wrap
         };
-        var releaseLink = new HyperlinkButton
+        var installUpdateButton = new Button
         {
-            Content = "查看新版本",
-            Visibility = Visibility.Collapsed,
-            Padding = new Thickness(0)
+            Content = "下载并安装",
+            Visibility = Visibility.Collapsed
+        };
+        installUpdateButton.Click += (_, _) =>
+        {
+            if (!TryRequestInAppUpdate())
+            {
+                updateStatus.Text = "无法连接 TaskbarInfo 主进程，请从托盘菜单重新打开检查更新。";
+                return;
+            }
+
+            installUpdateButton.IsEnabled = false;
+            updateStatus.Text = "正在打开更新窗口…";
+            Close();
         };
         var checkButton = new Button { Content = "检查更新" };
         checkButton.Click += async (_, _) =>
         {
             checkButton.IsEnabled = false;
-            releaseLink.Visibility = Visibility.Collapsed;
+            installUpdateButton.Visibility = Visibility.Collapsed;
             updateStatus.Text = "正在检查更新…";
             try
             {
@@ -1369,10 +1402,10 @@ public sealed partial class MainWindow : Window
                 else if (result.HasUpdate)
                 {
                     updateStatus.Text = $"发现新版本：{result.ReleaseName}（{result.LatestVersionDisplay}）。";
-                    if (Uri.TryCreate(result.ReleasePageUrl, UriKind.Absolute, out Uri? releaseUri))
+                    if (result.Package != null && !string.IsNullOrWhiteSpace(_updateEventName))
                     {
-                        releaseLink.NavigateUri = releaseUri;
-                        releaseLink.Visibility = Visibility.Visible;
+                        installUpdateButton.IsEnabled = true;
+                        installUpdateButton.Visibility = Visibility.Visible;
                     }
                 }
                 else
@@ -1397,7 +1430,7 @@ public sealed partial class MainWindow : Window
         var updatePanel = new StackPanel { Spacing = 8 };
         updatePanel.Children.Add(checkButton);
         updatePanel.Children.Add(updateStatus);
-        updatePanel.Children.Add(releaseLink);
+        updatePanel.Children.Add(installUpdateButton);
 
         var content = new Grid { ColumnSpacing = 28 };
         content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1406,7 +1439,7 @@ public sealed partial class MainWindow : Window
         var left = new StackPanel { Spacing = 16 };
         left.Children.Add(identity);
         left.Children.Add(Field("版本", version, null));
-        left.Children.Add(Field("更新", updatePanel, "通过 GitHub Releases 检查最新正式版本。"));
+        left.Children.Add(Field("更新", updatePanel, "通过 GitHub Releases 检查并在软件内下载安装正式版本。"));
 
         var right = new StackPanel
         {
@@ -1420,6 +1453,20 @@ public sealed partial class MainWindow : Window
             _ => "Mica"
         };
         right.Children.Add(SectionHeader("窗口外观"));
+        right.Children.Add(LabeledComboBox(
+            "应用主题",
+            ["跟随系统", "浅色", "深色"],
+            ApplicationThemeParser.ToDisplayName(ApplicationThemeParser.Parse(_settings.ApplicationTheme)),
+            value =>
+            {
+                _settings.ApplicationTheme = value switch
+                {
+                    "浅色" => "Light",
+                    "深色" => "Dark",
+                    _ => "System"
+                };
+                ApplyApplicationTheme();
+            }));
         right.Children.Add(LabeledComboBox("设置窗口材质", ["Mica", "Acrylic", "纯色"], settingsWindowMaterial, value =>
         {
             _settings.SettingsWindowMaterial = value switch
@@ -1438,6 +1485,25 @@ public sealed partial class MainWindow : Window
         content.Children.Add(right);
         panel.AddRow(content);
         return Wrap(panel);
+    }
+
+    private bool TryRequestInAppUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(_updateEventName)) return false;
+
+        try
+        {
+            using EventWaitHandle updateRequest = EventWaitHandle.OpenExisting(_updateEventName);
+            return updateRequest.Set();
+        }
+        catch (WaitHandleCannotBeOpenedException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static FrameworkElement CreateSourceLinks()
@@ -2010,6 +2076,7 @@ public sealed partial class MainWindow : Window
         {
             PreserveRuntimeComponentPositions();
             _settings.Save(_settingsPath);
+            ApplyApplicationTheme();
             ApplyWindowMaterial();
             _changedTaskbarLyricOffset = false;
             _resetTaskbarPerformancePosition = false;
@@ -2265,6 +2332,7 @@ public sealed class SettingsDocument
     public string QuickTranslateWindowMaterial { get; set; } = "Mica";
     public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
     public string SettingsWindowMaterial { get; set; } = "Mica";
+    public string ApplicationTheme { get; set; } = "System";
     public bool EnableTaskbarPerformanceMonitor { get; set; }
     public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
     public bool EnableEnhancedTemperatureSensors { get; set; }

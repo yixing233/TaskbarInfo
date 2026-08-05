@@ -22,6 +22,7 @@ namespace TaskbarInfo
         public string QuickTranslateWindowMaterial { get; set; } = "Mica";
         public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
         public string SettingsWindowMaterial { get; set; } = "Mica";
+        public string ApplicationTheme { get; set; } = "System";
         public bool EnableTaskbarPerformanceMonitor { get; set; } = false;
         public int TaskbarPerformanceSummaryMetricCount { get; set; } = 5;
         public bool EnableEnhancedTemperatureSensors { get; set; } = false;

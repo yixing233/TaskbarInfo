@@ -272,14 +272,15 @@ public partial class QuickTranslatePopupWindow : Window
 
     private void ApplyWindowMaterial()
     {
+        ResolvedApplicationTheme theme = ApplicationThemeParser.Resolve(_settings.ApplicationTheme);
         QuickTranslateWindowMaterial material = QuickTranslateWindowMaterialParser.Parse(
             _settings.QuickTranslateWindowMaterial);
         RootCard.Background = material switch
         {
-            QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250)),
+            QuickTranslateWindowMaterial.Solid => SolidBackground(theme),
             QuickTranslateWindowMaterial.Acrylic => MediaBrushes.Transparent,
             QuickTranslateWindowMaterial.Mica => MediaBrushes.Transparent,
-            _ => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))
+            _ => SolidBackground(theme)
         };
 
         IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -306,7 +307,7 @@ public partial class QuickTranslatePopupWindow : Window
 
         if (material == QuickTranslateWindowMaterial.Acrylic)
         {
-            ApplyAcrylicBackdrop();
+            ApplyAcrylicBackdrop(theme);
         }
         else
         {
@@ -314,7 +315,12 @@ public partial class QuickTranslatePopupWindow : Window
         }
     }
 
-    private void ApplyAcrylicBackdrop()
+    private static SolidColorBrush SolidBackground(ResolvedApplicationTheme theme) =>
+        theme == ResolvedApplicationTheme.Dark
+            ? new SolidColorBrush(MediaColor.FromRgb(24, 32, 42))
+            : new SolidColorBrush(MediaColor.FromRgb(245, 247, 250));
+
+    private void ApplyAcrylicBackdrop(ResolvedApplicationTheme theme)
     {
         IntPtr handle = new WindowInteropHelper(this).Handle;
         if (handle == IntPtr.Zero) return;
@@ -323,7 +329,9 @@ public partial class QuickTranslatePopupWindow : Window
         {
             AccentState = UnmanagedMethods.AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
             AccentFlags = 0,
-            GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
+            GradientColor = ToAccentColor(theme == ResolvedApplicationTheme.Dark
+                ? MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)
+                : MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
             AnimationId = 0
         };
         SetAccentPolicy(handle, accent);

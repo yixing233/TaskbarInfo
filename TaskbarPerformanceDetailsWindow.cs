@@ -22,6 +22,11 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
     private readonly StackPanel _rows = new() { Margin = new Thickness(14, 10, 14, 10) };
     private readonly DispatcherTimer _outsideClickTimer;
     private readonly Window _window;
+    private System.Windows.Media.Brush _labelBrush = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48));
+    private System.Windows.Media.Brush _valueBrush = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48));
+    private TaskbarPerformanceSnapshot _snapshot = TaskbarPerformanceSnapshot.Empty;
+    private IReadOnlyList<string> _metrics = Array.Empty<string>();
+    private ResolvedApplicationTheme _theme = ResolvedApplicationTheme.Light;
     private bool _disposed;
     private bool _wasPrimaryButtonDown;
 
@@ -60,8 +65,8 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             GlassFrameThickness = new Thickness(-1),
             ResizeBorderThickness = new Thickness(0)
         });
-        _window.SourceInitialized += (_, _) => ApplyAcrylicBackdrop();
-        _window.ContentRendered += (_, _) => ApplyAcrylicBackdrop();
+        _window.SourceInitialized += (_, _) => ApplyAcrylicBackdrop(_theme);
+        _window.ContentRendered += (_, _) => ApplyAcrylicBackdrop(_theme);
         _outsideClickTimer = new DispatcherTimer(DispatcherPriority.Input)
         {
             Interval = TimeSpan.FromMilliseconds(50)
@@ -71,8 +76,10 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
 
     public void Update(TaskbarPerformanceSnapshot snapshot, IEnumerable<string> metrics)
     {
+        _snapshot = snapshot;
+        _metrics = TaskbarPerformanceMetricCatalog.Normalize(metrics).ToArray();
         _rows.Children.Clear();
-        foreach (string metric in TaskbarPerformanceMetricCatalog.Normalize(metrics))
+        foreach (string metric in _metrics)
         {
             TaskbarPerformanceMetricDisplay? display = TaskbarPerformanceFormatter.FormatMetric(snapshot, metric);
             if (display == null) continue;
@@ -87,7 +94,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             row.Children.Add(new TextBlock
             {
                 Text = display.Label,
-                Foreground = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48)),
+                Foreground = _labelBrush,
                 FontSize = 12,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Center
@@ -96,7 +103,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             var value = new TextBlock
             {
                 Text = display.Value,
-                Foreground = new SolidColorBrush(MediaColor.FromRgb(27, 37, 48)),
+                Foreground = _valueBrush,
                 FontSize = 12,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
                 TextAlignment = TextAlignment.Right,
@@ -112,6 +119,16 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
         {
             _window.UpdateLayout();
         }
+    }
+
+    public void ApplyTheme(ResolvedApplicationTheme theme)
+    {
+        _theme = theme;
+        _card.BorderBrush = WpfThemeService.GetBrush("ThemeControlBorderBrush");
+        _labelBrush = WpfThemeService.GetBrush("ThemePrimaryTextBrush");
+        _valueBrush = WpfThemeService.GetBrush("ThemePrimaryTextBrush");
+        ApplyAcrylicBackdrop(theme);
+        Update(_snapshot, _metrics);
     }
 
     public void ShowAbove(Window anchor)
@@ -195,7 +212,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
         _window.Top = placement.Top / anchorDpi.DpiScaleY;
     }
 
-    private void ApplyAcrylicBackdrop()
+    private void ApplyAcrylicBackdrop(ResolvedApplicationTheme theme)
     {
         try
         {
@@ -223,7 +240,9 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
             {
                 AccentState = UnmanagedMethods.AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                 AccentFlags = 0,
-                GradientColor = ToAccentColor(MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
+                GradientColor = ToAccentColor(theme == ResolvedApplicationTheme.Dark
+                    ? MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)
+                    : MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)),
                 AnimationId = 0
             };
             int size = Marshal.SizeOf<UnmanagedMethods.AccentPolicy>();

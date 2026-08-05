@@ -23,7 +23,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                        <Border Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
+                        <Border Background="{DynamicResource ThemeMenuBackgroundBrush}" BorderBrush="{DynamicResource ThemeMenuBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="0,4">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
                             </Border.Effect>
@@ -37,7 +37,7 @@
         <Style x:Key="TaskbarTranslateMenuItemStyle" TargetType="MenuItem">
             <Setter Property="Height" Value="32" />
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="#333333" />
+            <Setter Property="Foreground" Value="{DynamicResource ThemeMenuForegroundBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="MenuItem">
@@ -54,7 +54,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="MenuItemBorder" Property="Background" Value="#F2F2F2" />
+                                <Setter TargetName="MenuItemBorder" Property="Background" Value="{DynamicResource ThemeMenuHoverBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -67,7 +67,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Background="#E8E8E8" SnapsToDevicePixels="True" />
+                        <Border Height="1" Background="{DynamicResource ThemeMenuSeparatorBrush}" SnapsToDevicePixels="True" />
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -119,7 +119,7 @@
             <Button.ContextMenu>
                 <ContextMenu Style="{StaticResource TaskbarTranslateContextMenuStyle}">
                     <MenuItem Header="设置" Click="OpenSettings_Click" Style="{StaticResource TaskbarTranslateMenuItemStyle}">
-                        <MenuItem.Icon><TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" /></MenuItem.Icon>
+                        <MenuItem.Icon><TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}" /></MenuItem.Icon>
                     </MenuItem>
                 </ContextMenu>
             </Button.ContextMenu>

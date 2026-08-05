@@ -33,6 +33,7 @@ namespace TaskbarInfo
             Closed += (_, _) =>
             {
                 StopSharedSettingsApplyNotification();
+                StopSettingsUpdateRequestNotification();
                 _taskbarPerformanceWindow?.Dispose();
                 _taskbarTranslateButtonWindow?.Dispose();
                 CloseQuickTranslatePopup();
@@ -97,6 +98,9 @@ namespace TaskbarInfo
         private bool _quickTranslateHotkeyRegistered;
         private EventWaitHandle? _sharedSettingsAppliedEvent;
         private RegisteredWaitHandle? _sharedSettingsAppliedWait;
+        private EventWaitHandle? _settingsUpdateRequestedEvent;
+        private RegisteredWaitHandle? _settingsUpdateRequestedWait;
+        private string? _settingsUpdateRequestEventName;
 
         private void SetupProcessMonitor()
         {
@@ -237,6 +241,7 @@ namespace TaskbarInfo
             // Load Settings
             _settings = AppSettings.Load();
             StartSharedSettingsApplyNotification();
+            StartSettingsUpdateRequestNotification();
             
             // Apply visual settings
             ApplySettings();
@@ -290,7 +295,7 @@ namespace TaskbarInfo
         {
             if (_pendingUpdateResult != null)
             {
-                OpenUrl(_pendingUpdateResult.DownloadUrl);
+                ShowUpdateDialog(_pendingUpdateResult);
             }
         }
 
@@ -373,7 +378,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? "发生了未知错误。", _settings.SettingsWindowMaterial);
+                        UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? "发生了未知错误。", _settings.SettingsWindowMaterial, _settings.ApplicationTheme);
                     }
                     return;
                 }
@@ -382,7 +387,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
+                        ShowUpdateDialog(result);
                     }
                     return;
                 }
@@ -391,7 +396,7 @@ namespace TaskbarInfo
                 {
                     if (!isStartupCheck)
                     {
-                        UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
+                        ShowUpdateDialog(result);
                     }
                     return;
                 }
@@ -403,24 +408,33 @@ namespace TaskbarInfo
                     _notifyIcon?.ShowBalloonTip(
                         5000,
                         "TaskbarInfo 有新版本",
-                        $"当前 {result.CurrentVersionDisplay}，最新 {result.LatestVersionDisplay}。点击此通知可打开下载页面。",
+                        $"当前 {result.CurrentVersionDisplay}，最新 {result.LatestVersionDisplay}。点击此通知可下载并安装。",
                         System.Windows.Forms.ToolTipIcon.Info);
                     return;
                 }
 
-                UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial);
+                ShowUpdateDialog(result);
             }
             catch (Exception ex)
             {
                 if (!isStartupCheck)
                 {
-                    UpdateDialogWindow.ShowForError(this, ex.Message, _settings.SettingsWindowMaterial);
+                    UpdateDialogWindow.ShowForError(this, ex.Message, _settings.SettingsWindowMaterial, _settings.ApplicationTheme);
                 }
             }
             finally
             {
                 _isCheckingUpdates = false;
             }
+        }
+
+        private void ShowUpdateDialog(UpdateCheckResult result)
+        {
+            UpdateDialogWindow.ShowForResult(
+                this,
+                result,
+                _settings.SettingsWindowMaterial,
+                _settings.ApplicationTheme);
         }
 
         private static void OpenUrl(string url)
@@ -453,6 +467,8 @@ namespace TaskbarInfo
 
         private void ApplySettings()
         {
+            ApplyApplicationTheme();
+
             // Sync Process Monitoring
             SetupProcessMonitor();
             ManageTaskbarPerformance();
@@ -859,7 +875,7 @@ namespace TaskbarInfo
                 var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = settingsHost,
-                    Arguments = $"\"{AppSettings.SettingsPath}\" --page={initialNavIndex} --apply-event=\"{applyEventName}\"",
+                    Arguments = $"\"{AppSettings.SettingsPath}\" --page={initialNavIndex} --apply-event=\"{applyEventName}\" --update-event=\"{_settingsUpdateRequestEventName}\"",
                     UseShellExecute = false
                 });
                 if (process == null)
@@ -913,7 +929,7 @@ namespace TaskbarInfo
                 var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = settingsHost,
-                    Arguments = $"\"{AppSettings.SettingsPath}\" --keep-alive --hidden --parent-pid={Environment.ProcessId}",
+                    Arguments = $"\"{AppSettings.SettingsPath}\" --keep-alive --hidden --parent-pid={Environment.ProcessId} --update-event=\"{_settingsUpdateRequestEventName}\"",
                     WorkingDirectory = System.IO.Path.GetDirectoryName(settingsHost),
                     UseShellExecute = false
                 });
@@ -1026,11 +1042,30 @@ namespace TaskbarInfo
         {
             CloseQuickTranslatePopup();
             _settings = AppSettings.Load();
+            ApplyApplicationTheme();
             _mediaManager.FilterAppIds = _settings.IncludedAppIds;
             _mediaManager.RefreshSession();
             ManageFloatingWindow();
             ApplySettings();
             InjectIntoTaskbar();
+        }
+
+        private void ApplyApplicationTheme()
+        {
+            WpfThemeService.Apply(
+                Application.Current,
+                ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
+        }
+
+        internal void RefreshSystemTheme()
+        {
+            if (ApplicationThemeParser.Parse(_settings.ApplicationTheme) != ApplicationThemePreference.System)
+            {
+                return;
+            }
+
+            ApplyApplicationTheme();
+            ApplySettings();
         }
 
         private void StartSharedSettingsApplyNotification()
@@ -1053,6 +1088,32 @@ namespace TaskbarInfo
             _sharedSettingsAppliedWait = null;
             _sharedSettingsAppliedEvent?.Dispose();
             _sharedSettingsAppliedEvent = null;
+        }
+
+        private void StartSettingsUpdateRequestNotification()
+        {
+            if (_settingsUpdateRequestedEvent != null) return;
+
+            _settingsUpdateRequestEventName = $"TaskbarInfo.UpdateRequest.{Environment.ProcessId}";
+            _settingsUpdateRequestedEvent = new EventWaitHandle(
+                false,
+                EventResetMode.AutoReset,
+                _settingsUpdateRequestEventName);
+            _settingsUpdateRequestedWait = ThreadPool.RegisterWaitForSingleObject(
+                _settingsUpdateRequestedEvent,
+                (_, _) => Dispatcher.BeginInvoke(new Action(() => _ = CheckForUpdatesAsync(isStartupCheck: false))),
+                null,
+                Timeout.Infinite,
+                false);
+        }
+
+        private void StopSettingsUpdateRequestNotification()
+        {
+            _settingsUpdateRequestedWait?.Unregister(null);
+            _settingsUpdateRequestedWait = null;
+            _settingsUpdateRequestedEvent?.Dispose();
+            _settingsUpdateRequestedEvent = null;
+            _settingsUpdateRequestEventName = null;
         }
 
         private static void DisposeSettingsApplyNotification(EventWaitHandle? settingsAppliedEvent, RegisteredWaitHandle? settingsAppliedWait)

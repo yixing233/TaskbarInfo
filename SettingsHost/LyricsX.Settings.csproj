@@ -15,10 +15,10 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;bin\**;obj\**;publish\**</DefaultItemExcludes>
     <RootNamespace>LyricsX.Settings</RootNamespace>
     <AssemblyName>TaskbarInfo.Settings</AssemblyName>
-    <Version>1.1.4</Version>
-    <AssemblyVersion>1.1.4.0</AssemblyVersion>
-    <FileVersion>1.1.4.0</FileVersion>
-    <InformationalVersion>1.1.4</InformationalVersion>
+    <Version>1.1.5</Version>
+    <AssemblyVersion>1.1.5.0</AssemblyVersion>
+    <FileVersion>1.1.5.0</FileVersion>
+    <InformationalVersion>1.1.5</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/TaskbarInfo</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\src\icons\LyricsX.ico</ApplicationIcon>
@@ -34,6 +34,7 @@
     <Compile Include="..\QuickTranslateLayout.cs" Link="QuickTranslateLayout.cs" />
     <Compile Include="..\QuickTranslateHotkey.cs" Link="QuickTranslateHotkey.cs" />
     <Compile Include="..\QuickTranslateWindowMaterial.cs" Link="QuickTranslateWindowMaterial.cs" />
+    <Compile Include="..\ApplicationTheme.cs" Link="ApplicationTheme.cs" />
     <Compile Include="..\QuickTranslateTargetLanguages.cs" Link="QuickTranslateTargetLanguages.cs" />
     <Compile Include="..\SettingsStorage.cs" Link="SettingsStorage.cs" />
     <Compile Include="..\TranslationConfiguration.cs" Link="TranslationConfiguration.cs" />

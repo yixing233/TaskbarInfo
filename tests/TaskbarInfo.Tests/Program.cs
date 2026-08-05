@@ -8,6 +8,11 @@ var tests = new (string Name, Action Test)[]
     ("No track uses a playback prompt instead of a loading prompt", NoTrackUsesPlaybackPrompt),
     ("Lyric synchronization avoids redundant high-frequency rendering", LyricSynchronizationAvoidsRedundantHighFrequencyRendering),
     ("Settings path is user-local and build-independent", SettingsPathIsUserLocalAndBuildIndependent),
+    ("Application theme preference normalizes and resolves", ApplicationThemePreferenceNormalizesAndResolves),
+    ("WPF theme service exposes light and dark resources", WpfThemeServiceExposesLightAndDarkResources),
+    ("All component context menus use dynamic theme resources", ComponentContextMenusUseDynamicThemeResources),
+    ("Transient windows use dynamic theme resources", TransientWindowsUseDynamicThemeResources),
+    ("Settings host exposes and applies application theme", SettingsHostExposesAndAppliesApplicationTheme),
     ("Settings host preserves runtime component positions", SettingsHostPreservesRuntimeComponentPositions),
     ("Settings host opens at most one window", SettingsHostOpensAtMostOneWindow),
     ("Settings host is prewarmed and reused", SettingsHostIsPrewarmedAndReused),
@@ -92,7 +97,12 @@ var tests = new (string Name, Action Test)[]
     ("Quick translate acrylic reapplies after popup rendering", QuickTranslateAcrylicReappliesAfterPopupRendering),
     ("Quick translate shares the light update-dialog material language", QuickTranslateUsesLightMaterialLanguage),
     ("Tray menu excludes lyric component controls", TrayMenuExcludesLyricComponentControls),
-    ("Update dialog uses a compact centered layout and settings material", UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial),
+    ("Update dialog uses a compact centered layout and theme-aware material", UpdateDialogUsesCompactCenteredLayoutAndThemeAwareMaterial),
+    ("In-app updates select a verified TaskbarInfo installer", InAppUpdateUsesVerifiedInstallerAsset),
+    ("In-app updates stream and verify installers", InAppUpdateDownloadsAndVerifiesInstaller),
+    ("Update dialog downloads and installs verified updates", UpdateDialogShowsDownloadProgressAndLaunchesInstaller),
+    ("Settings host requests in-app updates from the main process", SettingsHostRequestsInAppUpdateFromMainProcess),
+    ("Installer supports the in-app update handoff", InstallerSupportsInAppUpdateHandoff),
     ("Quick translate font setting is independent", QuickTranslateFontSettingIsIndependent),
 };
 
@@ -131,6 +141,118 @@ static void SettingsPathIsUserLocalAndBuildIndependent()
     {
         throw new InvalidOperationException("settings path must not be stored beside a development build executable");
     }
+}
+
+static void ApplicationThemePreferenceNormalizesAndResolves()
+{
+    AssertEqual(ApplicationThemePreference.System,
+        ApplicationThemeParser.Parse("unexpected"), "unknown preference falls back to system");
+    AssertEqual(ApplicationThemePreference.Dark,
+        ApplicationThemeParser.Parse("dark"), "parser is case insensitive");
+    AssertEqual("浅色", ApplicationThemeParser.ToDisplayName(ApplicationThemePreference.Light),
+        "light preference display name");
+    AssertEqual("System", ApplicationThemeParser.ToStorageValue(ApplicationThemePreference.System),
+        "system preference storage value");
+    AssertEqual("System", new AppSettings().ApplicationTheme,
+        "main settings default to system theme");
+}
+
+static void WpfThemeServiceExposesLightAndDarkResources()
+{
+    string code = ReadSourceFile("WpfThemeService.cs");
+    string[] resourceKeys =
+    [
+        "ThemeMenuBackgroundBrush",
+        "ThemeMenuForegroundBrush",
+        "ThemeMenuHoverBrush",
+        "ThemeSurfaceBrush",
+        "ThemeControlBackgroundBrush",
+        "ThemeControlBorderBrush",
+        "ThemePrimaryTextBrush",
+        "ThemeSecondaryTextBrush"
+    ];
+
+    foreach (string resourceKey in resourceKeys)
+    {
+        AssertEqual(true, code.Contains($"application.Resources[\"{resourceKey}\"]", StringComparison.Ordinal),
+            $"WPF theme service should register {resourceKey}");
+    }
+
+    AssertEqual(true, code.Contains("dark ? \"#FF20242B\" : \"#FFFFFFFF\"", StringComparison.Ordinal),
+        "light menu palette should be white and dark menu palette should remain dark");
+}
+
+static void ComponentContextMenusUseDynamicThemeResources()
+{
+    string[] componentMenus =
+    [
+        ReadSourceFile("MainWindow.xaml"),
+        ReadSourceFile("TaskbarPerformanceWindow.xaml"),
+        ReadSourceFile("TaskbarTranslateButtonWindow.xaml")
+    ];
+
+    string[] resourceKeys =
+    [
+        "ThemeMenuBackgroundBrush",
+        "ThemeMenuForegroundBrush",
+        "ThemeMenuHoverBrush",
+        "ThemeMenuBorderBrush"
+    ];
+
+    foreach (string menu in componentMenus)
+    {
+        foreach (string resourceKey in resourceKeys)
+        {
+            AssertEqual(true, menu.Contains($"{{DynamicResource {resourceKey}}}", StringComparison.Ordinal),
+                $"component context menu should consume {resourceKey}");
+        }
+    }
+}
+
+static void TransientWindowsUseDynamicThemeResources()
+{
+    string[] windows =
+    [
+        ReadSourceFile("QuickTranslatePopupWindow.xaml"),
+        ReadSourceFile("UpdateDialogWindow.xaml")
+    ];
+
+    string[] resourceKeys =
+    [
+        "ThemePrimaryTextBrush",
+        "ThemeSecondaryTextBrush",
+        "ThemeControlBackgroundBrush",
+        "ThemeControlBorderBrush"
+    ];
+
+    foreach (string window in windows)
+    {
+        foreach (string resourceKey in resourceKeys)
+        {
+            AssertEqual(true, window.Contains($"{{DynamicResource {resourceKey}}}", StringComparison.Ordinal),
+                $"transient window should consume {resourceKey}");
+        }
+    }
+}
+
+static void SettingsHostExposesAndAppliesApplicationTheme()
+{
+    string settingsWindowXaml = ReadSourceFile("SettingsHost", "MainWindow.xaml");
+    string settingsWindowCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+    string settingsAppCode = ReadSourceFile("SettingsHost", "App.xaml.cs");
+
+    AssertEqual(true, settingsWindowXaml.Contains("x:Name=\"RootLayout\"", StringComparison.Ordinal),
+        "settings host root should expose a theme target");
+    AssertEqual(true, settingsWindowCode.Contains("\"应用主题\"", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("\"跟随系统\", \"浅色\", \"深色\"", StringComparison.Ordinal),
+        "settings host should expose all application theme choices");
+    AssertEqual(true, settingsWindowCode.Contains("ElementTheme.Default", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("ElementTheme.Light", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("ElementTheme.Dark", StringComparison.Ordinal),
+        "settings host should map every preference to a WinUI theme");
+    AssertEqual(true, settingsAppCode.Contains("ColorValuesChanged", StringComparison.Ordinal) &&
+        settingsAppCode.Contains("RefreshSystemTheme", StringComparison.Ordinal),
+        "settings host should refresh while following the system theme");
 }
 
 static void NoTrackUsesPlaybackPrompt()
@@ -769,12 +891,16 @@ static void QuickTranslateSettingsPageScrollsAsAWhole()
         "provider details should not have a competing inner scrollbar");
 }
 
+static string ReadSourceFile(params string[] parts)
+{
+    string path = Environment.CurrentDirectory;
+    foreach (string part in parts) path = System.IO.Path.Combine(path, part);
+    return System.IO.File.ReadAllText(path).ReplaceLineEndings("\n");
+}
+
 static void QuickTranslateSettingsUseCompactHeadingHierarchy()
 {
-    string settingsCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "SettingsHost",
-        "MainWindow.xaml.cs"));
+    string settingsCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
 
     AssertEqual(true, settingsCode.Contains(
         "NewPanel(\"快捷翻译\", \"配置任务栏翻译入口与窗口行为。\", titleFontSize: 24)",
@@ -830,12 +956,8 @@ static void QuickTranslatePopupCollapsesInactiveStatusArea()
 
 static void QuickTranslatePopupBalancesIdleAndResultLayouts()
 {
-    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "QuickTranslatePopupWindow.xaml.cs"));
-    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "QuickTranslatePopupWindow.xaml"));
+    string windowCode = ReadSourceFile("QuickTranslatePopupWindow.xaml.cs");
+    string windowXaml = ReadSourceFile("QuickTranslatePopupWindow.xaml");
 
     AssertEqual(true, windowXaml.Contains("Height=\"294\"", StringComparison.Ordinal),
         "the empty quick translate popup should use a compact height");
@@ -869,9 +991,7 @@ static void QuickTranslatePopupCachesTargetLanguage()
 
 static void QuickTranslatePopupShowsCancellableTranslationProgress()
 {
-    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "QuickTranslatePopupWindow.xaml"));
+    string windowXaml = ReadSourceFile("QuickTranslatePopupWindow.xaml");
     string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
         "QuickTranslatePopupWindow.xaml.cs"));
@@ -1063,22 +1183,21 @@ static void QuickTranslateAcrylicReappliesAfterPopupRendering()
 
 static void QuickTranslateUsesLightMaterialLanguage()
 {
-    string windowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "QuickTranslatePopupWindow.xaml.cs"));
-    string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "QuickTranslatePopupWindow.xaml"));
+    string windowCode = ReadSourceFile("QuickTranslatePopupWindow.xaml.cs");
+    string windowXaml = ReadSourceFile("QuickTranslatePopupWindow.xaml");
 
-    AssertEqual(true, windowXaml.Contains("x:Key=\"TextPrimaryBrush\"", StringComparison.Ordinal) &&
-        windowXaml.Contains("x:Key=\"ControlBackgroundBrush\" Color=\"#A8FFFFFF\"", StringComparison.Ordinal) &&
-        windowXaml.Contains("Foreground=\"{StaticResource TextPrimaryBrush}\"", StringComparison.Ordinal),
-        "quick translate controls should use the light glass palette and dark readable text");
+    AssertEqual(true, windowXaml.Contains("{DynamicResource ThemePrimaryTextBrush}", StringComparison.Ordinal) &&
+        windowXaml.Contains("{DynamicResource ThemeControlBackgroundBrush}", StringComparison.Ordinal) &&
+        windowXaml.Contains("{DynamicResource ThemeControlBorderBrush}", StringComparison.Ordinal),
+        "quick translate controls should use the shared dynamic palette and readable text");
+    AssertEqual(true, windowXaml.Contains("<Trigger Property=\"IsReadOnly\" Value=\"True\">\n                                <Setter TargetName=\"InputSurface\" Property=\"Background\" Value=\"{DynamicResource ThemeControlBackgroundBrush}\" />", StringComparison.Ordinal),
+        "read-only translation results should retain the active theme control surface");
     AssertEqual(true, windowCode.Contains("private const byte AcrylicTintOpacity = 96", StringComparison.Ordinal) &&
-        windowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 245, 247, 250)", StringComparison.Ordinal) &&
-        windowCode.Contains("QuickTranslateWindowMaterial.Solid => new SolidColorBrush(MediaColor.FromRgb(245, 247, 250))", StringComparison.Ordinal) &&
+        windowCode.Contains("ResolvedApplicationTheme theme = ApplicationThemeParser.Resolve(_settings.ApplicationTheme);", StringComparison.Ordinal) &&
+        windowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)", StringComparison.Ordinal) &&
+        windowCode.Contains("QuickTranslateWindowMaterial.Solid => SolidBackground(theme)", StringComparison.Ordinal) &&
         windowCode.Contains("ClearAcrylicBackdrop", StringComparison.Ordinal),
-        "quick translate should use the same light acrylic tint and clear stale composition state");
+        "quick translate should use theme-aware acrylic tint and clear stale composition state");
 }
 
 static void TrayMenuExcludesLyricComponentControls()
@@ -1116,7 +1235,7 @@ static void TrayMenuExcludesLyricComponentControls()
         "the tray menu should reserve a transparent margin so its rounded shadow is not clipped by the popup bounds");
 }
 
-static void UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial()
+static void UpdateDialogUsesCompactCenteredLayoutAndThemeAwareMaterial()
 {
     string windowXaml = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
@@ -1146,13 +1265,87 @@ static void UpdateDialogUsesCompactCenteredLayoutAndSettingsMaterial()
         windowCode.Contains("WindowChrome.SetWindowChrome", StringComparison.Ordinal) &&
         windowCode.Contains("GlassFrameThickness = new Thickness(-1)", StringComparison.Ordinal),
         "the update dialog should use custom chrome and native acrylic instead of an opaque acrylic fallback");
+    AssertEqual(true, windowCode.Contains("private string _applicationTheme = \"System\";", StringComparison.Ordinal) &&
+        windowCode.Contains("ApplicationThemeParser.Resolve(_applicationTheme)", StringComparison.Ordinal) &&
+        windowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)", StringComparison.Ordinal) &&
+        windowCode.Contains("ApplyAcrylicBackdrop(handle, theme)", StringComparison.Ordinal),
+        "the update dialog should resolve the configured application theme for its deep acrylic material");
     AssertEqual(true, mainWindowCode.Contains(
-        "UpdateDialogWindow.ShowForResult(this, result, _settings.SettingsWindowMaterial)",
+        "private void ShowUpdateDialog(UpdateCheckResult result)",
         StringComparison.Ordinal) &&
+        mainWindowCode.Contains("UpdateDialogWindow.ShowForResult(", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("_settings.SettingsWindowMaterial", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("_settings.ApplicationTheme", StringComparison.Ordinal) &&
         mainWindowCode.Contains(
-            "UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? \"发生了未知错误。\", _settings.SettingsWindowMaterial)",
+            "UpdateDialogWindow.ShowForError(this, result.ErrorMessage ?? \"发生了未知错误。\", _settings.SettingsWindowMaterial, _settings.ApplicationTheme)",
             StringComparison.Ordinal),
-        "update checks should pass the active settings-window material to the dialog");
+        "update checks should pass the active settings-window material and application theme to the dialog");
+}
+
+static void InAppUpdateUsesVerifiedInstallerAsset()
+{
+    string code = ReadSourceFile("UpdateService.cs");
+
+    AssertEqual(true, code.Contains("TaskbarInfo-Setup", StringComparison.Ordinal) &&
+        code.Contains("[JsonPropertyName(\"digest\")]", StringComparison.Ordinal) &&
+        code.Contains("UpdatePackage", StringComparison.Ordinal),
+        "updates should select a named installer asset with GitHub SHA-256 metadata");
+}
+
+static void InAppUpdateDownloadsAndVerifiesInstaller()
+{
+    string code = ReadSourceFile("InAppUpdateDownloadService.cs");
+
+    AssertEqual(true, code.Contains("HttpCompletionOption.ResponseHeadersRead", StringComparison.Ordinal) &&
+        code.Contains("IncrementalHash.CreateHash(HashAlgorithmName.SHA256)", StringComparison.Ordinal) &&
+        code.Contains("CryptographicOperations.FixedTimeEquals", StringComparison.Ordinal) &&
+        code.Contains("File.Move(partPath, installerPath, true)", StringComparison.Ordinal),
+        "in-app updates must stream, verify, then atomically promote the installer");
+}
+
+static void UpdateDialogShowsDownloadProgressAndLaunchesInstaller()
+{
+    string windowXaml = ReadSourceFile("UpdateDialogWindow.xaml");
+    string windowCode = ReadSourceFile("UpdateDialogWindow.xaml.cs");
+    string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
+
+    AssertEqual(true, windowXaml.Contains("x:Name=\"UpdateProgressPanel\"", StringComparison.Ordinal) &&
+        windowCode.Contains("CancellationTokenSource", StringComparison.Ordinal) &&
+        windowCode.Contains("DownloadInstallerAsync", StringComparison.Ordinal) &&
+        windowCode.Contains("UseShellExecute = true", StringComparison.Ordinal) &&
+        windowCode.Contains("Application.Current.Shutdown", StringComparison.Ordinal),
+        "the update dialog should show cancellable download progress and launch the verified installer");
+    AssertEqual(false, mainWindowCode.Contains("OpenUrl(_pendingUpdateResult.DownloadUrl)", StringComparison.Ordinal),
+        "clicking an update notification should not open the browser download URL");
+    AssertEqual(true, mainWindowCode.Contains("ShowUpdateDialog(_pendingUpdateResult)", StringComparison.Ordinal),
+        "clicking an update notification should open the in-app update dialog");
+}
+
+static void SettingsHostRequestsInAppUpdateFromMainProcess()
+{
+    string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
+    string settingsAppCode = ReadSourceFile("SettingsHost", "App.xaml.cs");
+    string settingsWindowCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+
+    AssertEqual(true, mainWindowCode.Contains("TaskbarInfo.UpdateRequest.", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("--update-event=", StringComparison.Ordinal) &&
+        mainWindowCode.Contains("CheckForUpdatesAsync(isStartupCheck: false)", StringComparison.Ordinal),
+        "the main process should own an update request event for the settings host");
+    AssertEqual(true, settingsAppCode.Contains("--update-event=", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("下载并安装", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("EventWaitHandle.OpenExisting", StringComparison.Ordinal),
+        "the settings host should request the main process to perform the in-app update");
+}
+
+static void InstallerSupportsInAppUpdateHandoff()
+{
+    string installer = ReadSourceFile("installer", "LyricsX.iss");
+    string readme = ReadSourceFile("README.md");
+
+    AssertEqual(true, installer.Contains("CloseApplications=yes", StringComparison.Ordinal),
+        "the installer should close a lingering TaskbarInfo process during an in-app update handoff");
+    AssertEqual(true, readme.Contains("应用内下载并安装", StringComparison.Ordinal),
+        "the README should describe the in-app update flow");
 }
 
 static void QuickTranslateFontSettingIsIndependent()
@@ -1160,10 +1353,7 @@ static void QuickTranslateFontSettingIsIndependent()
     string appSettings = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
         "AppSettings.cs"));
-    string settingsDocument = System.IO.File.ReadAllText(System.IO.Path.Combine(
-        Environment.CurrentDirectory,
-        "SettingsHost",
-        "MainWindow.xaml.cs"));
+    string settingsDocument = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
 
     AssertEqual(true, appSettings.Contains(
         "public string QuickTranslateFontFamily { get; set; } = \"Microsoft YaHei UI\";",

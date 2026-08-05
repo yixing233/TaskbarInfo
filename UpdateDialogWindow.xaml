@@ -23,18 +23,18 @@
         <SolidColorBrush x:Key="ControlBorder" Color="#D9E0E8"/>
 
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryColor}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemePrimaryTextBrush}"/>
         </Style>
 
         <Style x:Key="BodyText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryColor}"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeSecondaryTextBrush}"/>
         </Style>
 
         <Style TargetType="Button">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="{StaticResource ControlBorder}"/>
+            <Setter Property="Background" Value="{DynamicResource ThemeControlBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ThemeControlBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,7"/>
             <Setter Property="FontSize" Value="13"/>
@@ -80,7 +80,7 @@
             <Setter Property="Width" Value="34"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Foreground" Value="#334155"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemePrimaryTextBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -104,7 +104,7 @@
         </Style>
     </Window.Resources>
 
-    <Border x:Name="RootSurface" Background="#F5F7FA">
+    <Border x:Name="RootSurface" Background="{DynamicResource ThemeSurfaceBrush}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="40"/>
@@ -130,6 +130,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <StackPanel x:Name="ResultHeader" HorizontalAlignment="Center">
@@ -140,7 +141,7 @@
                 <TextBlock x:Name="SummaryText" MaxWidth="350" Style="{StaticResource BodyText}" HorizontalAlignment="Center" TextAlignment="Center"/>
             </StackPanel>
 
-            <Border Grid.Row="1" Margin="0,18,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="16">
+            <Border Grid.Row="1" Margin="0,18,0,0" Background="{DynamicResource ThemeControlBackgroundBrush}" BorderBrush="{DynamicResource ThemeControlBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="90"/>
@@ -154,18 +155,18 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Text="当前版本" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock Text="当前版本" Foreground="{DynamicResource ThemeSecondaryTextBrush}"/>
                     <TextBlock x:Name="CurrentVersionText" Grid.Column="1" FontWeight="SemiBold"/>
 
-                    <TextBlock Grid.Row="2" Text="最新版本" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock Grid.Row="2" Text="最新版本" Foreground="{DynamicResource ThemeSecondaryTextBrush}"/>
                     <TextBlock x:Name="LatestVersionText" Grid.Row="2" Grid.Column="1" FontWeight="SemiBold"/>
 
-                    <TextBlock Grid.Row="4" Text="发布时间" Foreground="{StaticResource TextSecondaryColor}"/>
+                    <TextBlock Grid.Row="4" Text="发布时间" Foreground="{DynamicResource ThemeSecondaryTextBrush}"/>
                     <TextBlock x:Name="PublishedAtText" Grid.Row="4" Grid.Column="1"/>
                 </Grid>
             </Border>
 
-            <Border x:Name="NotesPanel" Grid.Row="2" Margin="0,14,0,0" Background="{DynamicResource CardBackground}" BorderBrush="{DynamicResource ControlBorder}" BorderThickness="1" CornerRadius="10" Padding="16" Visibility="Collapsed">
+            <Border x:Name="NotesPanel" Grid.Row="2" Margin="0,14,0,0" Background="{DynamicResource ThemeControlBackgroundBrush}" BorderBrush="{DynamicResource ThemeControlBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="16" Visibility="Collapsed">
                 <StackPanel>
                     <TextBlock x:Name="NotesTitleText" Text="说明" FontWeight="SemiBold" FontSize="14"/>
                     <ScrollViewer Margin="0,10,0,0" MaxHeight="150" VerticalScrollBarVisibility="Auto">
@@ -174,7 +175,12 @@
                 </StackPanel>
             </Border>
 
-            <Button x:Name="PrimaryButton" Grid.Row="3" Width="124" Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click" Visibility="Collapsed"/>
+            <StackPanel x:Name="UpdateProgressPanel" Grid.Row="3" Margin="0,18,0,0" Visibility="Collapsed">
+                <ProgressBar x:Name="UpdateProgressBar" Minimum="0" Maximum="1" Height="4"/>
+                <TextBlock x:Name="UpdateProgressText" Margin="0,8,0,0" Style="{StaticResource BodyText}" HorizontalAlignment="Center" TextAlignment="Center"/>
+            </StackPanel>
+
+            <Button x:Name="PrimaryButton" Grid.Row="4" Width="124" Margin="0,18,0,0" HorizontalAlignment="Center" Style="{StaticResource AccentButton}" Content="打开下载页" Click="Primary_Click" Visibility="Collapsed"/>
             </Grid>
         </Grid>
     </Border>

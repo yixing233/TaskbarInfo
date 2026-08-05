@@ -1,5 +1,5 @@
 #define MyAppName "TaskbarInfo"
-#define MyAppVersion "1.1.4"
+#define MyAppVersion "1.1.5"
 #define MyAppPublisher "TaskbarInfo"
 #define MyAppExeName "TaskbarInfo.exe"
 
@@ -33,6 +33,7 @@ MinVersion=10.0.19041
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
+CloseApplications=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Languages]

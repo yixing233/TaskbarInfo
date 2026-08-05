@@ -16,7 +16,7 @@ namespace TaskbarInfo
     {
         private const string RepoOwner = "yixing233";
         private const string RepoName = "TaskbarInfo";
-        private const string DefaultVersion = "1.1.4";
+        private const string DefaultVersion = "1.1.5";
 
         private static readonly HttpClient HttpClient = CreateHttpClient();
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -67,7 +67,8 @@ namespace TaskbarInfo
             }
 
             var releasePageUrl = string.IsNullOrWhiteSpace(release.HtmlUrl) ? ReleasesUrl : release.HtmlUrl!;
-            var downloadUrl = SelectBestAssetUrl(release.Assets) ?? releasePageUrl;
+            UpdatePackage? package = SelectUpdatePackage(release.Assets);
+            var downloadUrl = package?.DownloadUrl ?? releasePageUrl;
             var releaseTitle = string.IsNullOrWhiteSpace(release.Name) ? release.TagName ?? latestVersion.ToString() : release.Name!;
 
             return UpdateCheckResult.SuccessResult(
@@ -78,6 +79,7 @@ namespace TaskbarInfo
                 release.Body ?? string.Empty,
                 releasePageUrl,
                 downloadUrl,
+                package,
                 release.PublishedAt);
         }
 
@@ -116,6 +118,7 @@ namespace TaskbarInfo
                 string.Empty,
                 finalUri,
                 finalUri,
+                null,
                 null);
         }
 
@@ -184,21 +187,46 @@ namespace TaskbarInfo
             return $"{version.Major}.{version.Minor}.{version.Build}";
         }
 
-        private static string? SelectBestAssetUrl(IReadOnlyList<GitHubReleaseAssetResponse>? assets)
+        private static UpdatePackage? SelectUpdatePackage(IReadOnlyList<GitHubReleaseAssetResponse>? assets)
         {
             if (assets == null || assets.Count == 0)
             {
                 return null;
             }
 
-            var preferred = assets.FirstOrDefault(asset =>
-                !string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl) &&
-                (asset.Name?.EndsWith(".msi", StringComparison.OrdinalIgnoreCase) == true
-                || asset.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true
-                || asset.Name?.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) == true));
+            foreach (GitHubReleaseAssetResponse asset in assets)
+            {
+                string? name = asset.Name?.Trim();
+                if (string.IsNullOrWhiteSpace(name) ||
+                    !name.StartsWith("TaskbarInfo-Setup", StringComparison.OrdinalIgnoreCase) ||
+                    !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                    !Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? downloadUri) ||
+                    downloadUri.Scheme != Uri.UriSchemeHttps ||
+                    !TryParseSha256Digest(asset.Digest, out string sha256))
+                {
+                    continue;
+                }
 
-            return preferred?.BrowserDownloadUrl
-                ?? assets.FirstOrDefault(asset => !string.IsNullOrWhiteSpace(asset.BrowserDownloadUrl))?.BrowserDownloadUrl;
+                return new UpdatePackage(name, downloadUri.AbsoluteUri, asset.Size, sha256);
+            }
+
+            return null;
+        }
+
+        private static bool TryParseSha256Digest(string? digest, out string sha256)
+        {
+            sha256 = string.Empty;
+            if (string.IsNullOrWhiteSpace(digest)) return false;
+
+            const string prefix = "sha256:";
+            string candidate = digest.Trim();
+            if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+
+            candidate = candidate[prefix.Length..];
+            if (candidate.Length != 64 || candidate.Any(c => !Uri.IsHexDigit(c))) return false;
+
+            sha256 = candidate.ToLowerInvariant();
+            return true;
         }
 
         private sealed class GitHubReleaseResponse
@@ -229,6 +257,12 @@ namespace TaskbarInfo
 
             [JsonPropertyName("browser_download_url")]
             public string? BrowserDownloadUrl { get; set; }
+
+            [JsonPropertyName("size")]
+            public long Size { get; set; }
+
+            [JsonPropertyName("digest")]
+            public string? Digest { get; set; }
         }
     }
 
@@ -250,6 +284,7 @@ namespace TaskbarInfo
         public string ReleaseNotes { get; private init; } = string.Empty;
         public string ReleasePageUrl { get; private init; } = UpdateService.ReleasesUrl;
         public string DownloadUrl { get; private init; } = UpdateService.ReleasesUrl;
+        public UpdatePackage? Package { get; private init; }
         public DateTimeOffset? PublishedAt { get; private init; }
         public string? ErrorMessage { get; private init; }
 
@@ -261,6 +296,7 @@ namespace TaskbarInfo
             string releaseNotes,
             string releasePageUrl,
             string downloadUrl,
+            UpdatePackage? package,
             DateTimeOffset? publishedAt)
         {
             return new UpdateCheckResult
@@ -274,6 +310,7 @@ namespace TaskbarInfo
                 ReleaseNotes = releaseNotes,
                 ReleasePageUrl = releasePageUrl,
                 DownloadUrl = downloadUrl,
+                Package = package,
                 PublishedAt = publishedAt
             };
         }
@@ -298,4 +335,6 @@ namespace TaskbarInfo
             };
         }
     }
+
+    public sealed record UpdatePackage(string FileName, string DownloadUrl, long Size, string Sha256);
 }

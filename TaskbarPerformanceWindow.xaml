@@ -26,7 +26,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContextMenu">
-                        <Border Name="Border" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="8" Padding="0,4">
+                        <Border Name="Border" Background="{DynamicResource ThemeMenuBackgroundBrush}" BorderBrush="{DynamicResource ThemeMenuBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="0,4">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.12" ShadowDepth="4" />
                             </Border.Effect>
@@ -40,7 +40,7 @@
         <Style TargetType="MenuItem">
             <Setter Property="Height" Value="32"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#333333"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeMenuForegroundBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="MenuItem">
@@ -59,10 +59,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#F2F2F2"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeMenuHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Border" Property="Background" Value="#F0F7FF"/>
+                                <Setter TargetName="Border" Property="Background" Value="{DynamicResource ThemeMenuCheckedBrush}"/>
                                 <Setter TargetName="CheckIcon" Property="Visibility" Value="Visible"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -76,7 +76,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Background="#E8E8E8" SnapsToDevicePixels="True"/>
+                        <Border Height="1" Background="{DynamicResource ThemeMenuSeparatorBrush}" SnapsToDevicePixels="True"/>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
