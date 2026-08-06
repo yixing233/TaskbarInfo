@@ -8,9 +8,11 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shell;
 using System.Windows.Threading;
+using Wpf.Ui.Markup;
 using FontFamily = System.Windows.Media.FontFamily;
 using MediaBrushes = System.Windows.Media.Brushes;
 using MediaColor = System.Windows.Media.Color;
+using WpfUiApplicationTheme = Wpf.Ui.Appearance.ApplicationTheme;
 using WpfKeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace TaskbarInfo;
@@ -27,12 +29,12 @@ public partial class QuickTranslatePopupWindow : Window
     private const int ResultDisplayUnitsPerLine = 42;
     private const byte AcrylicTintOpacity = 96;
     private static readonly Duration PopupTransitionDuration = new(TimeSpan.FromMilliseconds(160));
-    private static readonly Duration ProgressRingDuration = new(TimeSpan.FromMilliseconds(900));
     private static readonly IntPtr HwndTopmost = new(-1);
     private static readonly IntPtr HwndNotTopmost = new(-2);
 
     private readonly AppSettings _settings;
     private readonly DispatcherTimer _translationElapsedTimer;
+    private readonly ThemesDictionary _wpfUiThemeDictionary = new();
     private CancellationTokenSource? _translationCancellation;
     private QuickTranslateLaunchOptions? _launchOptions;
     private QuickTranslatePlacement? _placement;
@@ -52,6 +54,9 @@ public partial class QuickTranslatePopupWindow : Window
     {
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         InitializeComponent();
+        Resources.MergedDictionaries.Insert(0, _wpfUiThemeDictionary);
+        Resources.MergedDictionaries.Insert(1, new ControlsDictionary());
+        ApplyWpfUiTheme();
         ApplyConfiguredFontFamily();
         _translationElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _translationElapsedTimer.Tick += TranslationElapsedTimer_Tick;
@@ -273,6 +278,7 @@ public partial class QuickTranslatePopupWindow : Window
 
     private void ApplyWindowMaterial()
     {
+        ApplyWpfUiTheme();
         ResolvedApplicationTheme theme = ApplicationThemeParser.Resolve(_settings.ApplicationTheme);
         QuickTranslateWindowMaterial material = QuickTranslateWindowMaterialParser.Parse(
             _settings.QuickTranslateWindowMaterial);
@@ -314,6 +320,14 @@ public partial class QuickTranslatePopupWindow : Window
         {
             ClearAcrylicBackdrop(handle);
         }
+    }
+
+    private void ApplyWpfUiTheme()
+    {
+        _wpfUiThemeDictionary.Theme = ApplicationThemeParser.Resolve(_settings.ApplicationTheme)
+            == ResolvedApplicationTheme.Dark
+            ? WpfUiApplicationTheme.Dark
+            : WpfUiApplicationTheme.Light;
     }
 
     private static SolidColorBrush SolidBackground(ResolvedApplicationTheme theme) =>
@@ -369,8 +383,21 @@ public partial class QuickTranslatePopupWindow : Window
 
     private void Window_Deactivated(object? sender, EventArgs e)
     {
-        if (!_isAlwaysOnTop && !_isShowingDomainDialog) Close();
+        if (_isAlwaysOnTop || _isShowingDomainDialog) return;
+
+        // ComboBox popups use a separate native surface. Wait until it has opened
+        // before deciding whether deactivation came from a selector or the user.
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_isAlwaysOnTop && !_isShowingDomainDialog && !IsSelectorDropDownOpen())
+            {
+                Close();
+            }
+        }, DispatcherPriority.Input);
     }
+
+    private bool IsSelectorDropDownOpen() =>
+        ProviderBox.IsDropDownOpen || TargetLanguageBox.IsDropDownOpen || DomainBox.IsDropDownOpen;
 
     private void AlwaysOnTopButton_Checked(object sender, RoutedEventArgs e) => SetAlwaysOnTop(true);
 
@@ -554,7 +581,8 @@ public partial class QuickTranslatePopupWindow : Window
     private void ShowError(string message)
     {
         ProgressPanel.Visibility = Visibility.Collapsed;
-        StatusText.Text = message;
+        StatusPanel.Message = message;
+        StatusPanel.IsOpen = true;
         StatusPanel.Visibility = Visibility.Visible;
         ResizeForContent(true);
     }
@@ -575,18 +603,11 @@ public partial class QuickTranslatePopupWindow : Window
         if (!translating)
         {
             _translationElapsedTimer.Stop();
-            ProgressRingRotation.BeginAnimation(RotateTransform.AngleProperty, null);
-            ProgressRingRotation.Angle = 0;
             return;
         }
 
         StatusPanel.Visibility = Visibility.Collapsed;
-        ProgressRingRotation.BeginAnimation(
-            RotateTransform.AngleProperty,
-            new DoubleAnimation(0, 360, ProgressRingDuration)
-            {
-                RepeatBehavior = RepeatBehavior.Forever
-            });
+        StatusPanel.IsOpen = false;
         _translationStartedAt = DateTimeOffset.UtcNow;
         _translationProgressPrefix = TranslationService.IsAiProvider(provider?.Provider)
             ? "AI 正在生成译文"
@@ -684,9 +705,9 @@ public partial class QuickTranslatePopupWindow : Window
         bool isAiProvider = SelectedProvider() is { } provider && TranslationService.IsAiProvider(provider.Provider);
         DomainBox.Visibility = isAiProvider ? Visibility.Visible : Visibility.Collapsed;
         AddDomainButton.Visibility = isAiProvider ? Visibility.Visible : Visibility.Collapsed;
-        DomainLeadingGap.Width = new GridLength(isAiProvider ? 8 : 0);
-        DomainColumn.Width = new GridLength(isAiProvider ? 92 : 0);
-        DomainTrailingGap.Width = new GridLength(isAiProvider ? 8 : 0);
+        DomainLeadingGap.Width = new GridLength(isAiProvider ? 6 : 0);
+        DomainColumn.Width = new GridLength(isAiProvider ? 90 : 0);
+        DomainTrailingGap.Width = new GridLength(isAiProvider ? 6 : 0);
         AddDomainColumn.Width = new GridLength(isAiProvider ? 32 : 0);
     }
 

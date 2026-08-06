@@ -273,6 +273,16 @@
         <Grid.ContextMenu>
             <ContextMenu Style="{StaticResource DesktopWidgetContextMenuStyle}">
                 <MenuItem x:Name="LockPositionMenuItem" Header="锁定位置" IsCheckable="True" Click="LockPosition_Click" Style="{StaticResource DesktopWidgetContextMenuItemStyle}"/>
+                <MenuItem x:Name="MonitorSelectionMenuItem" Header="显示屏选择" Style="{StaticResource DesktopWidgetContextMenuItemStyle}">
+                    <MenuItem.Icon>
+                        <TextBlock Text="&#xf108;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="{StaticResource DesktopWidgetControlForegroundBrush}"/>
+                    </MenuItem.Icon>
+                    <MenuItem.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </ItemsPanelTemplate>
+                    </MenuItem.ItemsPanel>
+                </MenuItem>
                 <MenuItem Header="桌面组件设置" Click="Settings_Click" Style="{StaticResource DesktopWidgetContextMenuItemStyle}"/>
                 <Separator Style="{StaticResource DesktopWidgetContextMenuSeparatorStyle}"/>
                 <MenuItem Header="关闭桌面组件" Click="Close_Click" Style="{StaticResource DesktopWidgetContextMenuItemStyle}"/>

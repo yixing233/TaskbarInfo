@@ -26,9 +26,13 @@ public static class TaskbarPerformanceLayout
             TaskbarPerformanceMetricCatalog.Cpu => 58,
             TaskbarPerformanceMetricCatalog.Memory => 66,
             TaskbarPerformanceMetricCatalog.Gpu => 58,
+            TaskbarPerformanceMetricCatalog.CpuFrequency => 90,
+            TaskbarPerformanceMetricCatalog.GpuDedicatedMemory => 124,
+            TaskbarPerformanceMetricCatalog.MemoryUsed => 138,
             TaskbarPerformanceMetricCatalog.CpuTemperature => 67,
             TaskbarPerformanceMetricCatalog.GpuTemperature => 67,
             TaskbarPerformanceMetricCatalog.DiskTemperature => 72,
+            TaskbarPerformanceMetricCatalog.DiskRead or TaskbarPerformanceMetricCatalog.DiskWrite => 124,
             TaskbarPerformanceMetricCatalog.Download or TaskbarPerformanceMetricCatalog.Upload => 82,
             _ => 0
         };
@@ -77,9 +81,14 @@ public static class TaskbarPerformanceLayout
             TaskbarPerformanceMetricCatalog.Cpu => "CPU 100%",
             TaskbarPerformanceMetricCatalog.Memory => "内存 100%",
             TaskbarPerformanceMetricCatalog.Gpu => "GPU 100%",
+            TaskbarPerformanceMetricCatalog.CpuFrequency => "CPU 9.99 GHz",
+            TaskbarPerformanceMetricCatalog.GpuDedicatedMemory => "GPU 显存 999.99 GB",
+            TaskbarPerformanceMetricCatalog.MemoryUsed => "内存 999.9 / 999.9 GB",
             TaskbarPerformanceMetricCatalog.CpuTemperature => "CPU 100°C",
             TaskbarPerformanceMetricCatalog.GpuTemperature => "GPU 100°C",
             TaskbarPerformanceMetricCatalog.DiskTemperature => "磁盘 100°C",
+            TaskbarPerformanceMetricCatalog.DiskRead => "磁盘读 999.99 GB/s",
+            TaskbarPerformanceMetricCatalog.DiskWrite => "磁盘写 999.99 GB/s",
             TaskbarPerformanceMetricCatalog.Download or TaskbarPerformanceMetricCatalog.Upload => "↓ 999.99 GB/s",
             _ => string.Empty
         };

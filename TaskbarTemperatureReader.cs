@@ -5,8 +5,13 @@ namespace TaskbarInfo;
 public sealed record TaskbarTemperatureSnapshot(
     double? CpuTemperatureCelsius,
     double? GpuTemperatureCelsius,
-    double? DiskTemperatureCelsius)
+    double? DiskTemperatureCelsius,
+    IReadOnlyList<string>? GpuDevices = null,
+    IReadOnlyList<string>? DiskDevices = null)
 {
+    public IReadOnlyList<string> GpuDeviceNames { get; } = NormalizeDeviceNames(GpuDevices);
+    public IReadOnlyList<string> DiskDeviceNames { get; } = NormalizeDeviceNames(DiskDevices);
+
     public static TaskbarTemperatureSnapshot Empty { get; } = new(null, null, null);
 
     public static TaskbarTemperatureSnapshot Merge(params TaskbarTemperatureSnapshot[] sources)
@@ -14,16 +19,28 @@ public sealed record TaskbarTemperatureSnapshot(
         double? cpu = null;
         double? gpu = null;
         double? disk = null;
+        var gpuDevices = new List<string>();
+        var diskDevices = new List<string>();
 
         foreach (TaskbarTemperatureSnapshot source in sources)
         {
             cpu ??= source.CpuTemperatureCelsius;
             gpu ??= source.GpuTemperatureCelsius;
             disk ??= source.DiskTemperatureCelsius;
+            gpuDevices.AddRange(source.GpuDeviceNames);
+            diskDevices.AddRange(source.DiskDeviceNames);
         }
 
-        return new TaskbarTemperatureSnapshot(cpu, gpu, disk);
+        return new TaskbarTemperatureSnapshot(cpu, gpu, disk, gpuDevices, diskDevices);
     }
+
+    private static IReadOnlyList<string> NormalizeDeviceNames(IEnumerable<string>? names) =>
+        names?
+            .Select(name => name?.Trim())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Cast<string>()
+            .ToArray() ?? Array.Empty<string>();
 }
 
 /// <summary>
@@ -72,12 +89,14 @@ public sealed class TaskbarTemperatureReader : IDisposable
             double? cpu = null;
             double? gpu = null;
             double? disk = null;
+            var gpuDevices = new List<string>();
+            var diskDevices = new List<string>();
             foreach (IHardware hardware in _computer.Hardware)
             {
-                ReadHardware(hardware, ref cpu, ref gpu, ref disk);
+                ReadHardware(hardware, ref cpu, ref gpu, ref disk, gpuDevices, diskDevices);
             }
 
-            return new TaskbarTemperatureSnapshot(cpu, gpu, disk);
+            return new TaskbarTemperatureSnapshot(cpu, gpu, disk, gpuDevices, diskDevices);
         }
         catch
         {
@@ -107,11 +126,25 @@ public sealed class TaskbarTemperatureReader : IDisposable
         IHardware hardware,
         ref double? cpu,
         ref double? gpu,
-        ref double? disk)
+        ref double? disk,
+        List<string> gpuDevices,
+        List<string> diskDevices)
     {
         try
         {
             hardware.Update();
+
+            switch (hardware.HardwareType)
+            {
+                case HardwareType.GpuNvidia:
+                case HardwareType.GpuAmd:
+                case HardwareType.GpuIntel:
+                    AddDeviceName(gpuDevices, hardware.Name);
+                    break;
+                case HardwareType.Storage:
+                    AddDeviceName(diskDevices, hardware.Name);
+                    break;
+            }
 
             foreach (ISensor sensor in hardware.Sensors)
             {
@@ -135,7 +168,7 @@ public sealed class TaskbarTemperatureReader : IDisposable
 
             foreach (IHardware subHardware in hardware.SubHardware)
             {
-                ReadHardware(subHardware, ref cpu, ref gpu, ref disk);
+                ReadHardware(subHardware, ref cpu, ref gpu, ref disk, gpuDevices, diskDevices);
             }
         }
         catch
@@ -149,4 +182,11 @@ public sealed class TaskbarTemperatureReader : IDisposable
 
     private static double Highest(double? current, float value) =>
         !current.HasValue ? value : Math.Max(current.Value, value);
+
+    private static void AddDeviceName(List<string> names, string? name)
+    {
+        string normalized = name?.Trim() ?? string.Empty;
+        if (normalized.Length == 0 || names.Contains(normalized, StringComparer.OrdinalIgnoreCase)) return;
+        names.Add(normalized);
+    }
 }

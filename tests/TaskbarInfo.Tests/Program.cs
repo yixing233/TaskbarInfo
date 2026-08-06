@@ -19,15 +19,19 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar performance defaults are compact", TaskbarPerformanceDefaultsAreCompact),
     ("Enhanced temperature mode defaults off and rejects invalid tokens", EnhancedTemperatureModeDefaultsOffAndRejectsInvalidTokens),
     ("Taskbar performance selection removes unknown and duplicate metrics", TaskbarPerformanceSelectionIsNormalized),
+    ("Taskbar performance catalog groups expanded metrics", TaskbarPerformanceCatalogGroupsExpandedMetrics),
     ("Taskbar performance summary honors per-metric opt-ins", TaskbarPerformanceSummaryHonorsMetricOptIns),
     ("Taskbar performance summary excludes disabled metrics and enforces its limit", TaskbarPerformanceSummaryRejectsDisabledAndExcessMetrics),
     ("Taskbar performance summary selection persists independently", TaskbarPerformanceSummaryMetricsPersistIndependently),
     ("Taskbar performance summary headers align with metric switches", TaskbarPerformanceSummaryHeadersAlignWithMetricSwitches),
     ("Taskbar performance formatter follows selected metrics", TaskbarPerformanceFormatterFollowsSelection),
     ("Taskbar performance formatter splits detail labels and values", TaskbarPerformanceFormatterSplitsDetailValues),
+    ("Taskbar performance formatter shows expanded metrics", TaskbarPerformanceFormatterShowsExpandedMetrics),
     ("Taskbar performance formatter shows temperatures", TaskbarPerformanceFormatterShowsTemperatures),
     ("Windows storage temperature parser handles descriptor readings", WindowsStorageTemperatureParserHandlesDescriptorReadings),
     ("Temperature sources merge in precedence order", TemperatureSourcesMergeInPrecedenceOrder),
+    ("Temperature sources merge hardware names", TemperatureSourcesMergeHardwareNames),
+    ("Performance device labels identify hardware", PerformanceDeviceLabelsIdentifyHardware),
     ("Taskbar performance formatter supports two lines", TaskbarPerformanceFormatterSupportsTwoLines),
     ("Taskbar performance details detect outside clicks", TaskbarPerformanceDetailsDetectOutsideClicks),
     ("Taskbar performance details use the light acrylic palette", TaskbarPerformanceDetailsUseLightAcrylicPalette),
@@ -36,7 +40,22 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar performance layout adapts to font metrics and DPI", TaskbarPerformanceLayoutAdaptsToFontMetricsAndDpi),
     ("Taskbar performance collector caches network interfaces", TaskbarPerformanceCollectorCachesNetworkInterfaces),
     ("Taskbar performance collector caches temperature readings", TaskbarPerformanceCollectorCachesTemperatureReadings),
+    ("Taskbar performance collector initializes expanded counters", TaskbarPerformanceCollectorInitializesExpandedCounters),
+    ("Taskbar performance details group available metrics", TaskbarPerformanceDetailsGroupAvailableMetrics),
     ("Taskbar performance collector emits native snapshot", TaskbarPerformanceCollectorEmitsNativeSnapshot),
+    ("Water reminder schedules, snoozes, and resets daily", WaterReminderSchedulesSnoozesAndResetsDaily),
+    ("Water reminder records each drink for history", WaterReminderRecordsEachDrinkForHistory),
+    ("Water reminder taskbar component fits status text", WaterReminderTaskbarComponentFitsStatusText),
+    ("Water reminder menu uses the taskbar component style", WaterReminderMenuUsesTaskbarComponentStyle),
+    ("Water reminder corrects records and confirms completed drinks", WaterReminderCorrectsRecordsAndConfirmsCompletedDrinks),
+    ("Water reminder settings render statistics", WaterReminderSettingsRenderStatistics),
+    ("Water reminder record deletion refreshes statistics in place", WaterReminderRecordDeletionRefreshesStatisticsInPlace),
+    ("Water reminder respects quiet hours", WaterReminderRespectsQuietHours),
+    ("Water reminder surfaces expose actions", WaterReminderSurfacesExposeActions),
+    ("Water reminder popup clips its acrylic surface to rounded corners", WaterReminderPopupClipsAcrylicSurfaceToRoundedCorners),
+    ("Water reminder layout persists an independent drag offset", WaterReminderLayoutPersistsIndependentDragOffset),
+    ("Main window coordinates water reminder lifecycle", MainWindowCoordinatesWaterReminderLifecycle),
+    ("Water reminder settings expose scheduling controls", WaterReminderSettingsExposeSchedulingControls),
     ("Desktop widget defaults to dark theme", DesktopWidgetDefaultsToDarkTheme),
     ("Floating lyric shadow defaults to off", FloatingLyricShadowDefaultsToOff),
     ("Desktop widget palettes differ by theme", DesktopWidgetPalettesDifferByTheme),
@@ -92,6 +111,8 @@ var tests = new (string Name, Action Test)[]
     ("Quick translate popup caches its target language", QuickTranslatePopupCachesTargetLanguage),
     ("Quick translate popup shows cancellable translation progress", QuickTranslatePopupShowsCancellableTranslationProgress),
     ("Quick translate popup uses responsive transitions", QuickTranslatePopupUsesResponsiveTransitions),
+    ("Quick translate popup uses local WPF UI resources", QuickTranslatePopupUsesLocalWpfUiResources),
+    ("Quick translate selectors remain readable and primary action uses an accent", QuickTranslateSelectorsRemainReadableAndPrimaryActionUsesAnAccent),
     ("Quick translate reveals domains for AI providers", QuickTranslateRevealsDomainsForAiProviders),
     ("Quick translate popup uses a borderless WPF frame", QuickTranslatePopupUsesBorderlessWpfFrame),
     ("Quick translate button closes an existing popup", QuickTranslateButtonClosesExistingPopup),
@@ -1036,17 +1057,16 @@ static void QuickTranslatePopupShowsCancellableTranslationProgress()
         Environment.CurrentDirectory,
         "QuickTranslatePopupWindow.xaml.cs"));
 
-    AssertEqual(true, windowXaml.Contains(
-        "<Grid x:Name=\"ProgressPanel\"\n                      Grid.Row=\"7\"",
-        StringComparison.Ordinal) &&
-        windowXaml.Contains("x:Name=\"TranslationProgressRing\"", StringComparison.Ordinal) &&
-        windowXaml.Contains("x:Name=\"ProgressRingRotation\"", StringComparison.Ordinal) &&
+    AssertEqual(true, windowXaml.Contains("x:Name=\"ProgressPanel\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("<ui:ProgressRing x:Name=\"TranslationProgressRing\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("IsIndeterminate=\"True\"", StringComparison.Ordinal) &&
+        !windowXaml.Contains("ProgressRingRotation", StringComparison.Ordinal) &&
         !windowXaml.Contains("<ProgressBar", StringComparison.Ordinal) &&
         windowXaml.Contains("x:Name=\"ResultLabel\"", StringComparison.Ordinal),
-        "translation progress should use a compact ring without reserving a status row");
+        "translation progress should use a compact WPF-UI ring without reserving a status row");
     AssertEqual(true, windowCode.Contains("SetTranslationState(true, provider);", StringComparison.Ordinal) &&
         windowCode.Contains("_translationElapsedTimer", StringComparison.Ordinal) &&
-        windowCode.Contains("ProgressRingRotation.BeginAnimation", StringComparison.Ordinal) &&
+        !windowCode.Contains("ProgressRingRotation", StringComparison.Ordinal) &&
         windowCode.Contains("TranslateButton.Content = translating ? \"取消\" : \"翻译\";", StringComparison.Ordinal) &&
         windowCode.Contains("CancelActiveTranslation", StringComparison.Ordinal),
         "the primary action should become cancellation while translation is in progress");
@@ -1067,6 +1087,51 @@ static void QuickTranslatePopupUsesResponsiveTransitions()
         windowCode.Contains("AnimatePopupSize", StringComparison.Ordinal) &&
         windowCode.Contains("PopupTransitionDuration", StringComparison.Ordinal),
         "the popup should animate opening and compact-to-result size transitions");
+}
+
+static void QuickTranslatePopupUsesLocalWpfUiResources()
+{
+    string projectCode = ReadSourceFile("TaskbarInfo.csproj");
+    string popupCode = ReadSourceFile("QuickTranslatePopupWindow.xaml.cs");
+    string popupXaml = ReadSourceFile("QuickTranslatePopupWindow.xaml");
+
+    AssertEqual(true, projectCode.Contains(
+        "PackageReference Include=\"WPF-UI\" Version=\"4.3.0\"", StringComparison.Ordinal),
+        "quick translate should reference the WPF-UI package");
+    AssertEqual(true, popupCode.Contains("ApplyWpfUiTheme", StringComparison.Ordinal),
+        "quick translate should apply WPF-UI resources locally");
+    AssertEqual(true, popupCode.Contains("new ControlsDictionary", StringComparison.Ordinal),
+        "quick translate should load the WPF-UI control dictionary");
+    AssertEqual(true, popupXaml.Contains(
+        "xmlns:ui=\"http://schemas.lepo.co/wpfui/2022/xaml\"", StringComparison.Ordinal),
+        "quick translate should expose WPF-UI markup");
+    AssertEqual(true, popupXaml.Contains("<ui:TextBox x:Name=\"InputTextBox\"", StringComparison.Ordinal),
+        "translation input should use the WPF-UI text box");
+    AssertEqual(true, popupXaml.Contains("<ui:ProgressRing", StringComparison.Ordinal),
+        "translation progress should use the WPF-UI progress ring");
+    AssertEqual(true, popupXaml.Contains("<ui:InfoBar x:Name=\"StatusPanel\"", StringComparison.Ordinal),
+        "translation errors should use the WPF-UI info bar");
+    AssertEqual(true, popupXaml.Contains("<ui:Button x:Name=\"TranslateButton\"", StringComparison.Ordinal),
+        "translation command should use the WPF-UI button");
+}
+
+static void QuickTranslateSelectorsRemainReadableAndPrimaryActionUsesAnAccent()
+{
+    string windowCode = ReadSourceFile("QuickTranslatePopupWindow.xaml.cs");
+    string windowXaml = ReadSourceFile("QuickTranslatePopupWindow.xaml");
+
+    AssertEqual(true, windowXaml.Contains("x:Name=\"ProviderBox\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("MinWidth=\"112\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("MaxDropDownHeight=\"240\"", StringComparison.Ordinal),
+        "AI provider names and selector menus should have enough visible space");
+    AssertEqual(true, windowCode.Contains("IsSelectorDropDownOpen", StringComparison.Ordinal) &&
+        windowCode.Contains("!IsSelectorDropDownOpen()", StringComparison.Ordinal),
+        "opening a selector must not close the translation popup");
+    AssertEqual(true, windowXaml.Contains("Background=\"#FF0F6CBD\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("MouseOverBackground=\"#FF479EF5\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("PressedBackground=\"#FF005FB8\"", StringComparison.Ordinal) &&
+        windowXaml.Contains("Foreground=\"White\"", StringComparison.Ordinal),
+        "the primary translation command should use a readable accent treatment");
 }
 
 static void QuickTranslateRevealsDomainsForAiProviders()
@@ -1106,8 +1171,9 @@ static void QuickTranslatePopupUsesBorderlessWpfFrame()
         "borderless popup should not retain a manual close command");
     AssertEqual(true, windowCode.Contains("Window_Deactivated", StringComparison.Ordinal),
         "taskbar popup should close after an outside click deactivates it");
-    AssertEqual(true, windowCode.Contains("if (!_isAlwaysOnTop && !_isShowingDomainDialog) Close();", StringComparison.Ordinal),
-        "a pinned taskbar popup should remain open after deactivation");
+    AssertEqual(true, windowCode.Contains("if (_isAlwaysOnTop || _isShowingDomainDialog) return;", StringComparison.Ordinal) &&
+        windowCode.Contains("!IsSelectorDropDownOpen()", StringComparison.Ordinal),
+        "a pinned taskbar popup should remain open after deactivation without interrupting selectors");
     AssertEqual(true, windowXaml.Contains("x:Name=\"ProviderBox\"", StringComparison.Ordinal),
         "quick translate popup should allow provider selection");
 
@@ -1233,8 +1299,10 @@ static void QuickTranslateUsesLightMaterialLanguage()
         windowXaml.Contains("{DynamicResource ThemeControlBackgroundBrush}", StringComparison.Ordinal) &&
         windowXaml.Contains("{DynamicResource ThemeControlBorderBrush}", StringComparison.Ordinal),
         "quick translate controls should use the shared dynamic palette and readable text");
-    AssertEqual(true, windowXaml.Contains("<Trigger Property=\"IsReadOnly\" Value=\"True\">\n                                <Setter TargetName=\"InputSurface\" Property=\"Background\" Value=\"{DynamicResource ThemeControlBackgroundBrush}\" />", StringComparison.Ordinal),
-        "read-only translation results should retain the active theme control surface");
+    AssertEqual(true, windowXaml.Contains("<ui:TextBox x:Name=\"ResultTextBox\"", StringComparison.Ordinal) &&
+        windowCode.Contains("private readonly ThemesDictionary _wpfUiThemeDictionary", StringComparison.Ordinal) &&
+        windowCode.Contains("ApplyWpfUiTheme();", StringComparison.Ordinal),
+        "read-only translation results should retain the active WPF UI theme control surface");
     AssertEqual(true, windowCode.Contains("private const byte AcrylicTintOpacity = 96", StringComparison.Ordinal) &&
         windowCode.Contains("ResolvedApplicationTheme theme = ApplicationThemeParser.Resolve(_settings.ApplicationTheme);", StringComparison.Ordinal) &&
         windowCode.Contains("MediaColor.FromArgb(AcrylicTintOpacity, 24, 32, 42)", StringComparison.Ordinal) &&
@@ -1561,6 +1629,20 @@ static void TaskbarPerformanceSelectionIsNormalized()
     AssertEqual(TaskbarPerformanceMetricCatalog.Gpu, normalized[2], "GPU id should be normalized");
 }
 
+static void TaskbarPerformanceCatalogGroupsExpandedMetrics()
+{
+    AssertEqual("CPU", TaskbarPerformanceMetricCatalog.GetDefinition(
+        TaskbarPerformanceMetricCatalog.CpuFrequency)?.Group, "CPU frequency group");
+    AssertEqual("GPU", TaskbarPerformanceMetricCatalog.GetDefinition(
+        TaskbarPerformanceMetricCatalog.GpuDedicatedMemory)?.Group, "GPU memory group");
+    AssertEqual("内存", TaskbarPerformanceMetricCatalog.GetDefinition(
+        TaskbarPerformanceMetricCatalog.MemoryUsed)?.Group, "memory capacity group");
+    AssertEqual("磁盘", TaskbarPerformanceMetricCatalog.GetDefinition(
+        TaskbarPerformanceMetricCatalog.DiskRead)?.Group, "disk throughput group");
+    AssertEqual(false, TaskbarPerformanceMetricCatalog.DefaultSelection.Contains(
+        TaskbarPerformanceMetricCatalog.CpuFrequency), "expanded metrics must remain opt-in");
+}
+
 static void TaskbarPerformanceSummaryHonorsMetricOptIns()
 {
     List<string> summary = TaskbarPerformanceMetricCatalog.GetSummarySelection(
@@ -1687,8 +1769,8 @@ static void TaskbarPerformanceFormatterSplitsDetailValues()
 
     TaskbarPerformanceMetricDisplay? unavailableTemperature = TaskbarPerformanceFormatter.FormatMetric(
         snapshot, TaskbarPerformanceMetricCatalog.CpuTemperature);
-    AssertEqual("CPU", unavailableTemperature?.Label, "temperature detail label");
-    AssertEqual("--", unavailableTemperature?.Value, "unavailable temperature detail value");
+    AssertEqual<TaskbarPerformanceMetricDisplay?>(null, unavailableTemperature,
+        "unavailable temperatures should not occupy detail rows");
 }
 
 static void TaskbarPerformanceFormatterSupportsTwoLines()
@@ -1937,6 +2019,35 @@ static void SettingsHostOpensQuickTranslatePageFromTaskbarMenu()
         "settings host should receive navigation requests");
 }
 
+static void TaskbarPerformanceFormatterShowsExpandedMetrics()
+{
+    var snapshot = new TaskbarPerformanceSnapshot(
+        CpuUsagePercent: null,
+        MemoryUsagePercent: null,
+        GpuUsagePercent: null,
+        DownloadBytesPerSecond: 0,
+        UploadBytesPerSecond: 0,
+        CpuTemperatureCelsius: null,
+        GpuTemperatureCelsius: null,
+        DiskTemperatureCelsius: null,
+        CpuFrequencyMegahertz: 2312.5,
+        GpuDedicatedMemoryBytes: 3d * 1024 * 1024 * 1024,
+        MemoryUsedBytes: 12d * 1024 * 1024 * 1024,
+        MemoryTotalBytes: 32d * 1024 * 1024 * 1024,
+        DiskReadBytesPerSecond: 7.25 * 1024 * 1024,
+        DiskWriteBytesPerSecond: 512 * 1024);
+
+    AssertEqual("CPU 2.31 GHz", TaskbarPerformanceFormatter.Format(snapshot,
+        [TaskbarPerformanceMetricCatalog.CpuFrequency]), "CPU frequency formatting");
+    AssertEqual("GPU 显存 3.00 GB", TaskbarPerformanceFormatter.Format(snapshot,
+        [TaskbarPerformanceMetricCatalog.GpuDedicatedMemory]), "GPU dedicated memory formatting");
+    AssertEqual("内存 12.0 / 32.0 GB", TaskbarPerformanceFormatter.Format(snapshot,
+        [TaskbarPerformanceMetricCatalog.MemoryUsed]), "memory capacity formatting");
+    AssertEqual("磁盘读 7.25 MB/s  磁盘写 512 KB/s", TaskbarPerformanceFormatter.Format(snapshot,
+        [TaskbarPerformanceMetricCatalog.DiskRead, TaskbarPerformanceMetricCatalog.DiskWrite]),
+        "disk throughput formatting");
+}
+
 static void PerformanceMonitorSettingsOpensItsOwnPage()
 {
     string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
@@ -1988,9 +2099,9 @@ static void TaskbarPerformanceFormatterShowsTemperatures()
     AssertEqual("CPU 62°C  GPU 51°C  磁盘 40°C", text, "temperature metric formatting");
 
     var unavailable = TaskbarPerformanceSnapshot.Empty;
-    AssertEqual("CPU --", TaskbarPerformanceFormatter.Format(unavailable,
+    AssertEqual(string.Empty, TaskbarPerformanceFormatter.Format(unavailable,
         [TaskbarPerformanceMetricCatalog.CpuTemperature]),
-        "an unavailable sensor should remain visible as an unavailable temperature");
+        "an unavailable sensor should not occupy the details card");
 }
 
 static void WindowsStorageTemperatureParserHandlesDescriptorReadings()
@@ -2014,6 +2125,32 @@ static void TemperatureSourcesMergeInPrecedenceOrder()
     AssertEqual(72d, merged.CpuTemperatureCelsius, "HWiNFO wins for CPU");
     AssertEqual(60d, merged.GpuTemperatureCelsius, "LibreHardwareMonitor fills GPU");
     AssertEqual(44d, merged.DiskTemperatureCelsius, "HWiNFO wins for disk");
+}
+
+static void TemperatureSourcesMergeHardwareNames()
+{
+    var merged = TaskbarTemperatureSnapshot.Merge(
+        new(null, 61, null,
+            ["NVIDIA GeForce RTX 4060"],
+            ["Samsung SSD 990 PRO"]),
+        new(null, 57, null,
+            ["NVIDIA GeForce RTX 4060", "Intel Graphics"],
+            ["Crucial P3"]));
+
+    AssertEqual(2, merged.GpuDeviceNames.Count, "GPU names should be unique");
+    AssertEqual("NVIDIA GeForce RTX 4060", merged.GpuDeviceNames[0], "first GPU name");
+    AssertEqual("Intel Graphics", merged.GpuDeviceNames[1], "second GPU name");
+    AssertEqual(2, merged.DiskDeviceNames.Count, "disk names should be unique");
+}
+
+static void PerformanceDeviceLabelsIdentifyHardware()
+{
+    AssertEqual("NVIDIA GeForce RTX 4060", TaskbarPerformanceDeviceSummary.GetLabel(
+        ["NVIDIA GeForce RTX 4060"]), "single device label");
+    AssertEqual("2 个设备", TaskbarPerformanceDeviceSummary.GetLabel(
+        ["NVIDIA GeForce RTX 4060", "Intel Graphics"]), "multiple device label");
+    AssertEqual("NVIDIA GeForce RTX 4060\nIntel Graphics", TaskbarPerformanceDeviceSummary.GetToolTip(
+        ["NVIDIA GeForce RTX 4060", "Intel Graphics"]), "multiple device tooltip");
 }
 
 static void TaskbarPerformanceCollectorCachesNetworkInterfaces()
@@ -2042,6 +2179,34 @@ static void TaskbarPerformanceCollectorCachesTemperatureReadings()
         "the temperature reader should be disposed with the collector");
 }
 
+static void TaskbarPerformanceCollectorInitializesExpandedCounters()
+{
+    string code = ReadSourceFile("TaskbarPerformanceCollector.cs");
+
+    AssertEqual(true, code.Contains("\\\\Processor Information(_Total)\\\\Processor Frequency", StringComparison.Ordinal),
+        "collector should initialize the CPU frequency counter");
+    AssertEqual(true, code.Contains("\\\\GPU Adapter Memory(*)\\\\Dedicated Usage", StringComparison.Ordinal),
+        "collector should initialize the GPU dedicated-memory counter");
+    AssertEqual(true, code.Contains("\\\\PhysicalDisk(_Total)\\\\Disk Read Bytes/sec", StringComparison.Ordinal),
+        "collector should initialize the disk read counter");
+    AssertEqual(true, code.Contains("\\\\PhysicalDisk(_Total)\\\\Disk Write Bytes/sec", StringComparison.Ordinal),
+        "collector should initialize the disk write counter");
+    AssertEqual(true, code.Contains("ReadPdhSnapshot", StringComparison.Ordinal),
+        "expanded PDH counters should be collected through one snapshot read");
+}
+
+static void TaskbarPerformanceDetailsGroupAvailableMetrics()
+{
+    string code = ReadSourceFile("TaskbarPerformanceDetailsWindow.cs");
+
+    AssertEqual(true, code.Contains("GroupBy(item => item.Definition.Group)", StringComparison.Ordinal),
+        "details card should group available metrics by hardware domain");
+    AssertEqual(true, code.Contains("CreateGroupHeader", StringComparison.Ordinal),
+        "details card should render compact group headers");
+    AssertEqual(true, code.Contains("FormatDetailMetric", StringComparison.Ordinal),
+        "details card should use concise labels inside a group");
+}
+
 static void TaskbarPerformanceCollectorEmitsNativeSnapshot()
 {
     if (!OperatingSystem.IsWindows()) return;
@@ -2068,6 +2233,233 @@ static void TaskbarPerformanceCollectorEmitsNativeSnapshot()
 
     collector.Stop();
     if (collector.IsRunning) throw new InvalidOperationException("collector did not stop");
+}
+
+static void WaterReminderSchedulesSnoozesAndResetsDaily()
+{
+    var settings = new AppSettings
+    {
+        EnableWaterReminder = true,
+        WaterReminderIntervalMinutes = 45,
+        WaterReminderSnoozeMinutes = 10,
+        WaterReminderDailyGoal = 8,
+        WaterReminderRecordDate = "2026-08-06",
+        WaterReminderLastCompletedAt = new DateTime(2026, 8, 6, 9, 0, 0)
+    };
+
+    AssertEqual(false, WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 6, 9, 44, 0)).IsDue,
+        "reminder should wait for its interval");
+    AssertEqual(true, WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 6, 9, 45, 0)).IsDue,
+        "reminder should become due at its interval");
+
+    WaterReminderSchedule.Snooze(settings, new DateTime(2026, 8, 6, 9, 45, 0));
+    AssertEqual(false, WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 6, 9, 54, 0)).IsDue,
+        "snooze should defer the reminder");
+    AssertEqual(true, WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 6, 9, 55, 0)).IsDue,
+        "reminder should resume after snooze");
+
+    WaterReminderSchedule.RecordDrink(settings, new DateTime(2026, 8, 6, 9, 55, 0));
+    AssertEqual(1, settings.WaterReminderCompletedToday, "recording a drink increments today count");
+
+    WaterReminderSchedule.Normalize(settings, new DateTime(2026, 8, 7, 8, 0, 0));
+    AssertEqual(0, settings.WaterReminderCompletedToday, "a new day resets the completed count");
+    AssertEqual("2026-08-07", settings.WaterReminderRecordDate, "record date should advance with the day");
+}
+
+static void WaterReminderRecordsEachDrinkForHistory()
+{
+    var settings = new AppSettings
+    {
+        EnableWaterReminder = true,
+        WaterReminderRecordDate = "2026-08-06"
+    };
+    DateTime firstDrink = new(2026, 8, 6, 9, 0, 0);
+    DateTime secondDrink = new(2026, 8, 6, 14, 30, 0);
+
+    WaterReminderSchedule.RecordDrink(settings, firstDrink);
+    WaterReminderSchedule.RecordDrink(settings, secondDrink);
+
+    AssertEqual(2, settings.WaterReminderDrinkHistory.Count,
+        "each drink should persist its timestamp");
+    AssertEqual(secondDrink, settings.WaterReminderDrinkHistory[1],
+        "history should preserve the actual drink time");
+    IReadOnlyList<WaterReminderDailyCount> dailyCounts = WaterReminderHistory.GetDailyCounts(
+        settings.WaterReminderDrinkHistory,
+        secondDrink,
+        7);
+    AssertEqual(2, dailyCounts[^1].Count, "today should appear in the seven-day trend");
+}
+
+static void WaterReminderTaskbarComponentFitsStatusText()
+{
+    AssertEqual(true, TaskbarWaterReminderWindow.WidthInPixels >= 112,
+        "taskbar component needs room for all reminder statuses");
+    string xaml = ReadSourceFile("TaskbarWaterReminderWindow.xaml");
+    AssertEqual(true, xaml.Contains("Width=\"116\"", StringComparison.Ordinal),
+        "taskbar window width should match the readable layout");
+}
+
+static void WaterReminderMenuUsesTaskbarComponentStyle()
+{
+    string xaml = ReadSourceFile("TaskbarWaterReminderWindow.xaml");
+
+    AssertEqual(true, xaml.Contains("OverridesDefaultStyle", StringComparison.Ordinal),
+        "water reminder menu should not fall back to the classic WPF context menu");
+    AssertEqual(true, xaml.Contains("WaterReminderMenuItemStyle", StringComparison.Ordinal),
+        "water reminder menu should use the shared taskbar item layout");
+    AssertEqual(true, xaml.Contains("WaterReminderMenuSeparatorStyle", StringComparison.Ordinal),
+        "water reminder menu should style its separator");
+}
+
+static void WaterReminderCorrectsRecordsAndConfirmsCompletedDrinks()
+{
+    var history = new List<DateTime>
+    {
+        new(2026, 8, 6, 9, 0, 0),
+        new(2026, 8, 6, 14, 30, 0)
+    };
+
+    AssertEqual(true, WaterReminderHistory.Remove(history, history[1]),
+        "an incorrect drink entry should be removable");
+    AssertEqual(1, history.Count, "removing a drink should update history");
+
+    string taskbarCode = ReadSourceFile("TaskbarWaterReminderWindow.xaml.cs");
+    string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
+    string settingsHostCode = ReadSourceFile("SettingsHost/MainWindow.xaml.cs");
+    AssertEqual(true, taskbarCode.Contains("ShowDrinkRecordedFeedback", StringComparison.Ordinal),
+        "taskbar component should expose drink confirmation feedback");
+    AssertEqual(true, mainWindowCode.Contains("ShowDrinkRecordedFeedback", StringComparison.Ordinal),
+        "main window should show taskbar feedback after recording a drink");
+    AssertEqual(true, settingsHostCode.Contains("RemoveWaterReminderRecordAsync", StringComparison.Ordinal),
+        "settings should allow removing an incorrect drink record");
+    AssertEqual(true, settingsHostCode.Contains("删除饮水记录？", StringComparison.Ordinal),
+        "removing a drink record should require confirmation");
+}
+
+static void WaterReminderSettingsRenderStatistics()
+{
+    string settingsHostCode = ReadSourceFile("SettingsHost/MainWindow.xaml.cs");
+
+    AssertEqual(true, settingsHostCode.Contains("CreateWaterReminderStatistics", StringComparison.Ordinal),
+        "settings should create drink statistics");
+    AssertEqual(true, settingsHostCode.Contains("Polyline", StringComparison.Ordinal),
+        "settings should draw the seven-day trend as a line");
+    AssertEqual(true, settingsHostCode.Contains("WaterReminderDrinkHistory", StringComparison.Ordinal),
+        "settings should display the persisted drink history");
+    AssertEqual(true, settingsHostCode.Contains(
+        "_settings.WaterReminderDrinkHistory = currentSettings.WaterReminderDrinkHistory", StringComparison.Ordinal),
+        "applying settings should retain drinks recorded while the settings window is open");
+}
+
+static void WaterReminderRecordDeletionRefreshesStatisticsInPlace()
+{
+    string settingsHostCode = ReadSourceFile("SettingsHost/MainWindow.xaml.cs");
+    int pageStart = settingsHostCode.IndexOf("private Page CreateWaterReminderPage", StringComparison.Ordinal);
+    int pageEnd = settingsHostCode.IndexOf("private FrameworkElement CreateWaterReminderStatistics", pageStart, StringComparison.Ordinal);
+    string pageMethod = pageStart >= 0 && pageEnd > pageStart
+        ? settingsHostCode[pageStart..pageEnd]
+        : "";
+    int methodStart = settingsHostCode.IndexOf("private async Task RemoveWaterReminderRecordAsync", StringComparison.Ordinal);
+    int methodEnd = settingsHostCode.IndexOf("private static void AddWaterReminderStatistic", methodStart, StringComparison.Ordinal);
+    string removeMethod = methodStart >= 0 && methodEnd > methodStart
+        ? settingsHostCode[methodStart..methodEnd]
+        : "";
+
+    AssertEqual(true, settingsHostCode.Contains("_waterReminderStatisticsHost", StringComparison.Ordinal),
+        "water reminder statistics should have a stable host for in-place refreshes");
+    AssertEqual(true, pageMethod.Contains("HorizontalContentAlignment = HorizontalAlignment.Stretch", StringComparison.Ordinal),
+        "the statistics host should keep replacement content at the page width");
+    AssertEqual(true, removeMethod.Contains("_waterReminderStatisticsHost.Content = CreateWaterReminderStatistics()", StringComparison.Ordinal),
+        "deleting a record should refresh only the statistics content");
+    AssertEqual(false, removeMethod.Contains("Navigate(\"WaterReminder\")", StringComparison.Ordinal),
+        "deleting a record must not recreate the whole water reminder page");
+}
+
+static void WaterReminderRespectsQuietHours()
+{
+    var settings = new AppSettings
+    {
+        EnableWaterReminder = true,
+        WaterReminderIntervalMinutes = 30,
+        WaterReminderQuietStart = "22:00",
+        WaterReminderQuietEnd = "07:00",
+        WaterReminderRecordDate = "2026-08-06",
+        WaterReminderLastCompletedAt = new DateTime(2026, 8, 6, 21, 0, 0)
+    };
+
+    WaterReminderStatus quiet = WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 6, 22, 0, 0));
+    AssertEqual(true, quiet.IsQuietHours, "quiet period should be detected across the evening boundary");
+    AssertEqual(false, quiet.IsDue, "quiet period should suppress an otherwise due reminder");
+
+    WaterReminderStatus resumed = WaterReminderSchedule.GetStatus(settings, new DateTime(2026, 8, 7, 7, 0, 0));
+    AssertEqual(false, resumed.IsQuietHours, "quiet period should end at the configured boundary");
+    AssertEqual(true, resumed.IsDue, "overdue reminder should resume after quiet hours");
+}
+
+static void WaterReminderSurfacesExposeActions()
+{
+    string waterWindowPath = System.IO.Path.Combine(Environment.CurrentDirectory, "TaskbarWaterReminderWindow.xaml.cs");
+    string popupPath = System.IO.Path.Combine(Environment.CurrentDirectory, "WaterReminderPopupWindow.xaml.cs");
+    AssertEqual(true, System.IO.File.Exists(waterWindowPath), "taskbar water reminder window should exist");
+    AssertEqual(true, System.IO.File.Exists(popupPath), "water reminder popup should exist");
+
+    string windowCode = System.IO.File.ReadAllText(waterWindowPath);
+    string popupCode = System.IO.File.ReadAllText(popupPath);
+    AssertEqual(true, windowCode.Contains("DrinkRequested", StringComparison.Ordinal),
+        "taskbar reminder should record drinks");
+    AssertEqual(true, windowCode.Contains("SnoozeRequested", StringComparison.Ordinal),
+        "taskbar reminder should support snooze");
+    AssertEqual(true, popupCode.Contains("Drink_Click", StringComparison.Ordinal),
+        "popup should provide a drink action");
+    AssertEqual(true, popupCode.Contains("Snooze_Click", StringComparison.Ordinal),
+        "popup should provide a snooze action");
+}
+
+static void WaterReminderPopupClipsAcrylicSurfaceToRoundedCorners()
+{
+    string popupCode = ReadSourceFile("WaterReminderPopupWindow.xaml.cs");
+
+    AssertEqual(true, popupCode.Contains("DWMWA_WINDOW_CORNER_PREFERENCE", StringComparison.Ordinal) &&
+        popupCode.Contains("DwmWindowCornerPreference.DWMWCP_ROUND", StringComparison.Ordinal) &&
+        popupCode.Contains("DwmSystemBackdropType.DWMSBT_NONE", StringComparison.Ordinal),
+        "the window-level acrylic surface should be clipped to the reminder card's rounded corners");
+}
+
+static void WaterReminderLayoutPersistsIndependentDragOffset()
+{
+    AssertEqual(712, TaskbarWaterReminderLayout.GetLeftFromTray(1000, 900, null),
+        "water reminder should reserve space beside the tray");
+    AssertEqual(72, TaskbarWaterReminderLayout.GetOffsetForLeft(900, 712),
+        "water reminder drag position should round-trip to an independent offset");
+}
+
+static void MainWindowCoordinatesWaterReminderLifecycle()
+{
+    string mainWindowCode = ReadSourceFile("MainWindow.xaml.cs");
+
+    AssertEqual(true, mainWindowCode.Contains("ManageWaterReminder", StringComparison.Ordinal),
+        "main window should own water component lifecycle");
+    AssertEqual(true, mainWindowCode.Contains("WaterReminderSchedule.RecordDrink", StringComparison.Ordinal),
+        "main window should record a completed reminder");
+    AssertEqual(true, mainWindowCode.Contains("WaterReminderSettingsPage", StringComparison.Ordinal),
+        "taskbar menu should open water settings");
+    AssertEqual(true, mainWindowCode.Contains("TimeSpan.FromSeconds(30)", StringComparison.Ordinal),
+        "water reminder should use a low-frequency UI timer");
+}
+
+static void WaterReminderSettingsExposeSchedulingControls()
+{
+    string settingsHostCode = ReadSourceFile("SettingsHost/MainWindow.xaml.cs");
+    string settingsHostXaml = ReadSourceFile("SettingsHost/MainWindow.xaml");
+
+    AssertEqual(true, settingsHostCode.Contains("CreateWaterReminderPage", StringComparison.Ordinal),
+        "settings host should create a water reminder page");
+    AssertEqual(true, settingsHostCode.Contains("WaterReminderQuietStart", StringComparison.Ordinal),
+        "settings page should persist quiet hours");
+    AssertEqual(true, settingsHostCode.Contains("TaskbarWaterReminderMonitorDeviceName", StringComparison.Ordinal),
+        "settings page should select a display for the taskbar component");
+    AssertEqual(true, settingsHostXaml.Contains("Tag=\"WaterReminder\"", StringComparison.Ordinal),
+        "navigation should expose the water reminder page");
 }
 
 static void DesktopWidgetDefaultsToDarkTheme()

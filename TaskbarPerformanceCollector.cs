@@ -29,8 +29,12 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     private TaskbarTemperatureSnapshot _temperatureSnapshot = TaskbarTemperatureSnapshot.Empty;
     private DateTime _nextTemperatureRefresh;
     private IntPtr _pdhQuery;
-    private IntPtr _gpuCounter;
-    private bool _gpuPrimed;
+    private IntPtr _gpuUsageCounter;
+    private IntPtr _gpuDedicatedMemoryCounter;
+    private IntPtr _cpuFrequencyCounter;
+    private IntPtr _diskReadCounter;
+    private IntPtr _diskWriteCounter;
+    private bool _pdhPrimed;
 
     public event EventHandler<TaskbarPerformanceSnapshot>? SnapshotUpdated;
 
@@ -41,7 +45,7 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     {
         _networkAddressChangedHandler = (_, _) => Volatile.Write(ref _networkInterfacesDirty, 1);
         NetworkChange.NetworkAddressChanged += _networkAddressChangedHandler;
-        TryInitializeGpuCounter();
+        TryInitializePdhCounters();
     }
 
     public void Start(int refreshSeconds)
@@ -84,11 +88,11 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             NetworkChange.NetworkAddressChanged -= _networkAddressChangedHandler;
             _temperatureReader.Dispose();
 
-            if (_gpuCounter != IntPtr.Zero)
-            {
-                PdhRemoveCounter(_gpuCounter);
-                _gpuCounter = IntPtr.Zero;
-            }
+            RemovePdhCounter(ref _gpuUsageCounter);
+            RemovePdhCounter(ref _gpuDedicatedMemoryCounter);
+            RemovePdhCounter(ref _cpuFrequencyCounter);
+            RemovePdhCounter(ref _diskReadCounter);
+            RemovePdhCounter(ref _diskWriteCounter);
 
             if (_pdhQuery != IntPtr.Zero)
             {
@@ -120,19 +124,27 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     private TaskbarPerformanceSnapshot Collect()
     {
         double? cpu = ReadCpuUsage();
-        double? memory = ReadMemoryUsage();
-        double? gpu = ReadGpuUsage();
+        (double? memory, double? memoryUsed, double? memoryTotal) = ReadMemory();
+        PdhSnapshot pdh = ReadPdhSnapshot();
         (double download, double upload) = ReadNetworkRates();
         TaskbarTemperatureSnapshot temperatures = ReadTemperatures();
         return new TaskbarPerformanceSnapshot(
             cpu,
             memory,
-            gpu,
+            pdh.GpuUsagePercent,
             download,
             upload,
             temperatures.CpuTemperatureCelsius,
             temperatures.GpuTemperatureCelsius,
-            temperatures.DiskTemperatureCelsius);
+            temperatures.DiskTemperatureCelsius,
+            pdh.CpuFrequencyMegahertz,
+            pdh.GpuDedicatedMemoryBytes,
+            memoryUsed,
+            memoryTotal,
+            pdh.DiskReadBytesPerSecond,
+            pdh.DiskWriteBytesPerSecond,
+            temperatures.GpuDeviceNames,
+            temperatures.DiskDeviceNames);
     }
 
     private TaskbarTemperatureSnapshot ReadTemperatures()
@@ -170,14 +182,19 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         return Math.Clamp((totalDelta - idleDelta) * 100d / totalDelta, 0, 100);
     }
 
-    private static double? ReadMemoryUsage()
+    private static (double? UsagePercent, double? UsedBytes, double? TotalBytes) ReadMemory()
     {
-        if (!OperatingSystem.IsWindows()) return null;
+        if (!OperatingSystem.IsWindows()) return (null, null, null);
 
         var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
-        return GlobalMemoryStatusEx(ref status) && status.TotalPhysicalMemory > 0
-            ? Math.Clamp((status.TotalPhysicalMemory - status.AvailablePhysicalMemory) * 100d / status.TotalPhysicalMemory, 0, 100)
-            : null;
+        if (!GlobalMemoryStatusEx(ref status) || status.TotalPhysicalMemory == 0)
+        {
+            return (null, null, null);
+        }
+
+        double total = status.TotalPhysicalMemory;
+        double used = Math.Max(status.TotalPhysicalMemory - status.AvailablePhysicalMemory, 0);
+        return (Math.Clamp(used * 100d / total, 0, 100), used, total);
     }
 
     private (double Download, double Upload) ReadNetworkRates()
@@ -259,40 +276,53 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         }
     }
 
-    private double? ReadGpuUsage()
+    private PdhSnapshot ReadPdhSnapshot()
     {
-        if (_pdhQuery == IntPtr.Zero || _gpuCounter == IntPtr.Zero) return null;
+        if (_pdhQuery == IntPtr.Zero) return default;
 
         uint collectStatus = PdhCollectQueryData(_pdhQuery);
         if (collectStatus != PdhSuccess)
         {
-            return null;
+            return default;
         }
 
-        if (!_gpuPrimed)
+        if (!_pdhPrimed)
         {
-            _gpuPrimed = true;
-            return null;
+            _pdhPrimed = true;
+            return default;
         }
+
+        double? gpuUsage = ReadPdhCounterArrayTotal(_gpuUsageCounter);
+        return new PdhSnapshot(
+            gpuUsage.HasValue ? Math.Clamp(gpuUsage.Value, 0, 100) : null,
+            ReadPdhCounterArrayTotal(_gpuDedicatedMemoryCounter),
+            ReadPdhCounterValue(_cpuFrequencyCounter),
+            ReadPdhCounterValue(_diskReadCounter),
+            ReadPdhCounterValue(_diskWriteCounter));
+    }
+
+    private static double? ReadPdhCounterArrayTotal(IntPtr counter)
+    {
+        if (counter == IntPtr.Zero) return null;
 
         uint bufferSize = 0;
         uint itemCount = 0;
         uint status = PdhGetFormattedCounterArrayW(
-            _gpuCounter,
+            counter,
             PdhFmtDouble,
             ref bufferSize,
             ref itemCount,
             IntPtr.Zero);
         if (status != PdhMoreData && status != PdhSuccess || bufferSize == 0 || itemCount == 0)
         {
-            return status == PdhSuccess ? 0 : null;
+            return null;
         }
 
         IntPtr buffer = Marshal.AllocHGlobal(checked((int)bufferSize));
         try
         {
             status = PdhGetFormattedCounterArrayW(
-                _gpuCounter,
+                counter,
                 PdhFmtDouble,
                 ref bufferSize,
                 ref itemCount,
@@ -301,6 +331,7 @@ public sealed class TaskbarPerformanceCollector : IDisposable
 
             int itemSize = Marshal.SizeOf<PdhFormattedCounterItem>();
             double total = 0;
+            bool hasValue = false;
             for (uint index = 0; index < itemCount; index++)
             {
                 var item = Marshal.PtrToStructure<PdhFormattedCounterItem>(
@@ -308,10 +339,11 @@ public sealed class TaskbarPerformanceCollector : IDisposable
                 if (item.Value.Status == PdhSuccess && !double.IsNaN(item.Value.DoubleValue))
                 {
                     total += Math.Max(item.Value.DoubleValue, 0);
+                    hasValue = true;
                 }
             }
 
-            return Math.Clamp(total, 0, 100);
+            return hasValue ? total : null;
         }
         finally
         {
@@ -319,30 +351,69 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         }
     }
 
-    private void TryInitializeGpuCounter()
+    private static double? ReadPdhCounterValue(IntPtr counter)
+    {
+        if (counter == IntPtr.Zero) return null;
+
+        uint counterType = 0;
+        uint status = PdhGetFormattedCounterValue(
+            counter,
+            PdhFmtDouble,
+            out counterType,
+            out PdhFormattedCounterValue value);
+        return status == PdhSuccess && value.Status == PdhSuccess &&
+               !double.IsNaN(value.DoubleValue) && !double.IsInfinity(value.DoubleValue)
+            ? Math.Max(value.DoubleValue, 0)
+            : null;
+    }
+
+    private void TryInitializePdhCounters()
     {
         if (!OperatingSystem.IsWindows()) return;
 
         try
         {
             if (PdhOpenQuery(null, UIntPtr.Zero, out _pdhQuery) != PdhSuccess) return;
-            uint status = PdhAddEnglishCounterW(
-                _pdhQuery,
-                "\\GPU Engine(*)\\Utilization Percentage",
-                UIntPtr.Zero,
-                out _gpuCounter);
-            if (status != PdhSuccess)
+            _gpuUsageCounter = TryAddPdhCounter("\\GPU Engine(*)\\Utilization Percentage");
+            _gpuDedicatedMemoryCounter = TryAddPdhCounter("\\GPU Adapter Memory(*)\\Dedicated Usage");
+            _cpuFrequencyCounter = TryAddPdhCounter("\\Processor Information(_Total)\\Processor Frequency");
+            _diskReadCounter = TryAddPdhCounter("\\PhysicalDisk(_Total)\\Disk Read Bytes/sec");
+            _diskWriteCounter = TryAddPdhCounter("\\PhysicalDisk(_Total)\\Disk Write Bytes/sec");
+            if (_gpuUsageCounter == IntPtr.Zero &&
+                _gpuDedicatedMemoryCounter == IntPtr.Zero &&
+                _cpuFrequencyCounter == IntPtr.Zero &&
+                _diskReadCounter == IntPtr.Zero &&
+                _diskWriteCounter == IntPtr.Zero)
             {
                 PdhCloseQuery(_pdhQuery);
                 _pdhQuery = IntPtr.Zero;
-                _gpuCounter = IntPtr.Zero;
             }
         }
         catch
         {
-            _gpuCounter = IntPtr.Zero;
-            _pdhQuery = IntPtr.Zero;
+            RemovePdhCounter(ref _gpuUsageCounter);
+            RemovePdhCounter(ref _gpuDedicatedMemoryCounter);
+            RemovePdhCounter(ref _cpuFrequencyCounter);
+            RemovePdhCounter(ref _diskReadCounter);
+            RemovePdhCounter(ref _diskWriteCounter);
+            if (_pdhQuery != IntPtr.Zero)
+            {
+                PdhCloseQuery(_pdhQuery);
+                _pdhQuery = IntPtr.Zero;
+            }
         }
+    }
+
+    private IntPtr TryAddPdhCounter(string path) =>
+        PdhAddEnglishCounterW(_pdhQuery, path, UIntPtr.Zero, out IntPtr counter) == PdhSuccess
+            ? counter
+            : IntPtr.Zero;
+
+    private static void RemovePdhCounter(ref IntPtr counter)
+    {
+        if (counter == IntPtr.Zero) return;
+        PdhRemoveCounter(counter);
+        counter = IntPtr.Zero;
     }
 
     private void ResetBaselines()
@@ -352,7 +423,7 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         _previousReceived = 0;
         _previousSent = 0;
         _previousNetworkTime = default;
-        _gpuPrimed = false;
+        _pdhPrimed = false;
     }
 
     private void ThrowIfDisposed()
@@ -386,6 +457,13 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         ref uint bufferSize,
         ref uint itemCount,
         IntPtr buffer);
+
+    [DllImport("pdh.dll")]
+    private static extern uint PdhGetFormattedCounterValue(
+        IntPtr counter,
+        uint format,
+        out uint counterType,
+        out PdhFormattedCounterValue value);
 
     [DllImport("pdh.dll")]
     private static extern uint PdhRemoveCounter(IntPtr counter);
@@ -427,4 +505,11 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         public IntPtr Name;
         public PdhFormattedCounterValue Value;
     }
+
+    private readonly record struct PdhSnapshot(
+        double? GpuUsagePercent,
+        double? GpuDedicatedMemoryBytes,
+        double? CpuFrequencyMegahertz,
+        double? DiskReadBytesPerSecond,
+        double? DiskWriteBytesPerSecond);
 }

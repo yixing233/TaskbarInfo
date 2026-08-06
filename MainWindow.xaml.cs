@@ -25,6 +25,7 @@ namespace TaskbarInfo
         private const int QuickTranslateHotkeyId = 0x4C58;
         private const int QuickTranslateSettingsPage = 6;
         private const int TaskbarPerformanceSettingsPage = 7;
+        private const int WaterReminderSettingsPage = 8;
         private static readonly uint SettingsNavigateMessage =
             UnmanagedMethods.RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
 
@@ -37,6 +38,9 @@ namespace TaskbarInfo
                 StopSettingsUpdateRequestNotification();
                 _taskbarPerformanceWindow?.Dispose();
                 _taskbarTranslateButtonWindow?.Dispose();
+                _taskbarWaterReminderWindow?.Dispose();
+                _waterReminderPopup?.Dispose();
+                _waterReminderTimer?.Stop();
                 CloseQuickTranslatePopup();
                 CloseSettingsHost();
                 UnregisterQuickTranslateHotkey();
@@ -93,6 +97,10 @@ namespace TaskbarInfo
         private DispatcherTimer? _processMonitorTimer;
         private TaskbarPerformanceWindow? _taskbarPerformanceWindow;
         private TaskbarTranslateButtonWindow? _taskbarTranslateButtonWindow;
+        private TaskbarWaterReminderWindow? _taskbarWaterReminderWindow;
+        private WaterReminderPopupWindow? _waterReminderPopup;
+        private DispatcherTimer? _waterReminderTimer;
+        private bool _waterReminderWasDue;
         private QuickTranslatePopupWindow? _quickTranslatePopup;
         private System.Diagnostics.Process? _settingsProcess;
         private HwndSource? _mainWindowSource;
@@ -474,6 +482,7 @@ namespace TaskbarInfo
             SetupProcessMonitor();
             ManageTaskbarPerformance();
             ManageTaskbarTranslateButton();
+            ManageWaterReminder();
             ConfigureQuickTranslateHotkey();
             
             // Sync Floating Window
@@ -1162,6 +1171,109 @@ namespace TaskbarInfo
             }
 
             _taskbarTranslateButtonWindow.ApplySettings(_settings);
+        }
+
+        private void ManageWaterReminder()
+        {
+            if (!_settings.EnableWaterReminder)
+            {
+                _waterReminderTimer?.Stop();
+                _waterReminderWasDue = false;
+                _waterReminderPopup?.Dispose();
+                _waterReminderPopup = null;
+                _taskbarWaterReminderWindow?.Dispose();
+                _taskbarWaterReminderWindow = null;
+                return;
+            }
+
+            if (_taskbarWaterReminderWindow == null)
+            {
+                _taskbarWaterReminderWindow = new TaskbarWaterReminderWindow();
+                _taskbarWaterReminderWindow.DrinkRequested += (_, _) => RecordWaterDrink();
+                _taskbarWaterReminderWindow.SnoozeRequested += (_, _) => SnoozeWaterReminder();
+                _taskbarWaterReminderWindow.SettingsRequested += (_, _) => OpenSettings(WaterReminderSettingsPage);
+            }
+
+            _taskbarWaterReminderWindow.ApplySettings(_settings);
+            if (_waterReminderTimer == null)
+            {
+                _waterReminderTimer = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromSeconds(30)
+                };
+                _waterReminderTimer.Tick += (_, _) => UpdateWaterReminder();
+            }
+
+            _waterReminderTimer.Start();
+            UpdateWaterReminder();
+        }
+
+        private void UpdateWaterReminder()
+        {
+            if (!_settings.EnableWaterReminder || _taskbarWaterReminderWindow == null) return;
+
+            string recordDate = _settings.WaterReminderRecordDate;
+            int completedToday = _settings.WaterReminderCompletedToday;
+            DateTime? lastCompletedAt = _settings.WaterReminderLastCompletedAt;
+            DateTime? snoozedUntil = _settings.WaterReminderSnoozedUntil;
+            WaterReminderStatus status = WaterReminderSchedule.GetStatus(_settings, DateTime.Now);
+            if (recordDate != _settings.WaterReminderRecordDate ||
+                completedToday != _settings.WaterReminderCompletedToday ||
+                lastCompletedAt != _settings.WaterReminderLastCompletedAt ||
+                snoozedUntil != _settings.WaterReminderSnoozedUntil)
+            {
+                _settings.Save();
+            }
+
+            _taskbarWaterReminderWindow.Update(status);
+            _waterReminderPopup?.ApplyTheme(ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
+            bool shouldNotify = status.IsDue && !_waterReminderWasDue;
+            _waterReminderWasDue = status.IsDue;
+            if (!shouldNotify) return;
+
+            ShowWaterReminderPopup(status);
+            if (_settings.WaterReminderShowSystemNotification && _notifyIcon != null)
+            {
+                _notifyIcon.ShowBalloonTip(
+                    3000,
+                    "喝水助手",
+                    "该喝水了。",
+                    System.Windows.Forms.ToolTipIcon.Info);
+            }
+        }
+
+        private void ShowWaterReminderPopup(WaterReminderStatus status)
+        {
+            if (_taskbarWaterReminderWindow == null) return;
+
+            if (_waterReminderPopup == null)
+            {
+                _waterReminderPopup = new WaterReminderPopupWindow();
+                _waterReminderPopup.DrinkRequested += (_, _) => RecordWaterDrink();
+                _waterReminderPopup.SnoozeRequested += (_, _) => SnoozeWaterReminder();
+            }
+
+            _waterReminderPopup.ApplyTheme(ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
+            _waterReminderPopup.ShowAbove(_taskbarWaterReminderWindow, status);
+        }
+
+        private void RecordWaterDrink()
+        {
+            WaterReminderSchedule.RecordDrink(_settings, DateTime.Now);
+            _settings.Save();
+            _waterReminderPopup?.Hide();
+            _waterReminderWasDue = false;
+            UpdateWaterReminder();
+            _taskbarWaterReminderWindow?.ShowDrinkRecordedFeedback();
+        }
+
+        private void SnoozeWaterReminder()
+        {
+            WaterReminderSchedule.Snooze(_settings, DateTime.Now);
+            _settings.Save();
+            _waterReminderPopup?.Hide();
+            _waterReminderWasDue = false;
+            UpdateWaterReminder();
         }
 
         private int GetPerformanceAnchorLeft()

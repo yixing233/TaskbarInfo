@@ -21,6 +21,18 @@ namespace TaskbarInfo
         public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
         public string QuickTranslateWindowMaterial { get; set; } = "Mica";
         public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
+        public bool EnableWaterReminder { get; set; } = false;
+        public int WaterReminderIntervalMinutes { get; set; } = 45;
+        public int WaterReminderSnoozeMinutes { get; set; } = 10;
+        public int WaterReminderDailyGoal { get; set; } = 8;
+        public bool WaterReminderShowSystemNotification { get; set; } = true;
+        public string WaterReminderQuietStart { get; set; } = "22:00";
+        public string WaterReminderQuietEnd { get; set; } = "07:00";
+        public string WaterReminderRecordDate { get; set; } = "";
+        public int WaterReminderCompletedToday { get; set; } = 0;
+        public System.Collections.Generic.List<DateTime> WaterReminderDrinkHistory { get; set; } = [];
+        public DateTime? WaterReminderLastCompletedAt { get; set; }
+        public DateTime? WaterReminderSnoozedUntil { get; set; }
         public string SettingsWindowMaterial { get; set; } = "Mica";
         public string ApplicationTheme { get; set; } = "System";
         public bool EnableTaskbarPerformanceMonitor { get; set; } = false;
@@ -48,9 +60,11 @@ namespace TaskbarInfo
         public int? TaskbarPerformanceOffsetX { get; set; }
         public bool EnableTaskbarTranslateButton { get; set; } = true;
         public int? TaskbarTranslateButtonOffsetX { get; set; }
+        public int? TaskbarWaterReminderOffsetX { get; set; }
         public string TaskbarMonitorDeviceName { get; set; } = "";
         public string TaskbarPerformanceMonitorDeviceName { get; set; } = "";
         public string TaskbarTranslateButtonMonitorDeviceName { get; set; } = "";
+        public string TaskbarWaterReminderMonitorDeviceName { get; set; } = "";
         public bool IsDoubleLine { get; set; } = true; 
         public double LyricOffsetSeconds { get; set; } = 0; 
         public System.Collections.Generic.List<string> IncludedAppIds { get; set; } = new System.Collections.Generic.List<string>();  
@@ -67,6 +81,7 @@ namespace TaskbarInfo
         public double? FloatingLyricsLeft { get; set; } = null;
         public double? FloatingLyricsTop { get; set; } = null;
         public double? FloatingLyricsWidth { get; set; } = null;
+        public string FloatingLyricsMonitorDeviceName { get; set; } = "";
 
         public bool EnableDesktopWidget { get; set; } = false;
         public DesktopWidgetTheme DesktopWidgetTheme { get; set; } = DesktopWidgetTheme.Dark;
@@ -118,6 +133,7 @@ namespace TaskbarInfo
                         settings.SelectedQuickTranslateDomain);
                     settings.QuickTranslateTargetLanguage = QuickTranslateTargetLanguages.Normalize(
                         settings.QuickTranslateTargetLanguage);
+                    WaterReminderSchedule.Normalize(settings, DateTime.Now);
                     settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
                     settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
                     settings.TaskbarPerformanceSummaryMetricCount = Math.Clamp(
@@ -140,6 +156,9 @@ namespace TaskbarInfo
                         settings.TaskbarMonitorDeviceName);
                     settings.TaskbarTranslateButtonMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
                         settings.TaskbarTranslateButtonMonitorDeviceName,
+                        settings.TaskbarMonitorDeviceName);
+                    settings.TaskbarWaterReminderMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                        settings.TaskbarWaterReminderMonitorDeviceName,
                         settings.TaskbarMonitorDeviceName);
                     return settings;
                 }
@@ -179,6 +198,7 @@ namespace TaskbarInfo
             clone.TaskbarPerformanceMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceMetrics);
             clone.TaskbarPerformanceSummaryMetrics = new System.Collections.Generic.List<string>(TaskbarPerformanceSummaryMetrics);
             clone.QuickTranslateDomains = new System.Collections.Generic.List<string>(QuickTranslateDomains);
+            clone.WaterReminderDrinkHistory = new System.Collections.Generic.List<DateTime>(WaterReminderDrinkHistory);
             clone.TranslationProviders = TranslationProviders.Select(profile => new TranslationProviderProfile
             {
                 Id = profile.Id,

@@ -52,6 +52,7 @@ namespace TaskbarInfo
             ApplySettings();
             LockPositionMenuItem.IsChecked = _settings.FloatingLyricsLocked;
             this.Icon = App.GetAppIcon();
+            PopulateMonitorSelectionMenu();
             this.Loaded += FloatingLyricsWindow_Loaded;
             this.ContentRendered += FloatingLyricsWindow_ContentRendered;
         }
@@ -402,6 +403,13 @@ namespace TaskbarInfo
 
         private void ApplySavedPosition()
         {
+            // If a specific monitor is selected, position on that monitor
+            if (!string.IsNullOrEmpty(_settings.FloatingLyricsMonitorDeviceName))
+            {
+                MoveToMonitor(_settings.FloatingLyricsMonitorDeviceName);
+                return;
+            }
+
             if (_settings.FloatingLyricsLeft == null || _settings.FloatingLyricsTop == null) return;
 
             Left = Clamp(_settings.FloatingLyricsLeft.Value, SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - ActualWidth);
@@ -559,6 +567,107 @@ namespace TaskbarInfo
 
             FloatingPlayPauseButton.ToolTip = isPlaying ? "暂停" : "播放";
             FloatingPlayPauseIcon.Text = isPlaying ? "\uf04c" : "\uf04b";
+        }
+
+        private void PopulateMonitorSelectionMenu()
+        {
+            if (MonitorSelectionMenuItem == null) return;
+            
+            MonitorSelectionMenuItem.Items.Clear();
+            
+            // Get all screens
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            if (screens == null || screens.Length == 0) return;
+            
+            // Add "Auto" option (use current/default)
+            var autoItem = new MenuItem
+            {
+                Header = "自动 (主显示器)",
+                IsCheckable = true,
+                IsChecked = string.IsNullOrEmpty(_settings.FloatingLyricsMonitorDeviceName)
+            };
+            autoItem.Click += (s, e) => OnMonitorSelected("");
+            MonitorSelectionMenuItem.Items.Add(autoItem);
+            
+            // Add each screen as an option
+            for (int i = 0; i < screens.Length; i++)
+            {
+                var screen = screens[i];
+                var item = new MenuItem
+                {
+                    Header = $"{screen.DeviceName} ({screen.Bounds.Width}x{screen.Bounds.Height})" + (screen.Primary ? " [主]" : ""),
+                    IsCheckable = true,
+                    IsChecked = string.Equals(_settings.FloatingLyricsMonitorDeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase)
+                };
+                string deviceName = screen.DeviceName;
+                item.Click += (s, e) => OnMonitorSelected(deviceName);
+                MonitorSelectionMenuItem.Items.Add(item);
+            }
+        }
+
+        private void OnMonitorSelected(string deviceName)
+        {
+            _settings.FloatingLyricsMonitorDeviceName = deviceName;
+            _settings.Save();
+            
+            // Update check states
+            if (MonitorSelectionMenuItem != null)
+            {
+                foreach (MenuItem item in MonitorSelectionMenuItem.Items)
+                {
+                    if (item.Tag is string itemDeviceName)
+                    {
+                        item.IsChecked = string.Equals(itemDeviceName, deviceName, StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (item.Header is string header && header.StartsWith("自动"))
+                    {
+                        item.IsChecked = string.IsNullOrEmpty(deviceName);
+                    }
+                }
+            }
+            
+            // Move window to selected monitor
+            MoveToMonitor(deviceName);
+        }
+
+        private void MoveToMonitor(string deviceName)
+        {
+            try
+            {
+                var screens = System.Windows.Forms.Screen.AllScreens;
+                if (screens == null || screens.Length == 0) return;
+                
+                System.Windows.Forms.Screen targetScreen = null;
+                
+                if (string.IsNullOrEmpty(deviceName))
+                {
+                    // Use primary screen
+                    targetScreen = System.Windows.Forms.Screen.PrimaryScreen;
+                }
+                else
+                {
+                    targetScreen = screens.Cast<System.Windows.Forms.Screen>().FirstOrDefault(s => 
+                        string.Equals(s.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase));
+                }
+                
+                if (targetScreen == null) targetScreen = System.Windows.Forms.Screen.PrimaryScreen;
+                
+                var workArea = targetScreen.WorkingArea;
+                
+                // Calculate center position on target monitor
+                double centerX = workArea.Left + (workArea.Width - ActualWidth) / 2;
+                double centerY = workArea.Top + (workArea.Height - ActualHeight) / 2;
+                
+                // Clamp to ensure window is visible
+                Left = Math.Max(workArea.Left, Math.Min(centerX, workArea.Right - ActualWidth));
+                Top = Math.Max(workArea.Top, Math.Min(centerY, workArea.Bottom - ActualHeight));
+                
+                // Save position
+                _settings.FloatingLyricsLeft = Left;
+                _settings.FloatingLyricsTop = Top;
+                _settings.Save();
+            }
+            catch { }
         }
 
         private void CloseFloatingLyrics_Click(object sender, RoutedEventArgs e)

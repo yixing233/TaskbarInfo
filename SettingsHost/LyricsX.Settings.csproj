@@ -41,6 +41,7 @@
     <Compile Include="..\TranslationDomainCatalog.cs" Link="TranslationDomainCatalog.cs" />
     <Compile Include="..\TranslationProviderProfile.cs" Link="TranslationProviderProfile.cs" />
     <Compile Include="..\TranslationService.cs" Link="TranslationService.cs" />
+    <Compile Include="..\WaterReminderHistory.cs" Link="WaterReminderHistory.cs" />
     <Content Include="..\src\icons\LyricsX.ico" Link="Assets\LyricsX.ico" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />

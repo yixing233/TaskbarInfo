@@ -31,8 +31,11 @@
             <NavigationViewItem Content="性能监控" Tag="TaskbarPerformance">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Repair" /></NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="喝水助手" Tag="WaterReminder">
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Clock" /></NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="快捷翻译" Tag="QuickTranslate">
-                <NavigationViewItem.Icon><SymbolIcon Symbol="Globe" /></NavigationViewItem.Icon>
+                <NavigationViewItem.Icon><SymbolIcon Symbol="Character" /></NavigationViewItem.Icon>
             </NavigationViewItem>
         </NavigationView.MenuItems>
         <NavigationView.FooterMenuItems>

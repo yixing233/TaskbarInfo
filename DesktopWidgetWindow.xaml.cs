@@ -58,6 +58,7 @@ namespace TaskbarInfo
             LockPositionMenuItem.IsChecked = settings.DesktopWidgetLocked;
             ApplySettings(settings);
             ResetAlbumArt();
+            PopulateMonitorSelectionMenu();
             Loaded += DesktopWidgetWindow_Loaded;
             SizeChanged += (_, _) => ApplyRoundedWindowRegion();
             SubscribeDisplaySettings();
@@ -153,6 +154,12 @@ namespace TaskbarInfo
 
         private void DesktopWidgetWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            // If a specific monitor is selected, position on that monitor
+            if (!string.IsNullOrEmpty(_settings.DesktopWidgetMonitorDeviceName))
+            {
+                MoveToMonitor(_settings.DesktopWidgetMonitorDeviceName);
+                return;
+            }
             EnsureDesktopAttachment();
         }
 
@@ -362,6 +369,131 @@ namespace TaskbarInfo
 
         private void Settings_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
         private void Close_Click(object sender, RoutedEventArgs e) => CloseRequested?.Invoke();
+
+        private void PopulateMonitorSelectionMenu()
+        {
+            if (MonitorSelectionMenuItem == null) return;
+            
+            MonitorSelectionMenuItem.Items.Clear();
+            
+            // Get all screens
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            if (screens == null || screens.Length == 0) return;
+            
+            // Add "Auto" option (use current/default)
+            var autoItem = new MenuItem
+            {
+                Header = "自动 (主显示器)",
+                IsCheckable = true,
+                IsChecked = string.IsNullOrEmpty(_settings.DesktopWidgetMonitorDeviceName),
+                Style = (Style)FindResource("DesktopWidgetContextMenuItemStyle")
+            };
+            autoItem.Click += (s, e) => OnMonitorSelected("");
+            MonitorSelectionMenuItem.Items.Add(autoItem);
+            
+            // Add each screen as an option
+            for (int i = 0; i < screens.Length; i++)
+            {
+                var screen = screens[i];
+                var item = new MenuItem
+                {
+                    Header = $"{screen.DeviceName} ({screen.Bounds.Width}x{screen.Bounds.Height})" + (screen.Primary ? " [主]" : ""),
+                    IsCheckable = true,
+                    IsChecked = string.Equals(_settings.DesktopWidgetMonitorDeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase),
+                    Style = (Style)FindResource("DesktopWidgetContextMenuItemStyle")
+                };
+                string deviceName = screen.DeviceName;
+                item.Click += (s, e) => OnMonitorSelected(deviceName);
+                MonitorSelectionMenuItem.Items.Add(item);
+            }
+        }
+
+        private void OnMonitorSelected(string deviceName)
+        {
+            _settings.DesktopWidgetMonitorDeviceName = deviceName;
+            _settings.Save();
+            
+            // Update check states
+            if (MonitorSelectionMenuItem != null)
+            {
+                foreach (MenuItem item in MonitorSelectionMenuItem.Items)
+                {
+                    if (item.Header is string header && header.StartsWith("自动"))
+                    {
+                        item.IsChecked = string.IsNullOrEmpty(deviceName);
+                    }
+                    else if (item.Header is string hdr && hdr.StartsWith(deviceName))
+                    {
+                        item.IsChecked = true;
+                    }
+                    else
+                    {
+                        item.IsChecked = false;
+                    }
+                }
+            }
+            
+            // Move widget to selected monitor
+            MoveToMonitor(deviceName);
+        }
+
+        private void MoveToMonitor(string deviceName)
+        {
+            try
+            {
+                var screens = System.Windows.Forms.Screen.AllScreens;
+                if (screens == null || screens.Length == 0) return;
+                
+                System.Windows.Forms.Screen targetScreen = null;
+                
+                if (string.IsNullOrEmpty(deviceName))
+                {
+                    // Use primary screen
+                    targetScreen = System.Windows.Forms.Screen.PrimaryScreen;
+                }
+                else
+                {
+                    targetScreen = screens.Cast<System.Windows.Forms.Screen>().FirstOrDefault(s => 
+                        string.Equals(s.DeviceName, deviceName, StringComparison.OrdinalIgnoreCase));
+                }
+                
+                if (targetScreen == null) targetScreen = System.Windows.Forms.Screen.PrimaryScreen;
+                
+                var workArea = targetScreen.WorkingArea;
+                
+                // Calculate position - use saved offsets if available, otherwise center
+                double targetX, targetY;
+                
+                if (_settings.DesktopWidgetMonitorOffsetX.HasValue && _settings.DesktopWidgetMonitorOffsetY.HasValue)
+                {
+                    targetX = workArea.Left + _settings.DesktopWidgetMonitorOffsetX.Value;
+                    targetY = workArea.Top + _settings.DesktopWidgetMonitorOffsetY.Value;
+                }
+                else
+                {
+                    // Default to a reasonable position (top-right area)
+                    targetX = workArea.Right - 400;
+                    targetY = workArea.Top + 48;
+                }
+                
+                // Clamp to work area
+                targetX = Math.Max(workArea.Left, Math.Min(targetX, workArea.Right - ActualWidth));
+                targetY = Math.Max(workArea.Top, Math.Min(targetY, workArea.Bottom - ActualHeight));
+                
+                // Save position
+                _settings.DesktopWidgetLeft = targetX;
+                _settings.DesktopWidgetTop = targetY;
+                _settings.DesktopWidgetMonitorOffsetX = targetX - workArea.Left;
+                _settings.DesktopWidgetMonitorOffsetY = targetY - workArea.Top;
+                _settings.Save();
+                
+                // Move the widget
+                _settings.DesktopWidgetLeft = targetX;
+                _settings.DesktopWidgetTop = targetY;
+                MoveToSavedPosition(targetScreen, true, true);
+            }
+            catch { }
+        }
 
         private void WidgetRoot_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {

@@ -238,6 +238,16 @@
                         </MenuItem.Header>
                     </MenuItem>
                     <Separator/>
+                    <MenuItem x:Name="MonitorSelectionMenuItem" Header="显示屏选择">
+                        <MenuItem.Icon>
+                            <TextBlock Text="&#xf108;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/>
+                        </MenuItem.Icon>
+                        <MenuItem.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                            </ItemsPanelTemplate>
+                        </MenuItem.ItemsPanel>
+                    </MenuItem>
                     <MenuItem Header="锁定位置" IsCheckable="True" x:Name="LockPositionMenuItem" Click="LockPosition_Click">
                         <MenuItem.Icon>
                             <TextBlock Text="&#xf023;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 

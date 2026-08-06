@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Drawing.Text;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
@@ -53,6 +54,8 @@ public sealed partial class MainWindow : Window
     private bool _changedTaskbarLyricOffset;
     private bool _resetTaskbarPerformancePosition;
     private bool _resetTaskbarTranslateButtonPosition;
+    private bool _resetTaskbarWaterReminderPosition;
+    private ContentControl? _waterReminderStatisticsHost;
     private IntPtr _windowHandle;
     private bool _windowSizeSubclassInstalled;
 
@@ -339,6 +342,7 @@ public sealed partial class MainWindow : Window
             "Typography" => CreateTypographyPage(),
             "Visual" => CreateVisualPage(),
             "TaskbarPerformance" => CreateTaskbarPerformancePage(),
+            "WaterReminder" => CreateWaterReminderPage(),
             "QuickTranslate" => CreateQuickTranslatePage(),
             "Floating" => CreateFloatingPage(),
             "Applications" => CreateApplicationsPage(),
@@ -768,6 +772,319 @@ public sealed partial class MainWindow : Window
             QuickTranslateWindowMaterial.Solid => null,
             _ => new MicaBackdrop()
         };
+    }
+
+    private Page CreateWaterReminderPage()
+    {
+        var panel = NewPanel("喝水助手", "在任务栏显示今日饮水进度，并按设定节奏提醒。达到每日目标后，当天不再推送提醒。", titleFontSize: 24);
+        panel.AddRow(SectionHeader("任务栏组件"));
+        panel.AddRow(LabeledToggle(
+            "启用喝水助手",
+            _settings.EnableWaterReminder,
+            value => _settings.EnableWaterReminder = value));
+
+        var resetPosition = new Button
+        {
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Content = new SymbolIcon(Symbol.Refresh)
+        };
+        ToolTipService.SetToolTip(resetPosition, "恢复默认组件位置");
+        resetPosition.Click += (_, _) =>
+        {
+            _settings.TaskbarWaterReminderOffsetX = null;
+            _resetTaskbarWaterReminderPosition = true;
+        };
+
+        var displayEditor = new Grid { ColumnSpacing = 8 };
+        displayEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        displayEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var displaySelector = LabeledDisplaySelector(
+            _settings.TaskbarWaterReminderMonitorDeviceName,
+            value => _settings.TaskbarWaterReminderMonitorDeviceName = value);
+        Grid.SetColumn(displaySelector, 0);
+        Grid.SetColumn(resetPosition, 1);
+        displayEditor.Children.Add(displaySelector);
+        displayEditor.Children.Add(resetPosition);
+        panel.AddRow(displayEditor);
+
+        panel.AddRow(SectionHeader("提醒节奏"));
+        panel.AddRow(LabeledNumberBox(
+            "提醒间隔（分钟）",
+            _settings.WaterReminderIntervalMinutes,
+            15,
+            240,
+            value => _settings.WaterReminderIntervalMinutes = (int)value));
+        panel.AddRow(LabeledNumberBox(
+            "稍后提醒（分钟）",
+            _settings.WaterReminderSnoozeMinutes,
+            5,
+            60,
+            value => _settings.WaterReminderSnoozeMinutes = (int)value));
+        panel.AddRow(LabeledNumberBox(
+            "每日目标（次）",
+            _settings.WaterReminderDailyGoal,
+            1,
+            24,
+            value => _settings.WaterReminderDailyGoal = (int)value));
+
+        panel.AddRow(SectionHeader("静默时段"));
+        panel.AddRow(LabeledTimePicker(
+            "开始时间",
+            _settings.WaterReminderQuietStart,
+            value => _settings.WaterReminderQuietStart = value));
+        panel.AddRow(LabeledTimePicker(
+            "结束时间",
+            _settings.WaterReminderQuietEnd,
+            value => _settings.WaterReminderQuietEnd = value));
+        panel.AddRow(LabeledToggle(
+            "显示系统通知",
+            _settings.WaterReminderShowSystemNotification,
+            value => _settings.WaterReminderShowSystemNotification = value));
+        panel.AddRow(SectionHeader("饮水统计"));
+        _waterReminderStatisticsHost = new ContentControl
+        {
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = CreateWaterReminderStatistics()
+        };
+        panel.AddRow(_waterReminderStatisticsHost);
+        return Wrap(panel);
+    }
+
+    private FrameworkElement CreateWaterReminderStatistics()
+    {
+        DateTime now = DateTime.Now;
+        _settings.WaterReminderDrinkHistory = WaterReminderHistory.Normalize(
+            _settings.WaterReminderDrinkHistory,
+            now);
+        IReadOnlyList<WaterReminderDailyCount> dailyCounts = WaterReminderHistory.GetDailyCounts(
+            _settings.WaterReminderDrinkHistory,
+            now,
+            7);
+        IReadOnlyList<DateTime> todayEntries = _settings.WaterReminderDrinkHistory
+            .Where(timestamp => timestamp.Date == now.Date)
+            .OrderBy(timestamp => timestamp)
+            .ToList();
+        DateTime? latestEntry = _settings.WaterReminderDrinkHistory.Count == 0
+            ? null
+            : _settings.WaterReminderDrinkHistory[^1];
+
+        var root = new StackPanel { Spacing = 12 };
+        var summary = new Grid { ColumnSpacing = 8 };
+        summary.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        summary.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        summary.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        AddWaterReminderStatistic(summary, 0, "今日饮水", $"{_settings.WaterReminderCompletedToday} / {_settings.WaterReminderDailyGoal} 次");
+        AddWaterReminderStatistic(summary, 1, "近七日", $"{dailyCounts.Sum(item => item.Count)} 次");
+        AddWaterReminderStatistic(summary, 2, "最近一次", latestEntry?.ToString("HH:mm") ?? "暂无记录");
+        root.Children.Add(summary);
+
+        var trend = new Canvas
+        {
+            Height = 118,
+            MinHeight = 118,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        trend.SizeChanged += (_, _) => RenderWaterReminderTrend(trend, dailyCounts);
+        root.Children.Add(trend);
+        RenderWaterReminderTrend(trend, dailyCounts);
+
+        var times = new StackPanel { Spacing = 6 };
+        times.Children.Add(new TextBlock { Text = "今日记录", FontWeight = FontWeights.SemiBold, FontSize = 13 });
+        if (todayEntries.Count == 0)
+        {
+            times.Children.Add(new TextBlock { Text = "今天还没有饮水记录。", Opacity = 0.68 });
+        }
+        else
+        {
+            var timeList = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6
+            };
+            foreach (DateTime entry in todayEntries)
+            {
+                var recordItem = new Border
+                {
+                    Padding = new Thickness(8, 3, 6, 3),
+                    CornerRadius = new CornerRadius(4),
+                    Background = new SolidColorBrush(Windows.UI.Color.FromArgb(28, 127, 127, 127))
+                };
+                var recordContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2 };
+                recordContent.Children.Add(new TextBlock
+                {
+                    Text = entry.ToString("HH:mm"),
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                var removeButton = new Button
+                {
+                    Width = 16,
+                    Height = 16,
+                    Padding = new Thickness(0),
+                    Background = null,
+                    BorderBrush = null,
+                    BorderThickness = new Thickness(0),
+                    Content = new FontIcon
+                    {
+                        Glyph = "\uE74D",
+                        FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                        FontSize = 12
+                    }
+                };
+                ToolTipService.SetToolTip(removeButton, "删除此记录");
+                removeButton.Click += async (_, _) => await RemoveWaterReminderRecordAsync(entry, removeButton);
+                recordContent.Children.Add(removeButton);
+                recordItem.Child = recordContent;
+                timeList.Children.Add(recordItem);
+            }
+            times.Children.Add(new ScrollViewer
+            {
+                HorizontalScrollMode = ScrollMode.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollMode = ScrollMode.Disabled,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = timeList
+            });
+        }
+        root.Children.Add(times);
+        return root;
+    }
+
+    private async Task RemoveWaterReminderRecordAsync(DateTime entry, FrameworkElement source)
+    {
+        var confirmation = new ContentDialog
+        {
+            XamlRoot = source.XamlRoot,
+            Title = "删除饮水记录？",
+            Content = $"将删除 {entry:HH:mm} 的饮水记录，并同步今日进度。",
+            PrimaryButtonText = "删除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close
+        };
+        if (await confirmation.ShowAsync() != ContentDialogResult.Primary) return;
+
+        try
+        {
+            SettingsDocument currentSettings = SettingsDocument.Load(_settingsPath);
+            if (!WaterReminderHistory.Remove(currentSettings.WaterReminderDrinkHistory, entry)) return;
+
+            DateTime now = DateTime.Now;
+            if (entry.Date == now.Date && currentSettings.WaterReminderCompletedToday > 0)
+            {
+                currentSettings.WaterReminderCompletedToday--;
+            }
+            if (currentSettings.WaterReminderLastCompletedAt == entry)
+            {
+                DateTime? latestToday = currentSettings.WaterReminderDrinkHistory
+                    .Where(timestamp => timestamp.Date == now.Date)
+                    .Select(timestamp => (DateTime?)timestamp)
+                    .LastOrDefault();
+                currentSettings.WaterReminderLastCompletedAt = latestToday ?? now;
+            }
+
+            currentSettings.Save(_settingsPath);
+            _settings.WaterReminderDrinkHistory = currentSettings.WaterReminderDrinkHistory;
+            _settings.WaterReminderRecordDate = currentSettings.WaterReminderRecordDate;
+            _settings.WaterReminderCompletedToday = currentSettings.WaterReminderCompletedToday;
+            _settings.WaterReminderLastCompletedAt = currentSettings.WaterReminderLastCompletedAt;
+            _settings.WaterReminderSnoozedUntil = currentSettings.WaterReminderSnoozedUntil;
+            NotifySettingsApplied();
+            if (_waterReminderStatisticsHost is not null)
+            {
+                _waterReminderStatisticsHost.Content = CreateWaterReminderStatistics();
+            }
+        }
+        catch (Exception exception)
+        {
+            ErrorInfoBar.Severity = InfoBarSeverity.Error;
+            ErrorInfoBar.Message = "删除饮水记录失败: " + exception.Message;
+            ErrorInfoBar.IsOpen = true;
+        }
+    }
+
+    private static void AddWaterReminderStatistic(Grid host, int column, string label, string value)
+    {
+        var tile = new Border
+        {
+            Padding = new Thickness(10, 8, 10, 8),
+            CornerRadius = new CornerRadius(6),
+            Background = new SolidColorBrush(Windows.UI.Color.FromArgb(20, 127, 127, 127))
+        };
+        var content = new StackPanel { Spacing = 2 };
+        content.Children.Add(new TextBlock { Text = label, FontSize = 12, Opacity = 0.68 });
+        content.Children.Add(new TextBlock { Text = value, FontSize = 16, FontWeight = FontWeights.SemiBold });
+        tile.Child = content;
+        Grid.SetColumn(tile, column);
+        host.Children.Add(tile);
+    }
+
+    private static void RenderWaterReminderTrend(
+        Canvas chart,
+        IReadOnlyList<WaterReminderDailyCount> dailyCounts)
+    {
+        if (chart.ActualWidth <= 1 || dailyCounts.Count == 0) return;
+
+        chart.Children.Clear();
+        const double leftPadding = 10;
+        const double rightPadding = 10;
+        const double topPadding = 10;
+        const double bottomPadding = 25;
+        double plotWidth = Math.Max(1, chart.ActualWidth - leftPadding - rightPadding);
+        double plotHeight = Math.Max(1, chart.Height - topPadding - bottomPadding);
+        int maximum = Math.Max(1, dailyCounts.Max(item => item.Count));
+        var gridBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(50, 127, 127, 127));
+        var accentBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 53, 127, 216));
+
+        for (int step = 0; step < 3; step++)
+        {
+            double y = topPadding + plotHeight * step / 2d;
+            chart.Children.Add(new Microsoft.UI.Xaml.Shapes.Line
+            {
+                X1 = leftPadding,
+                X2 = leftPadding + plotWidth,
+                Y1 = y,
+                Y2 = y,
+                Stroke = gridBrush,
+                StrokeThickness = 1
+            });
+        }
+
+        var line = new Microsoft.UI.Xaml.Shapes.Polyline
+        {
+            Stroke = accentBrush,
+            StrokeThickness = 2,
+            StrokeLineJoin = Microsoft.UI.Xaml.Media.PenLineJoin.Round
+        };
+        double denominator = Math.Max(1, dailyCounts.Count - 1);
+        for (int index = 0; index < dailyCounts.Count; index++)
+        {
+            WaterReminderDailyCount item = dailyCounts[index];
+            double x = leftPadding + plotWidth * index / denominator;
+            double y = topPadding + plotHeight * (1 - item.Count / (double)maximum);
+            line.Points.Add(new Windows.Foundation.Point(x, y));
+
+            var dot = new Microsoft.UI.Xaml.Shapes.Ellipse
+            {
+                Width = 6,
+                Height = 6,
+                Fill = accentBrush
+            };
+            ToolTipService.SetToolTip(dot, $"{item.Date:M/d}  {item.Count} 次");
+            Canvas.SetLeft(dot, x - 3);
+            Canvas.SetTop(dot, y - 3);
+            chart.Children.Add(dot);
+
+            var label = new TextBlock { Text = item.Date.ToString("M/d"), FontSize = 10, Opacity = 0.62 };
+            label.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            Canvas.SetLeft(label, x - label.DesiredSize.Width / 2);
+            Canvas.SetTop(label, topPadding + plotHeight + 6);
+            chart.Children.Add(label);
+        }
+        chart.Children.Add(line);
     }
 
     private void ApplyApplicationTheme()
@@ -1826,6 +2143,26 @@ public sealed partial class MainWindow : Window
         return Field(label, box, description);
     }
 
+    private static FrameworkElement LabeledTimePicker(string label, string initial, Action<string> update)
+    {
+        TimeSpan initialTime = TimeSpan.TryParseExact(
+            initial,
+            "hh\\:mm",
+            CultureInfo.InvariantCulture,
+            out TimeSpan parsedTime)
+            ? parsedTime
+            : TimeSpan.Zero;
+        var picker = new TimePicker
+        {
+            Time = initialTime,
+            ClockIdentifier = "24HourClock",
+            MinuteIncrement = 5,
+            MinWidth = 180
+        };
+        picker.TimeChanged += (_, args) => update(args.NewTime.ToString("hh\\:mm", CultureInfo.InvariantCulture));
+        return Field(label, picker, null);
+    }
+
     private static FrameworkElement LabeledColorPicker(string label, string initial, Action<string> update)
     {
         const double SpectrumWidth = 280;
@@ -2245,6 +2582,7 @@ public sealed partial class MainWindow : Window
             _changedTaskbarLyricOffset = false;
             _resetTaskbarPerformancePosition = false;
             _resetTaskbarTranslateButtonPosition = false;
+            _resetTaskbarWaterReminderPosition = false;
             NotifySettingsApplied();
             ErrorInfoBar.Severity = InfoBarSeverity.Success;
             ErrorInfoBar.Message = "设置已应用。";
@@ -2294,6 +2632,17 @@ public sealed partial class MainWindow : Window
         {
             _settings.TaskbarTranslateButtonOffsetX = currentSettings.TaskbarTranslateButtonOffsetX;
         }
+
+        if (!_resetTaskbarWaterReminderPosition)
+        {
+            _settings.TaskbarWaterReminderOffsetX = currentSettings.TaskbarWaterReminderOffsetX;
+        }
+
+        _settings.WaterReminderDrinkHistory = currentSettings.WaterReminderDrinkHistory;
+        _settings.WaterReminderRecordDate = currentSettings.WaterReminderRecordDate;
+        _settings.WaterReminderCompletedToday = currentSettings.WaterReminderCompletedToday;
+        _settings.WaterReminderLastCompletedAt = currentSettings.WaterReminderLastCompletedAt;
+        _settings.WaterReminderSnoozedUntil = currentSettings.WaterReminderSnoozedUntil;
     }
 
     private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
@@ -2445,6 +2794,7 @@ public sealed partial class MainWindow : Window
         "5" => "About",
         "6" => "QuickTranslate",
         "7" => "TaskbarPerformance",
+        "8" => "WaterReminder",
         _ => null
     };
 
@@ -2495,6 +2845,18 @@ public sealed class SettingsDocument
     public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
     public string QuickTranslateWindowMaterial { get; set; } = "Mica";
     public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
+    public bool EnableWaterReminder { get; set; }
+    public int WaterReminderIntervalMinutes { get; set; } = 45;
+    public int WaterReminderSnoozeMinutes { get; set; } = 10;
+    public int WaterReminderDailyGoal { get; set; } = 8;
+    public bool WaterReminderShowSystemNotification { get; set; } = true;
+    public string WaterReminderQuietStart { get; set; } = "22:00";
+    public string WaterReminderQuietEnd { get; set; } = "07:00";
+    public string WaterReminderRecordDate { get; set; } = "";
+    public int WaterReminderCompletedToday { get; set; }
+    public List<DateTime> WaterReminderDrinkHistory { get; set; } = [];
+    public DateTime? WaterReminderLastCompletedAt { get; set; }
+    public DateTime? WaterReminderSnoozedUntil { get; set; }
     public string SettingsWindowMaterial { get; set; } = "Mica";
     public string ApplicationTheme { get; set; } = "System";
     public bool EnableTaskbarPerformanceMonitor { get; set; }
@@ -2519,9 +2881,11 @@ public sealed class SettingsDocument
     public int? TaskbarPerformanceOffsetX { get; set; }
     public bool EnableTaskbarTranslateButton { get; set; } = true;
     public int? TaskbarTranslateButtonOffsetX { get; set; }
+    public int? TaskbarWaterReminderOffsetX { get; set; }
     public string TaskbarMonitorDeviceName { get; set; } = "";
     public string TaskbarPerformanceMonitorDeviceName { get; set; } = "";
     public string TaskbarTranslateButtonMonitorDeviceName { get; set; } = "";
+    public string TaskbarWaterReminderMonitorDeviceName { get; set; } = "";
     public bool IsDoubleLine { get; set; } = true;
     public double LyricOffsetSeconds { get; set; }
     public List<string> IncludedAppIds { get; set; } = [];
@@ -2579,6 +2943,7 @@ public sealed class SettingsDocument
                 settings.SelectedQuickTranslateDomain);
             settings.QuickTranslateTargetLanguage = QuickTranslateTargetLanguages.Normalize(
                 settings.QuickTranslateTargetLanguage);
+            settings.NormalizeWaterReminder(DateTime.Now);
             settings.IncludedAppIds ??= [];
             settings.TaskbarPerformanceMetrics ??= TaskbarPerformanceMetricCatalog.DefaultSelection.ToList();
             settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(settings.TaskbarPerformanceMetrics);
@@ -2605,6 +2970,9 @@ public sealed class SettingsDocument
             settings.TaskbarTranslateButtonMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
                 settings.TaskbarTranslateButtonMonitorDeviceName,
                 settings.TaskbarMonitorDeviceName);
+            settings.TaskbarWaterReminderMonitorDeviceName = TaskbarComponentMonitorSelection.Resolve(
+                settings.TaskbarWaterReminderMonitorDeviceName,
+                settings.TaskbarMonitorDeviceName);
             return settings;
         }
         catch
@@ -2619,4 +2987,33 @@ public sealed class SettingsDocument
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
         File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
     }
+
+    private void NormalizeWaterReminder(DateTime now)
+    {
+        WaterReminderDrinkHistory = WaterReminderHistory.Normalize(WaterReminderDrinkHistory, now);
+        WaterReminderIntervalMinutes = Math.Clamp(WaterReminderIntervalMinutes, 15, 240);
+        WaterReminderSnoozeMinutes = Math.Clamp(WaterReminderSnoozeMinutes, 5, 60);
+        WaterReminderDailyGoal = Math.Clamp(WaterReminderDailyGoal, 1, 24);
+        WaterReminderQuietStart = NormalizeWaterReminderTime(WaterReminderQuietStart, "22:00");
+        WaterReminderQuietEnd = NormalizeWaterReminderTime(WaterReminderQuietEnd, "07:00");
+
+        string today = now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (!string.Equals(WaterReminderRecordDate, today, StringComparison.Ordinal))
+        {
+            WaterReminderRecordDate = today;
+            WaterReminderCompletedToday = 0;
+        }
+
+        WaterReminderCompletedToday = Math.Max(0, WaterReminderCompletedToday);
+        if (WaterReminderSnoozedUntil <= now)
+        {
+            WaterReminderSnoozedUntil = null;
+        }
+    }
+
+    private static string NormalizeWaterReminderTime(string? value, string fallback) =>
+        TimeSpan.TryParseExact(value, "hh\\:mm", CultureInfo.InvariantCulture, out TimeSpan time) &&
+        time >= TimeSpan.Zero && time < TimeSpan.FromDays(1)
+            ? time.ToString("hh\\:mm", CultureInfo.InvariantCulture)
+            : fallback;
 }
