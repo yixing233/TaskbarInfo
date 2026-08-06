@@ -85,10 +85,77 @@ public partial class WaterReminderPopupWindow : Window, IDisposable
         Point anchorOrigin = anchor.PointToScreen(new Point(0, 0));
         double scale = Math.Max(UnmanagedMethods.GetDpiForWindow(handle), 96) / 96d;
         double anchorWidth = anchor.ActualWidth * anchorDpi.DpiScaleX;
+        double anchorHeight = anchor.ActualHeight * anchorDpi.DpiScaleY;
         double popupWidth = ActualWidth * scale;
         double popupHeight = ActualHeight * scale;
-        int left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
-        int top = (int)Math.Round(anchorOrigin.Y - popupHeight - SpacingAboveTaskbar * scale);
+
+        // Get monitor info for the anchor window to determine work area and taskbar position
+        UnmanagedMethods.POINT anchorPt = new()
+        {
+            X = (int)Math.Round(anchorOrigin.X + anchorWidth / 2),
+            Y = (int)Math.Round(anchorOrigin.Y + anchorHeight / 2)
+        };
+        IntPtr monitor = UnmanagedMethods.MonitorFromPoint(anchorPt, UnmanagedMethods.MONITOR_DEFAULTTONEAREST);
+        
+        UnmanagedMethods.MONITORINFO mi = new() { cbSize = (uint)Marshal.SizeOf<UnmanagedMethods.MONITORINFO>() };
+        bool hasMonitorInfo = monitor != IntPtr.Zero && UnmanagedMethods.GetMonitorInfo(monitor, ref mi);
+
+        int workLeft = hasMonitorInfo ? mi.rcWork.Left : 0;
+        int workRight = hasMonitorInfo ? mi.rcWork.Right : int.MaxValue;
+        int workTop = hasMonitorInfo ? mi.rcWork.Top : 0;
+        int workBottom = hasMonitorInfo ? mi.rcWork.Bottom : int.MaxValue;
+        int monitorLeft = hasMonitorInfo ? mi.rcMonitor.Left : 0;
+        int monitorRight = hasMonitorInfo ? mi.rcMonitor.Right : int.MaxValue;
+        int monitorTop = hasMonitorInfo ? mi.rcMonitor.Top : 0;
+        int monitorBottom = hasMonitorInfo ? mi.rcMonitor.Bottom : int.MaxValue;
+
+        // Determine if taskbar is at top or bottom by comparing anchor position to work area
+        bool isTopTaskbar = hasMonitorInfo && anchorOrigin.Y <= workTop + anchorHeight;
+        bool isLeftTaskbar = hasMonitorInfo && anchorOrigin.X <= workLeft + anchorWidth;
+
+        int left;
+        int top;
+
+        if (isLeftTaskbar || isTopTaskbar)
+        {
+            // For vertical taskbars on left, or horizontal taskbars at top, show to the right/below
+            if (isLeftTaskbar)
+            {
+                left = (int)Math.Round(anchorOrigin.X + anchorWidth + SpacingAboveTaskbar * scale);
+                top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
+            }
+            else // isTopTaskbar
+            {
+                left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
+                top = (int)Math.Round(anchorOrigin.Y + anchorHeight + SpacingAboveTaskbar * scale);
+            }
+        }
+        else
+        {
+            // Default: show above (for bottom taskbar) or to the left (for right taskbar)
+            if (hasMonitorInfo && anchorOrigin.X + anchorWidth >= workRight - 1)
+            {
+                // Right-side vertical taskbar
+                left = (int)Math.Round(anchorOrigin.X - popupWidth - SpacingAboveTaskbar * scale);
+                top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
+            }
+            else
+            {
+                // Bottom taskbar (default)
+                left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
+                top = (int)Math.Round(anchorOrigin.Y - popupHeight - SpacingAboveTaskbar * scale);
+            }
+        }
+
+        // Clamp to work area
+        int popupWidthInt = (int)Math.Round(popupWidth);
+        int popupHeightInt = (int)Math.Round(popupHeight);
+
+        if (left + popupWidthInt > workRight) left = workRight - popupWidthInt;
+        if (left < workLeft) left = workLeft;
+        if (top < workTop) top = workTop;
+        if (top + popupHeightInt > workBottom) top = workBottom - popupHeightInt;
+
         UnmanagedMethods.SetWindowPos(
             handle,
             HwndTopmost,

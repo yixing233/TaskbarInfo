@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace TaskbarInfo
 {
@@ -124,6 +125,19 @@ namespace TaskbarInfo
         [DllImport("user32.dll")]
         public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct MONITORINFO
+        {
+            public uint cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
         [DllImport("shcore.dll")]
         public static extern int GetDpiForMonitor(
             IntPtr hmonitor,
@@ -131,7 +145,7 @@ namespace TaskbarInfo
             out uint dpiX,
             out uint dpiY);
 
-        [DllImport("user32.dll")]
+        [DllImport("user32.dll", SetLastError = true)]
         public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
         [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
@@ -160,7 +174,7 @@ namespace TaskbarInfo
 
         public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
-        [DllImport("user32.dll", SetLastError = true)]
+        [DllImport("user32.dll")]
         public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
         [DllImport("user32.dll")]
@@ -172,7 +186,7 @@ namespace TaskbarInfo
         public static extern bool IsWindow(IntPtr hWnd);
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        public static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+        public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern IntPtr SendMessageTimeout(
@@ -185,7 +199,7 @@ namespace TaskbarInfo
             out UIntPtr lpdwResult);
         
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern int GetWindowTextLength(IntPtr hWnd);
