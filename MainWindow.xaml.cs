@@ -1060,6 +1060,19 @@ namespace TaskbarInfo
             InjectIntoTaskbar();
         }
 
+        private void NotifySettingsApplied()
+        {
+            try
+            {
+                using var settingsApplied = EventWaitHandle.OpenExisting(SharedSettingsAppliedEventName);
+                settingsApplied.Set();
+            }
+            catch
+            {
+                // Main window may have exited.
+            }
+        }
+
         private void ApplyApplicationTheme()
         {
             WpfThemeService.Apply(
@@ -1228,6 +1241,11 @@ namespace TaskbarInfo
             _taskbarWaterReminderWindow.Update(status);
             _waterReminderPopup?.ApplyTheme(ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
             bool shouldNotify = status.IsDue && !_waterReminderWasDue;
+            if (shouldNotify && _settings.WaterReminderHideInFullscreen && IsFullscreenAppRunning())
+            {
+                // Defer while a fullscreen app is active; retried on the next tick.
+                return;
+            }
             _waterReminderWasDue = status.IsDue;
             if (!shouldNotify) return;
 
@@ -1255,6 +1273,62 @@ namespace TaskbarInfo
 
             _waterReminderPopup.ApplyTheme(ApplicationThemeParser.Resolve(_settings.ApplicationTheme));
             _waterReminderPopup.ShowAbove(_taskbarWaterReminderWindow, status);
+        }
+
+        private bool IsFullscreenAppRunning()
+        {
+            IntPtr foreground = UnmanagedMethods.GetForegroundWindow();
+            if (foreground == IntPtr.Zero) return false;
+
+            // The desktop icon list (SysListView32) and taskbar buttons are child windows of
+            // Progman/WorkerW/Shell_TrayWnd. Resolve to the top-level window first so that
+            // focusing the desktop is not mistaken for a fullscreen app.
+            IntPtr root = UnmanagedMethods.GetAncestor(foreground, UnmanagedMethods.GA_ROOT);
+            if (root == IntPtr.Zero) root = foreground;
+
+            UnmanagedMethods.GetWindowThreadProcessId(root, out uint processId);
+            if (processId == Environment.ProcessId) return false;
+
+            IntPtr desktopWindow = UnmanagedMethods.GetDesktopWindow();
+            IntPtr shellWindow = UnmanagedMethods.GetShellWindow();
+            if (root == desktopWindow || root == shellWindow) return false;
+
+            System.Text.StringBuilder className = new(256);
+            if (UnmanagedMethods.GetClassName(root, className, className.Capacity) > 0)
+            {
+                string name = className.ToString();
+                if (name == "Progman" || name == "WorkerW" || name == "Shell_TrayWnd" || name == "Shell_SecondaryTrayWnd")
+                {
+                    return false;
+                }
+            }
+
+            if (!UnmanagedMethods.IsWindowVisible(root)) return false;
+            if (UnmanagedMethods.IsIconic(root)) return false;
+            if (!UnmanagedMethods.GetWindowRect(root, out UnmanagedMethods.RECT windowRect)) return false;
+
+            int width = windowRect.Right - windowRect.Left;
+            int height = windowRect.Bottom - windowRect.Top;
+            if (width <= 0 || height <= 0) return false;
+
+            // Use the monitor that contains the foreground window.
+            UnmanagedMethods.POINT center = new()
+            {
+                X = windowRect.Left + width / 2,
+                Y = windowRect.Top + height / 2
+            };
+            IntPtr monitor = UnmanagedMethods.MonitorFromPoint(center, UnmanagedMethods.MONITOR_DEFAULTTONEAREST);
+            if (monitor == IntPtr.Zero) return false;
+
+            UnmanagedMethods.MONITORINFO mi = new() { cbSize = (uint)Marshal.SizeOf<UnmanagedMethods.MONITORINFO>() };
+            if (!UnmanagedMethods.GetMonitorInfo(monitor, ref mi)) return false;
+
+            // Fullscreen: the window covers the entire monitor, including the taskbar area.
+            const int tolerance = 2;
+            return windowRect.Left <= mi.rcMonitor.Left + tolerance &&
+                   windowRect.Top <= mi.rcMonitor.Top + tolerance &&
+                   windowRect.Right >= mi.rcMonitor.Right - tolerance &&
+                   windowRect.Bottom >= mi.rcMonitor.Bottom - tolerance;
         }
 
         private void RecordWaterDrink()

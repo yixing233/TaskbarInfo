@@ -29,7 +29,7 @@ TaskbarInfo 是一款 Windows 桌面音乐歌词工具，用于在任务栏、�
 - .NET 9 Desktop Runtime（x64）。
 - Windows App Runtime 1.8（x64）。
 
-安装程序会在缺少运行依赖时提供官方下载入口。
+安装程序会在缺少运行依赖时自动下载并静默安装；若自动安装失败，会提供微软官方下载入口。
 
 ## 技术栈
 

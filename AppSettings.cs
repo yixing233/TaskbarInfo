@@ -26,6 +26,7 @@ namespace TaskbarInfo
         public int WaterReminderSnoozeMinutes { get; set; } = 10;
         public int WaterReminderDailyGoal { get; set; } = 8;
         public bool WaterReminderShowSystemNotification { get; set; } = true;
+        public bool WaterReminderHideInFullscreen { get; set; } = true;
         public string WaterReminderQuietStart { get; set; } = "22:00";
         public string WaterReminderQuietEnd { get; set; } = "07:00";
         public string WaterReminderRecordDate { get; set; } = "";
@@ -276,3 +277,4 @@ namespace TaskbarInfo
             StringComparison.OrdinalIgnoreCase);
     }
 }
+

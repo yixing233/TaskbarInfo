@@ -58,6 +58,17 @@ decompiler/
 docs/superpowers/plans/
 参考代码-来自windhawk.txt
 
+# Local patch/test scripts and backups
+fix_*.py
+add_*.py
+add_*.ps1
+find_*.py
+check_*.py
+replace_*.ps1
+test_*.py
+r.py
+*.bak
+
 # OS-generated files
 Thumbs.db
 Desktop.ini

@@ -843,6 +843,10 @@ public sealed partial class MainWindow : Window
             "显示系统通知",
             _settings.WaterReminderShowSystemNotification,
             value => _settings.WaterReminderShowSystemNotification = value));
+        panel.AddRow(LabeledToggle(
+            "全屏时隐藏提醒",
+            _settings.WaterReminderHideInFullscreen,
+            value => _settings.WaterReminderHideInFullscreen = value));
         panel.AddRow(SectionHeader("饮水统计"));
         _waterReminderStatisticsHost = new ContentControl
         {
@@ -2850,6 +2854,7 @@ public sealed class SettingsDocument
     public int WaterReminderSnoozeMinutes { get; set; } = 10;
     public int WaterReminderDailyGoal { get; set; } = 8;
     public bool WaterReminderShowSystemNotification { get; set; } = true;
+    public bool WaterReminderHideInFullscreen { get; set; } = true;
     public string WaterReminderQuietStart { get; set; } = "22:00";
     public string WaterReminderQuietEnd { get; set; } = "07:00";
     public string WaterReminderRecordDate { get; set; } = "";

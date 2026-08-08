@@ -31,7 +31,6 @@ public partial class WaterReminderPopupWindow : Window, IDisposable
         });
         SourceInitialized += (_, _) => ApplyAcrylicBackdrop();
         ContentRendered += (_, _) => ApplyAcrylicBackdrop();
-        Deactivated += (_, _) => Hide();
     }
 
     public void ApplyTheme(ResolvedApplicationTheme theme)
@@ -104,47 +103,36 @@ public partial class WaterReminderPopupWindow : Window, IDisposable
         int workRight = hasMonitorInfo ? mi.rcWork.Right : int.MaxValue;
         int workTop = hasMonitorInfo ? mi.rcWork.Top : 0;
         int workBottom = hasMonitorInfo ? mi.rcWork.Bottom : int.MaxValue;
-        int monitorLeft = hasMonitorInfo ? mi.rcMonitor.Left : 0;
-        int monitorRight = hasMonitorInfo ? mi.rcMonitor.Right : int.MaxValue;
-        int monitorTop = hasMonitorInfo ? mi.rcMonitor.Top : 0;
-        int monitorBottom = hasMonitorInfo ? mi.rcMonitor.Bottom : int.MaxValue;
 
-        // Determine if taskbar is at top or bottom by comparing anchor position to work area
-        bool isTopTaskbar = hasMonitorInfo && anchorOrigin.Y <= workTop + anchorHeight;
-        bool isLeftTaskbar = hasMonitorInfo && anchorOrigin.X <= workLeft + anchorWidth;
+        // Detect the taskbar edge from the gap between monitor bounds and work area,
+        // not from where the anchor happens to sit along the taskbar.
+        bool isTopTaskbar = hasMonitorInfo && mi.rcWork.Top > mi.rcMonitor.Top;
+        bool isLeftTaskbar = hasMonitorInfo && mi.rcWork.Left > mi.rcMonitor.Left;
+        bool isRightTaskbar = hasMonitorInfo && mi.rcWork.Right < mi.rcMonitor.Right;
 
         int left;
         int top;
 
-        if (isLeftTaskbar || isTopTaskbar)
+        if (isLeftTaskbar)
         {
-            // For vertical taskbars on left, or horizontal taskbars at top, show to the right/below
-            if (isLeftTaskbar)
-            {
-                left = (int)Math.Round(anchorOrigin.X + anchorWidth + SpacingAboveTaskbar * scale);
-                top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
-            }
-            else // isTopTaskbar
-            {
-                left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
-                top = (int)Math.Round(anchorOrigin.Y + anchorHeight + SpacingAboveTaskbar * scale);
-            }
+            left = (int)Math.Round(anchorOrigin.X + anchorWidth + SpacingAboveTaskbar * scale);
+            top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
+        }
+        else if (isRightTaskbar)
+        {
+            left = (int)Math.Round(anchorOrigin.X - popupWidth - SpacingAboveTaskbar * scale);
+            top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
+        }
+        else if (isTopTaskbar)
+        {
+            left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
+            top = (int)Math.Round(anchorOrigin.Y + anchorHeight + SpacingAboveTaskbar * scale);
         }
         else
         {
-            // Default: show above (for bottom taskbar) or to the left (for right taskbar)
-            if (hasMonitorInfo && anchorOrigin.X + anchorWidth >= workRight - 1)
-            {
-                // Right-side vertical taskbar
-                left = (int)Math.Round(anchorOrigin.X - popupWidth - SpacingAboveTaskbar * scale);
-                top = (int)Math.Round(anchorOrigin.Y + (anchorHeight - popupHeight) / 2);
-            }
-            else
-            {
-                // Bottom taskbar (default)
-                left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
-                top = (int)Math.Round(anchorOrigin.Y - popupHeight - SpacingAboveTaskbar * scale);
-            }
+            // Bottom taskbar (default)
+            left = (int)Math.Round(anchorOrigin.X + (anchorWidth - popupWidth) / 2);
+            top = (int)Math.Round(anchorOrigin.Y - popupHeight - SpacingAboveTaskbar * scale);
         }
 
         // Clamp to work area

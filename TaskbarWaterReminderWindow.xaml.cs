@@ -62,7 +62,9 @@ public partial class TaskbarWaterReminderWindow : Window, IDisposable
 
         ReminderText.Text = "已记录";
         ReminderButton.ToolTip = "饮水记录已保存";
-        ReminderSurface.Background = new SolidColorBrush(MediaColor.FromArgb(125, 48, 150, 92));
+        ReminderSurface.Background = new SolidColorBrush(MediaColor.FromArgb(200, 34, 197, 94));
+        ReminderIcon.Text = "\uf00c";  // Checkmark icon
+        ReminderIcon.FontSize = 14;
         if (_feedbackTimer == null)
         {
             _feedbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -90,6 +92,8 @@ public partial class TaskbarWaterReminderWindow : Window, IDisposable
         ReminderSurface.Background = status.IsDue
             ? new SolidColorBrush(MediaColor.FromArgb(115, 57, 130, 207))
             : new SolidColorBrush(MediaColor.FromArgb(51, 0, 0, 0));
+        ReminderIcon.Text = "\uf043";  // Reset to water drop icon
+        ReminderIcon.FontSize = 12;
     }
 
     public void Dispose()
@@ -225,3 +229,4 @@ public partial class TaskbarWaterReminderWindow : Window, IDisposable
         UnmanagedMethods.SetWindowLong(handle, UnmanagedMethods.GWL_EXSTYLE, extendedStyle);
     }
 }
+
