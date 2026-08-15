@@ -68,11 +68,11 @@ public sealed class TaskbarTemperatureReader : IDisposable
 
         TaskbarTemperatureSnapshot enhanced = _helperClient.Read(_enhanced);
         TaskbarTemperatureSnapshot hardwareMonitor = ReadLibreHardwareMonitor();
-        if (hardwareMonitor.DiskTemperatureCelsius.HasValue) return hardwareMonitor;
+        TaskbarTemperatureSnapshot merged = TaskbarTemperatureSnapshot.Merge(enhanced, hardwareMonitor);
+        if (merged.DiskTemperatureCelsius.HasValue) return merged;
 
         return TaskbarTemperatureSnapshot.Merge(
-            enhanced, hardwareMonitor,
-            new TaskbarTemperatureSnapshot(null, null, _storageReader.Read()));
+            merged, new TaskbarTemperatureSnapshot(null, null, _storageReader.Read()));
     }
     public void SetEnhancedMode(bool enabled) => _enhanced = enabled;
 

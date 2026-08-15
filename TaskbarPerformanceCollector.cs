@@ -28,12 +28,15 @@ public sealed class TaskbarPerformanceCollector : IDisposable
     private int _networkInterfacesDirty = 1;
     private TaskbarTemperatureSnapshot _temperatureSnapshot = TaskbarTemperatureSnapshot.Empty;
     private DateTime _nextTemperatureRefresh;
+    private string[]? _cpuDeviceNames;
     private IntPtr _pdhQuery;
     private IntPtr _gpuUsageCounter;
     private IntPtr _gpuDedicatedMemoryCounter;
     private IntPtr _cpuFrequencyCounter;
     private IntPtr _diskReadCounter;
     private IntPtr _diskWriteCounter;
+    private IntPtr _networkDownloadCounter;
+    private IntPtr _networkUploadCounter;
     private bool _pdhPrimed;
 
     public event EventHandler<TaskbarPerformanceSnapshot>? SnapshotUpdated;
@@ -93,6 +96,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             RemovePdhCounter(ref _cpuFrequencyCounter);
             RemovePdhCounter(ref _diskReadCounter);
             RemovePdhCounter(ref _diskWriteCounter);
+            RemovePdhCounter(ref _networkDownloadCounter);
+            RemovePdhCounter(ref _networkUploadCounter);
 
             if (_pdhQuery != IntPtr.Zero)
             {
@@ -127,6 +132,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         (double? memory, double? memoryUsed, double? memoryTotal) = ReadMemory();
         PdhSnapshot pdh = ReadPdhSnapshot();
         (double download, double upload) = ReadNetworkRates();
+        download = pdh.DownloadBytesPerSecond ?? download;
+        upload = pdh.UploadBytesPerSecond ?? upload;
         TaskbarTemperatureSnapshot temperatures = ReadTemperatures();
         return new TaskbarPerformanceSnapshot(
             cpu,
@@ -144,7 +151,26 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             pdh.DiskReadBytesPerSecond,
             pdh.DiskWriteBytesPerSecond,
             temperatures.GpuDeviceNames,
-            temperatures.DiskDeviceNames);
+            temperatures.DiskDeviceNames,
+            _cpuDeviceNames ??= ReadCpuDeviceNames());
+    }
+
+    private static string[]? ReadCpuDeviceNames()
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+
+        try
+        {
+            using Microsoft.Win32.RegistryKey? key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+            string? name = key?.GetValue("ProcessorNameString") as string;
+            string? shortName = TaskbarPerformanceDeviceSummary.ShortenCpuModelName(name);
+            return shortName is null ? null : [shortName];
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private TaskbarTemperatureSnapshot ReadTemperatures()
@@ -206,7 +232,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             foreach (NetworkInterface networkInterface in GetNetworkInterfaces())
             {
                 if (networkInterface.OperationalStatus != OperationalStatus.Up ||
-                    networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    networkInterface.NetworkInterfaceType is NetworkInterfaceType.Loopback or
+                        NetworkInterfaceType.Tunnel or NetworkInterfaceType.Ppp)
                 {
                     continue;
                 }
@@ -298,10 +325,42 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             ReadPdhCounterArrayTotal(_gpuDedicatedMemoryCounter),
             ReadPdhCounterValue(_cpuFrequencyCounter),
             ReadPdhCounterValue(_diskReadCounter),
-            ReadPdhCounterValue(_diskWriteCounter));
+            ReadPdhCounterValue(_diskWriteCounter),
+            ReadPdhNetworkRate(_networkDownloadCounter),
+            ReadPdhNetworkRate(_networkUploadCounter));
     }
 
-    private static double? ReadPdhCounterArrayTotal(IntPtr counter)
+    private static double? ReadPdhCounterArrayTotal(IntPtr counter) =>
+        ReadPdhCounterArray(counter, static _ => true);
+
+    private static double? ReadPdhNetworkRate(IntPtr counter) =>
+        ReadPdhCounterArray(counter, IsPhysicalNetworkInstance);
+
+    private static bool IsPhysicalNetworkInstance(string instanceName)
+    {
+        if (string.IsNullOrWhiteSpace(instanceName)) return false;
+
+        return !instanceName.Contains("pseudo", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("teredo", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("isatap", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("vethernet", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("loopback", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("bluetooth", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("virtual", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("hyper-v", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("docker", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("vmware", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("tap", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("tun", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("ppp", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("vpn", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("wireguard", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("zerotier", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("tailscale", StringComparison.OrdinalIgnoreCase) &&
+               !instanceName.Contains("hamachi", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static double? ReadPdhCounterArray(IntPtr counter, Func<string, bool> includeInstance)
     {
         if (counter == IntPtr.Zero) return null;
 
@@ -336,11 +395,13 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             {
                 var item = Marshal.PtrToStructure<PdhFormattedCounterItem>(
                     IntPtr.Add(buffer, checked((int)(index * (uint)itemSize))));
-                if (item.Value.Status == PdhSuccess && !double.IsNaN(item.Value.DoubleValue))
-                {
-                    total += Math.Max(item.Value.DoubleValue, 0);
-                    hasValue = true;
-                }
+                if (item.Value.Status != PdhSuccess || double.IsNaN(item.Value.DoubleValue)) continue;
+
+                string? instanceName = item.Name == IntPtr.Zero ? null : Marshal.PtrToStringUni(item.Name);
+                if (instanceName is not null && !includeInstance(instanceName)) continue;
+
+                total += Math.Max(item.Value.DoubleValue, 0);
+                hasValue = true;
             }
 
             return hasValue ? total : null;
@@ -379,11 +440,15 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             _cpuFrequencyCounter = TryAddPdhCounter("\\Processor Information(_Total)\\Processor Frequency");
             _diskReadCounter = TryAddPdhCounter("\\PhysicalDisk(_Total)\\Disk Read Bytes/sec");
             _diskWriteCounter = TryAddPdhCounter("\\PhysicalDisk(_Total)\\Disk Write Bytes/sec");
+            _networkDownloadCounter = TryAddPdhCounter("\\Network Interface(*)\\Bytes Received/sec");
+            _networkUploadCounter = TryAddPdhCounter("\\Network Interface(*)\\Bytes Sent/sec");
             if (_gpuUsageCounter == IntPtr.Zero &&
                 _gpuDedicatedMemoryCounter == IntPtr.Zero &&
                 _cpuFrequencyCounter == IntPtr.Zero &&
                 _diskReadCounter == IntPtr.Zero &&
-                _diskWriteCounter == IntPtr.Zero)
+                _diskWriteCounter == IntPtr.Zero &&
+                _networkDownloadCounter == IntPtr.Zero &&
+                _networkUploadCounter == IntPtr.Zero)
             {
                 PdhCloseQuery(_pdhQuery);
                 _pdhQuery = IntPtr.Zero;
@@ -396,6 +461,8 @@ public sealed class TaskbarPerformanceCollector : IDisposable
             RemovePdhCounter(ref _cpuFrequencyCounter);
             RemovePdhCounter(ref _diskReadCounter);
             RemovePdhCounter(ref _diskWriteCounter);
+            RemovePdhCounter(ref _networkDownloadCounter);
+            RemovePdhCounter(ref _networkUploadCounter);
             if (_pdhQuery != IntPtr.Zero)
             {
                 PdhCloseQuery(_pdhQuery);
@@ -511,5 +578,7 @@ public sealed class TaskbarPerformanceCollector : IDisposable
         double? GpuDedicatedMemoryBytes,
         double? CpuFrequencyMegahertz,
         double? DiskReadBytesPerSecond,
-        double? DiskWriteBytesPerSecond);
+        double? DiskWriteBytesPerSecond,
+        double? DownloadBytesPerSecond,
+        double? UploadBytesPerSecond);
 }

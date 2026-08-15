@@ -23,10 +23,11 @@ public sealed partial class MainWindow : Window
     private const uint MonitorInfofPrimary = 0x00000001;
     private const int DefaultWidth = 920;
     private const int DefaultHeight = 640;
-    private const int MinimumWidthDip = 700;
+    private const int MinimumWidthDip = 620;
     private const int MinimumHeightDip = 540;
     private const int MaximumWidthDip = 1120;
     private const int MaximumHeightDip = 760;
+    private const string LyricsComponentTag = "Lyrics";
     private const int GwlStyle = -16;
     private const long WsMaximizeBox = 0x00010000L;
     private const uint SwpNoSize = 0x0001;
@@ -47,6 +48,7 @@ public sealed partial class MainWindow : Window
     private readonly string _settingsPath;
     private readonly UpdateService _updateService = new();
     private readonly DispatcherQueueTimer _successInfoBarTimer;
+    private readonly DispatcherQueueTimer _applySettingsTimer;
     private readonly SubclassProc _windowSizeSubclassProc;
     private readonly bool _keepAlive;
     private readonly string? _updateEventName;
@@ -55,9 +57,11 @@ public sealed partial class MainWindow : Window
     private bool _resetTaskbarPerformancePosition;
     private bool _resetTaskbarTranslateButtonPosition;
     private bool _resetTaskbarWaterReminderPosition;
+    private bool _resetDesktopWidgetPosition;
     private ContentControl? _waterReminderStatisticsHost;
     private IntPtr _windowHandle;
     private bool _windowSizeSubclassInstalled;
+    private string _lastLyricsTab = "Typography";
 
     public MainWindow(bool keepAlive = false, string? updateEventName = null)
     {
@@ -74,6 +78,10 @@ public sealed partial class MainWindow : Window
         _successInfoBarTimer.Interval = TimeSpan.FromSeconds(3);
         _successInfoBarTimer.IsRepeating = false;
         _successInfoBarTimer.Tick += (_, _) => ErrorInfoBar.IsOpen = false;
+        _applySettingsTimer = DispatcherQueue.CreateTimer();
+        _applySettingsTimer.Interval = TimeSpan.FromMilliseconds(300);
+        _applySettingsTimer.IsRepeating = false;
+        _applySettingsTimer.Tick += (_, _) => ApplySettings(showSuccessMessage: false);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         ConfigureWindowChrome();
@@ -88,14 +96,23 @@ public sealed partial class MainWindow : Window
 
     private void NavigateTo(string tag)
     {
-        Navigate(tag);
+        string navigationTag = IsLyricSubPageTag(tag) ? LyricsComponentTag : tag;
+        Navigate(navigationTag);
         IEnumerable<NavigationViewItem> navigationItems = NavMenu.MenuItems
             .Concat(NavMenu.FooterMenuItems)
             .OfType<NavigationViewItem>()
             .SelectMany(item => item.MenuItems.OfType<NavigationViewItem>().Append(item));
-        NavMenu.SelectedItem = navigationItems.FirstOrDefault(item => item.Tag as string == tag)
+        NavMenu.SelectedItem = navigationItems.FirstOrDefault(item => item.Tag as string == navigationTag)
             ?? navigationItems.FirstOrDefault(item => item.Tag is string);
+
+        if (IsLyricSubPageTag(tag) && ContentFrame.Content is LyricsSettingsPage lyricsPage)
+        {
+            lyricsPage.SelectTab(tag);
+        }
     }
+
+    private static bool IsLyricSubPageTag(string? tag) =>
+        tag is "Typography" or "Visual" or "Floating" or "DesktopWidget" or "Applications";
 
     public void HideForReuse()
     {
@@ -339,6 +356,7 @@ public sealed partial class MainWindow : Window
     {
         ContentFrame.Content = tag switch
         {
+            "Lyrics" => CreateLyricsPage(),
             "Typography" => CreateTypographyPage(),
             "Visual" => CreateVisualPage(),
             "TaskbarPerformance" => CreateTaskbarPerformancePage(),
@@ -350,6 +368,18 @@ public sealed partial class MainWindow : Window
             "About" => CreateAboutPage(),
             _ => null
         };
+    }
+
+    private Page CreateLyricsPage()
+    {
+        return new LyricsSettingsPage(
+            CreateTypographyPage(),
+            CreateVisualPage(),
+            CreateFloatingPage(),
+            CreateDesktopWidgetPage(),
+            CreateApplicationsPage(),
+            _lastLyricsTab,
+            tag => _lastLyricsTab = tag);
     }
 
     private Page CreateTypographyPage()
@@ -369,7 +399,7 @@ public sealed partial class MainWindow : Window
             _settings.OffsetX = (int)value;
             _changedTaskbarLyricOffset = true;
         }));
-        panel.AddRow(LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value));
+        panel.AddRow(LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value, step: 0.5));
         return Wrap(panel);
     }
 
@@ -493,7 +523,8 @@ public sealed partial class MainWindow : Window
         panel.AddRow(LabeledToggle(
             "增强温度读取（管理员权限）",
             _settings.EnableEnhancedTemperatureSensors,
-            value => _settings.EnableEnhancedTemperatureSensors = value));
+            value => _settings.EnableEnhancedTemperatureSensors = value,
+            "AMD 锐龙 CPU 温度依赖内核驱动（PawnIO）才能读取。开启后将以管理员权限运行辅助进程；若仍无温度，请安装 LibreHardwareMonitor 官方程序附带的 PawnIO 驱动。"));
 
         string[] refreshOptions = ["1 秒", "2 秒", "5 秒"];
         string selectedRefresh = _settings.TaskbarPerformanceRefreshSeconds switch
@@ -602,6 +633,7 @@ public sealed partial class MainWindow : Window
                 .Select(id => id));
             _settings.TaskbarPerformanceMetrics = TaskbarPerformanceMetricCatalog.Normalize(selectedMetrics);
             NormalizeSummaryMetrics();
+            QueueSettingsApply();
         }
 
         bool IsMetricEnabled(string metricId) => selectedMetrics.Contains(metricId, StringComparer.OrdinalIgnoreCase);
@@ -618,6 +650,7 @@ public sealed partial class MainWindow : Window
             summaryMetrics.Clear();
             summaryMetrics.AddRange(normalized);
             _settings.TaskbarPerformanceSummaryMetrics = new List<string>(summaryMetrics);
+            QueueSettingsApply();
         }
 
         void ShowSummaryLimitWarning()
@@ -758,6 +791,7 @@ public sealed partial class MainWindow : Window
         {
             _settings.TaskbarPerformanceOffsetX = null;
             _resetTaskbarPerformancePosition = true;
+            QueueSettingsApply();
         };
         panel.AddRow(resetPosition);
 
@@ -796,6 +830,7 @@ public sealed partial class MainWindow : Window
         {
             _settings.TaskbarWaterReminderOffsetX = null;
             _resetTaskbarWaterReminderPosition = true;
+            QueueSettingsApply();
         };
 
         var displayEditor = new Grid { ColumnSpacing = 8 };
@@ -1149,6 +1184,7 @@ public sealed partial class MainWindow : Window
         {
             _settings.TaskbarTranslateButtonOffsetX = null;
             _resetTaskbarTranslateButtonPosition = true;
+            QueueSettingsApply();
         };
         var displayEditor = new Grid { ColumnSpacing = 8 };
         displayEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -1424,6 +1460,7 @@ public sealed partial class MainWindow : Window
             }
             detailTitle.Text = GetProviderDisplayName(profile);
             detailEndpoint.Text = GetProviderEndpoint(profile);
+            QueueSettingsApply();
         }
 
         void LoadSelectedProfile()
@@ -1498,6 +1535,7 @@ public sealed partial class MainWindow : Window
             TranslationProviderProfile? profile = SelectedProfile();
             if (profile != null) _settings.SelectedTranslationProviderId = profile.Id;
             LoadSelectedProfile();
+            QueueSettingsApply();
         };
         providerIdBox.TextChanged += (_, _) => UpdateSelectedProfile();
         providerNameBox.TextChanged += (_, _) => UpdateSelectedProfile();
@@ -1578,6 +1616,7 @@ public sealed partial class MainWindow : Window
             _settings.TranslationProviders.Add(profile);
             _settings.SelectedTranslationProviderId = profile.Id;
             RefreshProviderList(profile);
+            QueueSettingsApply();
         }
 
         var providerMenu = new MenuFlyout();
@@ -1642,6 +1681,7 @@ public sealed partial class MainWindow : Window
                 _settings.TranslationProviders,
                 _settings.SelectedTranslationProviderId);
             RefreshProviderList(null);
+            QueueSettingsApply();
         };
         Grid.SetColumn(removeProviderButton, 2);
         providerHeader.Children.Add(removeProviderButton);
@@ -1697,6 +1737,7 @@ public sealed partial class MainWindow : Window
     {
         hotkeyBox.Text = NormalizeQuickTranslateHotkey(value);
         _settings.QuickTranslateHotkey = hotkeyBox.Text;
+        QueueSettingsApply();
     }
 
     private static string NormalizeQuickTranslateHotkey(string? value) =>
@@ -1738,6 +1779,7 @@ public sealed partial class MainWindow : Window
                 selectedAppIds.Add(appId);
             }
             _settings.IncludedAppIds = selectedAppIds.ToList();
+            QueueSettingsApply();
         };
 
         var detectedApps = new StackPanel { Spacing = 4, Visibility = Visibility.Collapsed };
@@ -2085,6 +2127,8 @@ public sealed partial class MainWindow : Window
             _settings.DesktopWidgetMonitorDeviceName = "";
             _settings.DesktopWidgetMonitorOffsetX = null;
             _settings.DesktopWidgetMonitorOffsetY = null;
+            _resetDesktopWidgetPosition = true;
+            QueueSettingsApply();
         };
         panel.AddRow(reset);
         return Wrap(panel);
@@ -2140,14 +2184,20 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static FrameworkElement LabeledTextBox(string label, string initial, Action<string> update, string? description = null)
+    private FrameworkElement LabeledTextBox(string label, string initial, Action<string> update, string? description = null)
     {
         var box = new TextBox { Text = initial, MinWidth = 360 };
-        box.TextChanged += (_, _) => update(box.Text);
+        box.TextChanged += (_, _) => Commit(box.Text);
         return Field(label, box, description);
+
+        void Commit(string value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
-    private static FrameworkElement LabeledTimePicker(string label, string initial, Action<string> update)
+    private FrameworkElement LabeledTimePicker(string label, string initial, Action<string> update)
     {
         TimeSpan initialTime = TimeSpan.TryParseExact(
             initial,
@@ -2163,11 +2213,17 @@ public sealed partial class MainWindow : Window
             MinuteIncrement = 5,
             MinWidth = 180
         };
-        picker.TimeChanged += (_, args) => update(args.NewTime.ToString("hh\\:mm", CultureInfo.InvariantCulture));
+        picker.TimeChanged += (_, args) => Commit(args.NewTime.ToString("hh\\:mm", CultureInfo.InvariantCulture));
         return Field(label, picker, null);
+
+        void Commit(string value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
-    private static FrameworkElement LabeledColorPicker(string label, string initial, Action<string> update)
+    private FrameworkElement LabeledColorPicker(string label, string initial, Action<string> update)
     {
         const double SpectrumWidth = 280;
         const double SpectrumHeight = 176;
@@ -2306,7 +2362,7 @@ public sealed partial class MainWindow : Window
 
             string colorText = FormatColor(color);
             if (!string.Equals(box.Text, colorText, StringComparison.Ordinal)) box.Text = colorText;
-            else update(colorText);
+            else Commit(colorText);
         }
 
         void CommitPickerColor() => ApplyColor(HsvToRgb(hue, saturation, value, (byte)Math.Round(alpha)), true);
@@ -2344,7 +2400,7 @@ public sealed partial class MainWindow : Window
 
         box.TextChanged += (_, _) =>
         {
-            update(box.Text);
+            Commit(box.Text);
             if (!TryParseColor(box.Text, out Windows.UI.Color color)) return;
 
             ApplyColor(color, false);
@@ -2365,9 +2421,15 @@ public sealed partial class MainWindow : Window
         ApplyColor(initialColor, false);
 
         return Field(label, editor, null);
+
+        void Commit(string value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
-    private static FrameworkElement LabeledFontPicker(string label, string initial, Action<string> update)
+    private FrameworkElement LabeledFontPicker(string label, string initial, Action<string> update)
     {
         var box = new AutoSuggestBox
         {
@@ -2386,7 +2448,7 @@ public sealed partial class MainWindow : Window
 
         box.TextChanged += (_, args) =>
         {
-            update(box.Text);
+            Commit(box.Text);
             if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
             {
                 UpdateSuggestions(box.Text);
@@ -2396,16 +2458,22 @@ public sealed partial class MainWindow : Window
         {
             string fontName = args.SelectedItem as string ?? box.Text;
             box.Text = fontName;
-            update(fontName);
+            Commit(fontName);
         };
         box.QuerySubmitted += (_, args) =>
         {
             string fontName = args.ChosenSuggestion as string ?? box.Text;
             box.Text = fontName;
-            update(fontName);
+            Commit(fontName);
         };
 
         return Field(label, box, "输入以搜索本机已安装字体，也可直接输入字体名称。");
+
+        void Commit(string value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
     private static string[] GetFontSuggestions(string query)
@@ -2445,21 +2513,33 @@ public sealed partial class MainWindow : Window
         _ => "Normal"
     };
 
-    private static FrameworkElement LabeledNumberBox(string label, double initial, double minimum, double maximum, Action<double> update)
+    private FrameworkElement LabeledNumberBox(string label, double initial, double minimum, double maximum, Action<double> update, double step = 1)
     {
-        var box = new NumberBox { Value = initial, Minimum = minimum, Maximum = maximum, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden, MinWidth = 180 };
-        box.ValueChanged += (_, _) => { if (!double.IsNaN(box.Value)) update(box.Value); };
+        var box = new NumberBox { Value = initial, Minimum = minimum, Maximum = maximum, SmallChange = step, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact, MinWidth = 180 };
+        box.ValueChanged += (_, _) => { if (!double.IsNaN(box.Value)) Commit(box.Value); };
         return Field(label, box, null);
+
+        void Commit(double value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
-    private static FrameworkElement LabeledComboBox(string label, IReadOnlyList<string> options, string initial, Action<string> update)
+    private FrameworkElement LabeledComboBox(string label, IReadOnlyList<string> options, string initial, Action<string> update)
     {
         var box = new ComboBox { ItemsSource = options, SelectedItem = options.Contains(initial) ? initial : options[0], MinWidth = 180 };
-        box.SelectionChanged += (_, _) => update(box.SelectedItem as string ?? options[0]);
+        box.SelectionChanged += (_, _) => Commit(box.SelectedItem as string ?? options[0]);
         return Field(label, box, null);
+
+        void Commit(string value)
+        {
+            update(value);
+            QueueSettingsApply();
+        }
     }
 
-    private static FrameworkElement LabeledToggle(string label, bool initial, Action<bool> update)
+    private FrameworkElement LabeledToggle(string label, bool initial, Action<bool> update, string? description = null)
     {
         var row = new Grid
         {
@@ -2476,8 +2556,22 @@ public sealed partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
-        toggle.Toggled += (_, _) => update(toggle.IsOn);
-        row.Children.Add(title);
+        toggle.Toggled += (_, _) =>
+        {
+            update(toggle.IsOn);
+            QueueSettingsApply();
+        };
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            row.Children.Add(title);
+        }
+        else
+        {
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            titleRow.Children.Add(title);
+            titleRow.Children.Add(InformationButton(description));
+            row.Children.Add(titleRow);
+        }
         row.Children.Add(toggle);
         var host = new Border
         {
@@ -2533,20 +2627,13 @@ public sealed partial class MainWindow : Window
         return panel;
     }
 
-    private void Apply_Click(object sender, RoutedEventArgs e)
+    private void QueueSettingsApply()
     {
-        ApplySettings();
+        _applySettingsTimer.Stop();
+        _applySettingsTimer.Start();
     }
 
-    private void Confirm_Click(object sender, RoutedEventArgs e)
-    {
-        if (!ApplySettings()) return;
-
-        _didSave = true;
-        Close();
-    }
-
-    private bool ApplySettings()
+    private bool ApplySettings(bool showSuccessMessage = true)
     {
         if (!IsValidColor(_settings.TextColor) || !IsValidColor(_settings.ActiveTextColor) || !IsValidColor(_settings.BackgroundColor) || !IsValidColor(_settings.FloatingLyricsTextColor) || !IsValidColor(_settings.FloatingLyricsBackgroundColor))
         {
@@ -2587,12 +2674,17 @@ public sealed partial class MainWindow : Window
             _resetTaskbarPerformancePosition = false;
             _resetTaskbarTranslateButtonPosition = false;
             _resetTaskbarWaterReminderPosition = false;
+            _resetDesktopWidgetPosition = false;
             NotifySettingsApplied();
-            ErrorInfoBar.Severity = InfoBarSeverity.Success;
-            ErrorInfoBar.Message = "设置已应用。";
-            ErrorInfoBar.IsOpen = true;
-            _successInfoBarTimer.Stop();
-            _successInfoBarTimer.Start();
+            _didSave = true;
+            if (showSuccessMessage)
+            {
+                ErrorInfoBar.Severity = InfoBarSeverity.Success;
+                ErrorInfoBar.Message = "设置已应用。";
+                ErrorInfoBar.IsOpen = true;
+                _successInfoBarTimer.Stop();
+                _successInfoBarTimer.Start();
+            }
             return true;
         }
         catch (Exception exception)
@@ -2605,7 +2697,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private static FrameworkElement LabeledDisplaySelector(string selectedDeviceName, Action<string> update)
+    private FrameworkElement LabeledDisplaySelector(string selectedDeviceName, Action<string> update)
     {
         DisplayOption[] displayOptions = GetDisplayOptions();
         DisplayOption selectedDisplay = displayOptions.FirstOrDefault(option =>
@@ -2642,14 +2734,24 @@ public sealed partial class MainWindow : Window
             _settings.TaskbarWaterReminderOffsetX = currentSettings.TaskbarWaterReminderOffsetX;
         }
 
+        if (!_resetDesktopWidgetPosition)
+        {
+            _settings.DesktopWidgetLeft = currentSettings.DesktopWidgetLeft;
+            _settings.DesktopWidgetTop = currentSettings.DesktopWidgetTop;
+            _settings.DesktopWidgetMonitorDeviceName = currentSettings.DesktopWidgetMonitorDeviceName;
+            _settings.DesktopWidgetMonitorOffsetX = currentSettings.DesktopWidgetMonitorOffsetX;
+            _settings.DesktopWidgetMonitorOffsetY = currentSettings.DesktopWidgetMonitorOffsetY;
+        }
+
+        _settings.FloatingLyricsLeft = currentSettings.FloatingLyricsLeft;
+        _settings.FloatingLyricsTop = currentSettings.FloatingLyricsTop;
+
         _settings.WaterReminderDrinkHistory = currentSettings.WaterReminderDrinkHistory;
         _settings.WaterReminderRecordDate = currentSettings.WaterReminderRecordDate;
         _settings.WaterReminderCompletedToday = currentSettings.WaterReminderCompletedToday;
         _settings.WaterReminderLastCompletedAt = currentSettings.WaterReminderLastCompletedAt;
         _settings.WaterReminderSnoozedUntil = currentSettings.WaterReminderSnoozedUntil;
     }
-
-    private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
@@ -2828,6 +2930,108 @@ public sealed partial class MainWindow : Window
         catch
         {
             // The main window may already have exited.
+        }
+    }
+
+    private sealed class LyricsSettingsPage : Page
+    {
+        private static readonly (string Tag, string Label)[] TabDefinitions =
+        [
+            ("Typography", "布局与显示"),
+            ("Visual", "其他效果"),
+            ("Floating", "悬浮歌词"),
+            ("DesktopWidget", "桌面歌词"),
+            ("Applications", "应用筛选")
+        ];
+
+        private readonly IReadOnlyDictionary<string, Page> _pagesByTag;
+        private readonly Grid _contentHost;
+        private readonly SelectorBar _selectorBar;
+        private readonly Action<string> _onTabChanged;
+
+        public LyricsSettingsPage(
+            Page typography,
+            Page visual,
+            Page floating,
+            Page desktopWidget,
+            Page applications,
+            string initialTab,
+            Action<string> onTabChanged)
+        {
+            _onTabChanged = onTabChanged;
+            _pagesByTag = new Dictionary<string, Page>(StringComparer.Ordinal)
+            {
+                ["Typography"] = typography,
+                ["Visual"] = visual,
+                ["Floating"] = floating,
+                ["DesktopWidget"] = desktopWidget,
+                ["Applications"] = applications
+            };
+
+            _selectorBar = new SelectorBar
+            {
+                Margin = new Thickness(20, 2, 20, 0),
+                Padding = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            foreach ((string tag, string label) in TabDefinitions)
+            {
+                _selectorBar.Items.Add(new SelectorBarItem
+                {
+                    Text = label,
+                    Tag = tag,
+                    MinHeight = 28,
+                    Padding = new Thickness(10, 2, 10, 2)
+                });
+            }
+            _selectorBar.SelectionChanged += SelectorBar_SelectionChanged;
+
+            _contentHost = new Grid();
+            foreach (Page page in _pagesByTag.Values)
+            {
+                page.Visibility = Visibility.Collapsed;
+                _contentHost.Children.Add(page);
+            }
+
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.Children.Add(_selectorBar);
+            root.Children.Add(_contentHost);
+            Grid.SetRow(_selectorBar, 0);
+            Grid.SetRow(_contentHost, 1);
+            Content = root;
+
+            SelectTab(initialTab);
+        }
+
+        public void SelectTab(string subTag)
+        {
+            if (_selectorBar.Items.OfType<SelectorBarItem>()
+                .FirstOrDefault(item => item.Tag as string == subTag) is SelectorBarItem target)
+            {
+                _selectorBar.SelectedItem = target;
+            }
+
+            UpdateVisibility();
+        }
+
+        private void SelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+        {
+            string selectedTag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "Typography";
+            _onTabChanged(selectedTag);
+            UpdateVisibility();
+        }
+
+        private void UpdateVisibility()
+        {
+            string? selected = (_selectorBar.SelectedItem as SelectorBarItem)?.Tag as string;
+            foreach ((string tag, Page page) in _pagesByTag)
+            {
+                page.Visibility = string.Equals(tag, selected, StringComparison.Ordinal)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
         }
     }
 }

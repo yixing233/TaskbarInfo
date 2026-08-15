@@ -161,6 +161,7 @@ public sealed class TaskbarPerformanceDetailsWindow : IDisposable
     private static IReadOnlyList<string> GetGroupDeviceNames(TaskbarPerformanceSnapshot snapshot, string group) =>
         group switch
         {
+            "CPU" => snapshot.CpuDeviceNames ?? Array.Empty<string>(),
             "GPU" => snapshot.GpuDeviceNames ?? Array.Empty<string>(),
             "磁盘" => snapshot.DiskDeviceNames ?? Array.Empty<string>(),
             _ => Array.Empty<string>()

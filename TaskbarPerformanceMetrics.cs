@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace TaskbarInfo;
 
@@ -122,7 +123,8 @@ public sealed record TaskbarPerformanceSnapshot(
     double? DiskReadBytesPerSecond = null,
     double? DiskWriteBytesPerSecond = null,
     IReadOnlyList<string>? GpuDeviceNames = null,
-    IReadOnlyList<string>? DiskDeviceNames = null)
+    IReadOnlyList<string>? DiskDeviceNames = null,
+    IReadOnlyList<string>? CpuDeviceNames = null)
 {
     public static TaskbarPerformanceSnapshot Empty { get; } = new(null, null, null, 0, 0, null, null, null);
 }
@@ -144,6 +146,34 @@ public static class TaskbarPerformanceDeviceSummary
 
     public static string GetToolTip(IEnumerable<string>? deviceNames) =>
         string.Join("\n", Normalize(deviceNames));
+
+    /// <summary>
+    /// Reduces a verbose processor brand string (for example
+    /// "12th Gen Intel(R) Core(TM) i7-12700H") to a compact label
+    /// ("Intel i7-12700h") that fits a group header.
+    /// </summary>
+    public static string? ShortenCpuModelName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+
+        string text = name.Trim()
+            .Replace("(R)", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(TM)", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(C)", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        // "12th Gen Intel Core i7-12700H" -> "Intel i7-12700H"
+        text = Regex.Replace(text, @"\d+(?:st|nd|rd|th)\s+Gen\s+", string.Empty, RegexOptions.IgnoreCase);
+        text = Regex.Replace(text, @"\bCore\b\s+", string.Empty, RegexOptions.IgnoreCase);
+
+        // Drop " CPU @ 2.60GHz" style suffixes.
+        text = Regex.Replace(text, @"\s*(?:CPU\s*)?@\s*[\d.]+\s*GHz.*$", string.Empty, RegexOptions.IgnoreCase);
+
+        // Intel model suffixes (for example the "H" in "i7-12700H") display lowercase.
+        text = Regex.Replace(text, @"(?<=\bi[3579]-\d+)[A-Za-z]+", match => match.Value.ToLowerInvariant());
+
+        text = text.Trim();
+        return text.Length == 0 ? null : text;
+    }
 
     private static IReadOnlyList<string> Normalize(IEnumerable<string>? deviceNames) =>
         deviceNames?

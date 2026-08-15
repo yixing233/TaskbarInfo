@@ -1,6 +1,6 @@
 ; 需要 Inno Setup 6.1 或更高版本（依赖 DownloadTemporaryFile 自动下载并静默安装运行库）。
 #define MyAppName "TaskbarInfo"
-#define MyAppVersion "1.1.7"
+#define MyAppVersion "1.1.8"
 #define MyAppPublisher "TaskbarInfo"
 #define MyAppExeName "TaskbarInfo.exe"
 

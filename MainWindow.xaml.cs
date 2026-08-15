@@ -34,6 +34,7 @@ namespace TaskbarInfo
             InitializeComponent();
             Closed += (_, _) =>
             {
+                CompositionTarget.Rendering -= OnRenderFrame;
                 StopSharedSettingsApplyNotification();
                 StopSettingsUpdateRequestNotification();
                 _taskbarPerformanceWindow?.Dispose();
@@ -57,9 +58,15 @@ namespace TaskbarInfo
             Canvas.SetLeft(_nextLyricControl, 0);
         }
 
+        private const double MinTaskbarLyricsWidth = 180;
+        private const double MaxTaskbarLyricsWidth = 1600;
+
         private bool _isDraggingHandle = false;
         private Point _dragStartMouseScreenPos;
         private int _dragStartOffsetX;
+        private bool _isDraggingWidth = false;
+        private double _dragStartWidth;
+        private int _dragStartWidthOffsetX;
 
         private AppSettings _settings = new AppSettings();
         
@@ -73,6 +80,8 @@ namespace TaskbarInfo
         private string _lastLyricText = "";
         private string _lastCurrentLyric = ""; // Track current lyric separately for animation
         private bool _isShowingStatusText = true;
+        private double _scrollableLyricDistance = 0; // 当前行超宽时可滚动的总距离，>0 时滚动跟随逐字进度
+        private LyricsEngine.LyricLine? _activeLyricLine; // 当前逐字行，由渲染帧回调平滑推进
         private CancellationTokenSource? _lyricsSearchCts;
         private int _lyricsSearchVersion;
         
@@ -288,6 +297,9 @@ namespace TaskbarInfo
             _lyricSyncTimer.Interval = TimeSpan.FromMilliseconds(100);
             _lyricSyncTimer.Tick += LyricSyncTimer_Tick;
             _lyricSyncTimer.Start();
+
+            // 逐字渐变与滚动由渲染帧驱动，帧率与显示器刷新同步，避免 100ms 轮询的跳变感
+            CompositionTarget.Rendering += OnRenderFrame;
 
             _mediaManager.Initialize();
             _isMediaPlaying = _mediaManager.IsPlaying;
@@ -555,47 +567,7 @@ namespace TaskbarInfo
 
                 if (isActuallyDoubleLine)
                 {
-                    _nextLyricControl.FontFamily = fontFamily;
-                    
-                    if (_nextLyricControl.Foreground is LinearGradientBrush nextBrush && nextBrush.GradientStops.Count >= 2)
-                    {
-                        nextBrush.GradientStops[0].Color = activeColor;
-                        nextBrush.GradientStops[1].Color = mainColor;
-                    }
-
-                    _nextLyricControl.FontSize = Math.Max(9, _settings.FontSize - _settings.NextLyricFontSizeDiff); 
-                    _nextLyricControl.Opacity = 0.7; // Use Opacity property for dimming
-                    
-                    try
-                     {
-                         if (!string.IsNullOrEmpty(_settings.NextLyricFontWeight))
-                         {
-                             var weightStr = _settings.NextLyricFontWeight.Split(' ')[0];
-                             var converter = new FontWeightConverter();
-                             var obj = converter.ConvertFromString(weightStr);
-                             _nextLyricControl.FontWeight = (obj as FontWeight?) ?? FontWeights.Normal;
-                         }
-                         else
-                         {
-                              _nextLyricControl.FontWeight = FontWeights.Normal;
-                         }
-                     }
-                    catch
-                    {
-                        _nextLyricControl.FontWeight = FontWeights.Normal;
-                    }
-
-                    _nextLyricControl.Visibility = Visibility.Visible;
-                    
-                    _mainLyricControl.TextWrapping = TextWrapping.NoWrap; 
-                    _mainLyricControl.Height = double.NaN; 
-                    // Set positions for double line mode
-                    Canvas.SetTop(_mainLyricControl, 2);
-                    Canvas.SetTop(_nextLyricControl, _settings.FontSize + 4);
-                    
-                    _nextLyricControl.TextWrapping = TextWrapping.NoWrap; 
-                    // Don't set Canvas.SetTop here - AnimateDoubleLyricTransition and UpdateSingleLineScroll control this
-                    // Canvas.SetTop(_nextLyricControl, _settings.FontSize + 8); 
+                    ApplyDoubleLineLayout();
                 }
                 else
                 {
@@ -690,6 +662,43 @@ namespace TaskbarInfo
             double textH = _settings.FontSize * 1.35;
             double top = (containerH - textH) / 2;
             Canvas.SetTop(_mainLyricControl, top);
+        }
+
+        private void ApplyDoubleLineLayout()
+        {
+            try
+            {
+                var fontFamily = new FontFamily(_settings.FontFamily);
+                var mainColor = (Color)ColorConverter.ConvertFromString(_settings.TextColor);
+                var activeColor = (Color)ColorConverter.ConvertFromString(_settings.ActiveTextColor);
+
+                _nextLyricControl.FontFamily = fontFamily;
+
+                // 副歌词使用独立的渐变画刷实例：避免与主行共享画刷而被逐字 offset 动画影响
+                _nextLyricControl.Foreground = new LinearGradientBrush
+                {
+                    StartPoint = new Point(0, 0),
+                    EndPoint = new Point(1, 0),
+                    GradientStops =
+                    {
+                        new GradientStop(activeColor, 0),
+                        new GradientStop(mainColor, 0)
+                    }
+                };
+
+                _nextLyricControl.FontSize = Math.Max(9, _settings.FontSize - _settings.NextLyricFontSizeDiff);
+                _nextLyricControl.Opacity = 0.7; // Use Opacity property for dimming
+                _nextLyricControl.FontWeight = GetConfiguredFontWeight(_settings.NextLyricFontWeight, FontWeights.Normal);
+                _nextLyricControl.Visibility = Visibility.Visible;
+                _nextLyricControl.TextWrapping = TextWrapping.NoWrap;
+
+                _mainLyricControl.TextWrapping = TextWrapping.NoWrap;
+                _mainLyricControl.Height = double.NaN;
+                // Set positions for double line mode
+                Canvas.SetTop(_mainLyricControl, 2);
+                Canvas.SetTop(_nextLyricControl, _settings.FontSize + 4);
+            }
+            catch { }
         }
 
         private static FontWeight GetConfiguredFontWeight(string? value, FontWeight fallback)
@@ -1479,6 +1488,49 @@ namespace TaskbarInfo
             await _mediaManager.PreviousTrackAsync();
         }
 
+        // Lyric offset adjustment
+        private void LyricsContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            UpdateLyricOffsetMenuText();
+        }
+
+        private void LyricOffsetDecrease_Click(object sender, RoutedEventArgs e)
+        {
+            AdjustLyricOffset(-0.5);
+        }
+
+        private void LyricOffsetIncrease_Click(object sender, RoutedEventArgs e)
+        {
+            AdjustLyricOffset(0.5);
+        }
+
+        private void AdjustLyricOffset(double deltaSeconds)
+        {
+            double newOffset = Math.Clamp(Math.Round(_settings.LyricOffsetSeconds + deltaSeconds, 1), -10.0, 10.0);
+            if (Math.Abs(newOffset - _settings.LyricOffsetSeconds) < 0.01) return;
+
+            _settings.LyricOffsetSeconds = newOffset;
+            _settings.Save();
+            UpdateLyricOffsetMenuText();
+
+            // 立即按新偏移刷新当前歌词行
+            _lastCurrentLyric = "";
+            _lastLyricText = "";
+            if (_hasLyrics)
+            {
+                UpdateLyricsUI(_lastMediaPosition);
+            }
+        }
+
+        private void UpdateLyricOffsetMenuText()
+        {
+            if (LyricOffsetText == null) return;
+
+            double offset = _settings.LyricOffsetSeconds;
+            string sign = offset > 0 ? "+" : "";
+            LyricOffsetText.Text = $"{sign}{offset:0.0} 秒";
+        }
+
         private void OpenAppFilter_Click(object sender, RoutedEventArgs e)
         {
              var win = new AppFilterWindow(_settings, _mediaManager);
@@ -1787,7 +1839,15 @@ namespace TaskbarInfo
         {
             if (!_hasLyrics) return;
 
+            bool wasShowingStatusText = _isShowingStatusText;
             _isShowingStatusText = false;
+
+            // 切歌流程中 ApplySettings 末尾会因 _isShowingStatusText 仍为 true 而再次调用
+            // ApplyStatusTextLayout，把双行第二行重置为隐藏且透明；离开状态文本时恢复双行布局。
+            if (wasShowingStatusText && _settings.IsDoubleLine)
+            {
+                ApplyDoubleLineLayout();
+            }
 
             var adjustedPosition = position - TimeSpan.FromSeconds(_settings.LyricOffsetSeconds);
 
@@ -1797,6 +1857,7 @@ namespace TaskbarInfo
                 
                 if (current != null)
                 {
+                    _activeLyricLine = current;
                     // Update Content
                     if (current.Text != _lastCurrentLyric)
                     {
@@ -1820,6 +1881,7 @@ namespace TaskbarInfo
                 var (current, _) = _lyricsEngine.GetLyricsForTime(adjustedPosition);
                 if (current != null)
                 {
+                    _activeLyricLine = current;
                     if (current.Text != _lastLyricText)
                     {
                         _lastLyricText = current.Text;
@@ -1840,16 +1902,12 @@ namespace TaskbarInfo
             {
                 target.Text = line.Text;
                 // Auto scroll if long - Disable infinite loop in double line mode to avoid control collision
-                UpdateSingleLineScroll(target, line.Text, (line.EndMs - line.StartMs) / 1000.0, !_settings.IsDoubleLine);
+                UpdateSingleLineScroll(target, line.Text, (line.EndMs - line.StartMs) / 1000.0, !_settings.IsDoubleLine, line.HasSyllables);
             }
 
             double progress = _lyricsEngine.GetLineProgress(line, time);
-            var brush = target.Foreground as LinearGradientBrush;
-            if (brush != null && brush.GradientStops.Count >= 2)
-            {
-                brush.GradientStops[0].Offset = progress;
-                brush.GradientStops[1].Offset = Math.Min(1.0, progress + 0.05);
-            }
+
+            ApplyMainLineProgress(target, line, progress);
 
             if (_settings.EnableFloatingLyrics && _floatingWindow != null && target == _mainLyricControl)
             {
@@ -1860,6 +1918,49 @@ namespace TaskbarInfo
             if (target == _mainLyricControl)
             {
                 _desktopWidget?.UpdateLyrics(line.Text);
+            }
+        }
+
+        // 逐字行的渲染推进：渐变高亮 + 滚动跟随进度（逻辑轮询与渲染帧回调共用）
+        private void ApplyMainLineProgress(TextBlock target, LyricsEngine.LyricLine line, double progress)
+        {
+            var brush = target.Foreground as LinearGradientBrush;
+            if (brush != null && brush.GradientStops.Count >= 2)
+            {
+                if (line.HasSyllables)
+                {
+                    brush.GradientStops[0].Offset = progress;
+                    brush.GradientStops[1].Offset = Math.Min(1.0, progress + 0.05);
+                }
+                else
+                {
+                    // 纯 LRC 行没有逐字时间：整行使用主色，避免残留上一个逐字行的渐变偏移
+                    brush.GradientStops[0].Offset = 0;
+                    brush.GradientStops[1].Offset = 0;
+                }
+            }
+
+            // 滚动跟随逐字进度：唱到哪个字，可视区就滚到哪个字
+            if (line.HasSyllables && _scrollableLyricDistance > 0)
+            {
+                Canvas.SetLeft(target, -progress * _scrollableLyricDistance);
+            }
+        }
+
+        // 渲染帧回调：在行切换轮询（100ms）之间，把当前逐字行的高亮与滚动推进到与显示刷新同步
+        private void OnRenderFrame(object? sender, EventArgs e)
+        {
+            if (!_hasLyrics || !_isMediaPlaying || _activeLyricLine == null || !_activeLyricLine.HasSyllables) return;
+
+            TimeSpan estimatedPosition = _lastMediaPosition + (DateTime.Now - _lastSyncTime);
+            TimeSpan adjusted = estimatedPosition - TimeSpan.FromSeconds(_settings.LyricOffsetSeconds);
+            double progress = _lyricsEngine.GetLineProgress(_activeLyricLine, adjusted);
+            ApplyMainLineProgress(_mainLyricControl, _activeLyricLine, progress);
+
+            // 悬浮歌词跟随同一逐字进度，以渲染帧频率同步
+            if (_settings.EnableFloatingLyrics && _floatingWindow != null)
+            {
+                _floatingWindow.UpdateProgress(progress, true);
             }
         }
 
@@ -1981,7 +2082,7 @@ namespace TaskbarInfo
             _desktopWidget?.UpdateLyrics(text);
         }
 
-        private void UpdateSingleLineScroll(TextBlock target, string text, double durationSeconds, bool isInfinite = false)
+        private void UpdateSingleLineScroll(TextBlock target, string text, double durationSeconds, bool isInfinite = false, bool followSyllables = false)
         {
              target.BeginAnimation(Canvas.LeftProperty, null);
              Canvas.SetLeft(target, 0);
@@ -1994,10 +2095,18 @@ namespace TaskbarInfo
              double textWidth = target.ActualWidth;
              double containerWidth = TextContainer.ActualWidth;
 
+             _scrollableLyricDistance = 0;
+
              if (textWidth > containerWidth)
              {
                  double gap = 50; 
-                 if (isInfinite)
+                 if (followSyllables)
+                 {
+                     // 有逐字时间：滚动完全跟随逐字高亮进度，由 UpdateSingleLineProgress 驱动
+                     _scrollableLyricDistance = textWidth - containerWidth + 20;
+                     if (isInfinite) _nextLyricControl.Visibility = Visibility.Collapsed;
+                 }
+                 else if (isInfinite)
                  {
                      _nextLyricControl.Text = text;
                      _nextLyricControl.Visibility = Visibility.Visible;
@@ -2047,6 +2156,7 @@ namespace TaskbarInfo
             if (string.IsNullOrEmpty(appId))
             {
                 AppIcon.Visibility = Visibility.Collapsed;
+                AppIconBackdrop.Visibility = Visibility.Collapsed;
                 return;
             }
 
@@ -2090,10 +2200,15 @@ namespace TaskbarInfo
             {
                 AppIcon.Source = iconSource;
                 AppIcon.Visibility = Visibility.Visible;
+                // 白色/浅色图标（如 Kimi）在浅色组件背景上几乎不可见，垫一个深色圆角底板来衬托
+                AppIconBackdrop.Visibility = IsMostlyLightIcon(iconSource)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
             }
             else
             {
                 AppIcon.Visibility = Visibility.Collapsed;
+                AppIconBackdrop.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -2138,7 +2253,43 @@ namespace TaskbarInfo
             return null;
         }
 
+        // 判断图标是否以浅色/白色为主；这类图标在浅色背景上几乎不可见，需要深色底板衬托
+        private static bool IsMostlyLightIcon(ImageSource source)
+        {
+            if (source is not BitmapSource bitmap || bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0)
+            {
+                return false;
+            }
 
+            try
+            {
+                var converted = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+                int width = converted.PixelWidth;
+                int height = converted.PixelHeight;
+                int stride = width * 4;
+                var pixels = new byte[stride * height];
+                converted.CopyPixels(pixels, stride, 0);
+
+                int opaque = 0;
+                int light = 0;
+                for (int i = 0; i < pixels.Length; i += 4)
+                {
+                    if (pixels[i + 3] < 128) continue; // 忽略透明像素
+                    opaque++;
+                    byte b = pixels[i];
+                    byte g = pixels[i + 1];
+                    byte r = pixels[i + 2];
+                    double luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                    if (luminance > 225) light++;
+                }
+
+                return opaque > 0 && light / (double)opaque > 0.55;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private void DragHandle_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -2204,6 +2355,66 @@ namespace TaskbarInfo
                 _settings.Save();
                 e.Handled = true;
             }
+        }
+
+        private void WidthGrip_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var el = sender as UIElement;
+            if (el == null) return;
+
+            _isDraggingWidth = true;
+            el.CaptureMouse();
+            try
+            {
+                _dragStartMouseScreenPos = PointToScreen(e.GetPosition(this));
+            }
+            catch
+            {
+                _dragStartMouseScreenPos = e.GetPosition(null);
+            }
+            _dragStartWidth = _settings.Width;
+            _dragStartWidthOffsetX = _settings.OffsetX;
+            e.Handled = true;
+        }
+
+        private void WidthGrip_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_isDraggingWidth) return;
+
+            Point currentMouseScreenPos;
+            try
+            {
+                currentMouseScreenPos = PointToScreen(e.GetPosition(this));
+            }
+            catch
+            {
+                currentMouseScreenPos = e.GetPosition(null);
+            }
+
+            double deltaX = currentMouseScreenPos.X - _dragStartMouseScreenPos.X;
+            double newWidth = Math.Round(Math.Clamp(_dragStartWidth + deltaX, MinTaskbarLyricsWidth, MaxTaskbarLyricsWidth));
+            int newOffsetX = Math.Max(0, _dragStartWidthOffsetX - (int)Math.Round(newWidth - _dragStartWidth));
+
+            if (Math.Abs(_settings.Width - newWidth) > 0.01 || _settings.OffsetX != newOffsetX)
+            {
+                _settings.Width = newWidth;
+                _settings.OffsetX = newOffsetX;
+                InjectIntoTaskbar();
+            }
+            e.Handled = true;
+        }
+
+        private void WidthGrip_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (!_isDraggingWidth) return;
+
+            var el = sender as UIElement;
+            el?.ReleaseMouseCapture();
+            _isDraggingWidth = false;
+
+            // 拖拽结束时保存设置
+            _settings.Save();
+            e.Handled = true;
         }
 
         private void AppIcon_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)

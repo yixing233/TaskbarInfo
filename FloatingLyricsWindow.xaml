@@ -77,7 +77,7 @@
                             <Setter Property="Grid.IsSharedSizeScope" Value="True" />
                             <Setter Property="HasDropShadow" Value="True" />
                             <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI, sans-serif"/>
-                            <Setter Property="MinWidth" Value="150"/>
+                            <Setter Property="MinWidth" Value="136"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ContextMenu">
@@ -130,9 +130,9 @@
                         </Style>
 
                         <Style x:Key="MediaControlButtonStyle" TargetType="Button">
-                            <Setter Property="Width" Value="42"/>
+                            <Setter Property="Width" Value="36"/>
                             <Setter Property="Height" Value="30"/>
-                            <Setter Property="Margin" Value="3,0"/>
+                            <Setter Property="Margin" Value="2,0"/>
                             <Setter Property="Background" Value="Transparent"/>
                             <Setter Property="BorderThickness" Value="0"/>
                             <Setter Property="Cursor" Value="Hand"/>
@@ -177,7 +177,7 @@
 
                     <MenuItem Style="{StaticResource ControlRowMenuItemStyle}">
                         <MenuItem.Header>
-                            <Grid Margin="8,0" HorizontalAlignment="Center">
+                            <Grid Margin="6,0" HorizontalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -207,7 +207,7 @@
                     </MenuItem>
                     <MenuItem Style="{StaticResource ControlRowMenuItemStyle}">
                         <MenuItem.Header>
-                            <Grid Margin="8,0" HorizontalAlignment="Center">
+                            <Grid Margin="6,0" HorizontalAlignment="Center">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -221,7 +221,7 @@
                                     <TextBlock Text="&#xf068;" FontFamily="{StaticResource FontAwesome}" FontSize="11" Foreground="#555555"/>
                                 </Button>
                                 <Button Grid.Column="1"
-                                        Width="60"
+                                        Width="50"
                                         Style="{StaticResource MediaControlButtonStyle}"
                                         ToolTip="恢复默认字号"
                                         Click="ResetFontSize_Click">
@@ -238,16 +238,6 @@
                         </MenuItem.Header>
                     </MenuItem>
                     <Separator/>
-                    <MenuItem x:Name="MonitorSelectionMenuItem" Header="显示屏选择">
-                        <MenuItem.Icon>
-                            <TextBlock Text="&#xf108;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="#555555"/>
-                        </MenuItem.Icon>
-                        <MenuItem.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                            </ItemsPanelTemplate>
-                        </MenuItem.ItemsPanel>
-                    </MenuItem>
                     <MenuItem Header="锁定位置" IsCheckable="True" x:Name="LockPositionMenuItem" Click="LockPosition_Click">
                         <MenuItem.Icon>
                             <TextBlock Text="&#xf023;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#555555"/> 

@@ -32,6 +32,7 @@ var tests = new (string Name, Action Test)[]
     ("Temperature sources merge in precedence order", TemperatureSourcesMergeInPrecedenceOrder),
     ("Temperature sources merge hardware names", TemperatureSourcesMergeHardwareNames),
     ("Performance device labels identify hardware", PerformanceDeviceLabelsIdentifyHardware),
+    ("CPU model names shorten to brand and number", CpuModelNamesShortenToBrandAndNumber),
     ("Taskbar performance formatter supports two lines", TaskbarPerformanceFormatterSupportsTwoLines),
     ("Taskbar performance details detect outside clicks", TaskbarPerformanceDetailsDetectOutsideClicks),
     ("Taskbar performance details use the light acrylic palette", TaskbarPerformanceDetailsUseLightAcrylicPalette),
@@ -39,6 +40,7 @@ var tests = new (string Name, Action Test)[]
     ("Taskbar component drag handles share visual metrics", TaskbarComponentDragHandlesShareVisualMetrics),
     ("Taskbar performance layout adapts to font metrics and DPI", TaskbarPerformanceLayoutAdaptsToFontMetricsAndDpi),
     ("Taskbar performance collector caches network interfaces", TaskbarPerformanceCollectorCachesNetworkInterfaces),
+    ("Taskbar performance collector reads CPU model", TaskbarPerformanceCollectorReadsCpuModel),
     ("Taskbar performance collector caches temperature readings", TaskbarPerformanceCollectorCachesTemperatureReadings),
     ("Taskbar performance collector initializes expanded counters", TaskbarPerformanceCollectorInitializesExpandedCounters),
     ("Taskbar performance details group available metrics", TaskbarPerformanceDetailsGroupAvailableMetrics),
@@ -72,6 +74,8 @@ var tests = new (string Name, Action Test)[]
     ("Floating marquee panel is not layout clipped", FloatingMarqueePanelIsNotLayoutClipped),
     ("Floating marquee defers updates during native width resize", FloatingMarqueeDefersUpdatesDuringNativeWidthResize),
     ("Untimed floating lyric disables active color", UntimedFloatingLyricDisablesActiveColor),
+    ("Syllable progress tracks the sung character", SyllableProgressTracksSungCharacter),
+    ("YRC metadata lines stay out of the lyrics timeline", YrcMetadataLinesStayOutOfTheLyricsTimeline),
     ("Taskbar monitor selection uses configured display", TaskbarMonitorSelectionUsesConfiguredDisplay),
     ("Taskbar monitor selection falls back to primary taskbar", TaskbarMonitorSelectionFallsBackToPrimaryTaskbar),
     ("Taskbar component monitor assignments inherit legacy lyric display", TaskbarComponentMonitorAssignmentsInheritLegacyLyricDisplay),
@@ -334,6 +338,17 @@ static void SettingsHostPreservesRuntimeComponentPositions()
         "ordinary settings saves must retain the latest taskbar lyric position");
     AssertEqual(true, code.Contains("_changedTaskbarLyricOffset = true;", StringComparison.Ordinal),
         "editing the taskbar lyric offset in settings must retain precedence");
+    AssertEqual(true,
+        code.Contains("_settings.DesktopWidgetMonitorOffsetX = currentSettings.DesktopWidgetMonitorOffsetX;", StringComparison.Ordinal) &&
+        code.Contains("_settings.DesktopWidgetLeft = currentSettings.DesktopWidgetLeft;", StringComparison.Ordinal) &&
+        code.Contains("_settings.DesktopWidgetMonitorOffsetY = currentSettings.DesktopWidgetMonitorOffsetY;", StringComparison.Ordinal),
+        "ordinary settings saves must retain the latest desktop widget position");
+    AssertEqual(true, code.Contains("_resetDesktopWidgetPosition = true;", StringComparison.Ordinal),
+        "the desktop widget reset command must retain the ability to clear its position");
+    AssertEqual(true,
+        code.Contains("_settings.FloatingLyricsLeft = currentSettings.FloatingLyricsLeft;", StringComparison.Ordinal) &&
+        code.Contains("_settings.FloatingLyricsTop = currentSettings.FloatingLyricsTop;", StringComparison.Ordinal),
+        "ordinary settings saves must retain the latest floating lyric position");
 
     string mainWindowCode = System.IO.File.ReadAllText(System.IO.Path.Combine(
         Environment.CurrentDirectory,
@@ -466,11 +481,11 @@ static void QuickTranslatePlacementClampsOnOffsetMonitor()
 
 static void TaskbarTranslateLayoutIsIndependentFromLyrics()
 {
-    AssertEqual(860, TaskbarTranslateButtonLayout.GetLeftFromTray(1000, 900, null),
+    AssertEqual(852, TaskbarTranslateButtonLayout.GetLeftFromTray(1000, 900, null),
         "default translate position should use tray edge, not lyric position");
-    AssertEqual(740, TaskbarTranslateButtonLayout.GetLeftFromTray(1000, 900, 128),
+    AssertEqual(732, TaskbarTranslateButtonLayout.GetLeftFromTray(1000, 900, 128),
         "saved translate offset should move the button left from the tray");
-    AssertEqual(128, TaskbarTranslateButtonLayout.GetOffsetForLeft(900, 740),
+    AssertEqual(120, TaskbarTranslateButtonLayout.GetOffsetForLeft(900, 740),
         "dragged left position should round-trip to its saved offset");
 }
 
@@ -544,7 +559,7 @@ static void SettingsNavigationGroupsLyricComponentPages()
 {
     string markupPath = System.IO.Path.Combine(Environment.CurrentDirectory, "SettingsHost", "MainWindow.xaml");
     string markup = System.IO.File.ReadAllText(markupPath);
-    const string lyricParent = "<NavigationViewItem Content=\"歌词组件\" SelectsOnInvoked=\"False\" IsExpanded=\"True\">";
+    const string lyricParent = "<NavigationViewItem Content=\"歌词组件\" Tag=\"Lyrics\">";
     const string performanceItem = "<NavigationViewItem Content=\"性能监控\" Tag=\"TaskbarPerformance\"";
     int lyricStart = markup.IndexOf(lyricParent, StringComparison.Ordinal);
     int lyricEnd = lyricStart < 0 ? -1 : markup.IndexOf(performanceItem, lyricStart, StringComparison.Ordinal);
@@ -556,7 +571,17 @@ static void SettingsNavigationGroupsLyricComponentPages()
     string lyricMenu = markup[lyricStart..lyricEnd];
     foreach (string lyricItem in new[]
     {
-        "<NavigationViewItem.Icon><SymbolIcon Symbol=\"MusicInfo\" /></NavigationViewItem.Icon>",
+        "<NavigationViewItem.Icon><SymbolIcon Symbol=\"MusicInfo\" /></NavigationViewItem.Icon>"
+    })
+    {
+        if (!lyricMenu.Contains(lyricItem, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"missing lyric component navigation item: {lyricItem}");
+        }
+    }
+
+    foreach (string legacySubItem in new[]
+    {
         "<NavigationViewItem Content=\"布局与显示\" Tag=\"Typography\" />",
         "<NavigationViewItem Content=\"其他效果\" Tag=\"Visual\" />",
         "<NavigationViewItem Content=\"悬浮歌词\" Tag=\"Floating\" />",
@@ -564,9 +589,9 @@ static void SettingsNavigationGroupsLyricComponentPages()
         "<NavigationViewItem Content=\"应用筛选\" Tag=\"Applications\" />"
     })
     {
-        if (!lyricMenu.Contains(lyricItem, StringComparison.Ordinal))
+        if (markup.Contains(legacySubItem, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException($"missing lyric component navigation item: {lyricItem}");
+            throw new InvalidOperationException($"lyric sub-page should not remain a nested navigation item: {legacySubItem}");
         }
     }
 
@@ -586,8 +611,8 @@ static void SettingsNavigationGroupsLyricComponentPages()
         markup.Contains("PaneDisplayMode=\"Auto\"", StringComparison.Ordinal) &&
         markup.Contains("IsPaneOpen=\"True\"", StringComparison.Ordinal) &&
         markup.Contains("IsPaneToggleButtonVisible=\"True\"", StringComparison.Ordinal) &&
-        markup.Contains("ExpandedModeThresholdWidth=\"880\"", StringComparison.Ordinal) &&
-        markup.Contains("CompactModeThresholdWidth=\"760\"", StringComparison.Ordinal) &&
+        markup.Contains("ExpandedModeThresholdWidth=\"760\"", StringComparison.Ordinal) &&
+        markup.Contains("CompactModeThresholdWidth=\"640\"", StringComparison.Ordinal) &&
         markup.Contains("DisplayModeChanged=\"NavMenu_DisplayModeChanged\"", StringComparison.Ordinal) &&
         markup.Contains("PaneTitle=\"TaskbarInfo\"", StringComparison.Ordinal) &&
         !markup.Contains("<StaticResource x:Key=\"NavigationViewDefaultPaneBackground\"", StringComparison.Ordinal) &&
@@ -599,6 +624,27 @@ static void SettingsNavigationGroupsLyricComponentPages()
     string code = System.IO.File.ReadAllText(codePath);
     AssertEqual(true, code.Contains("NavMenu.FooterMenuItems", StringComparison.Ordinal),
         "programmatic navigation should include footer items such as About");
+    foreach (string tab in new[]
+    {
+        "(\"Typography\", \"布局与显示\")",
+        "(\"Visual\", \"其他效果\")",
+        "(\"Floating\", \"悬浮歌词\")",
+        "(\"DesktopWidget\", \"桌面歌词\")",
+        "(\"Applications\", \"应用筛选\")"
+    })
+    {
+        AssertEqual(true, code.Contains(tab, StringComparison.Ordinal),
+            $"missing in-page lyric tab definition: {tab}");
+    }
+    AssertEqual(true,
+        code.Contains("LyricsSettingsPage", StringComparison.Ordinal) &&
+        code.Contains("SelectorBar", StringComparison.Ordinal) &&
+        code.Contains("page.Visibility = Visibility.Collapsed", StringComparison.Ordinal),
+        "lyric sub-pages should be hosted as in-page tabs that stay alive across tab switches");
+    AssertEqual(true,
+        code.Contains("IsLyricSubPageTag(tag) ? LyricsComponentTag : tag", StringComparison.Ordinal) &&
+        code.Contains("\"Lyrics\" => CreateLyricsPage()", StringComparison.Ordinal),
+        "external navigation to a lyric sub-page should open the lyrics tab page");
     AssertEqual(true, code.Contains("NavigationViewDisplayMode.Compact or NavigationViewDisplayMode.Minimal", StringComparison.Ordinal) &&
         code.Contains("sender.IsPaneOpen = false;", StringComparison.Ordinal),
         "compact and minimal navigation modes should close the pane until the user opens the native floating sidebar");
@@ -606,9 +652,16 @@ static void SettingsNavigationGroupsLyricComponentPages()
         markup.IndexOf("<NavigationView x:Name=\"NavMenu\"", StringComparison.Ordinal) <
             markup.IndexOf("<Grid x:Name=\"RootLayout\"", StringComparison.Ordinal) &&
         markup.Contains("<Grid x:Name=\"RootLayout\">", StringComparison.Ordinal) &&
-        markup.Contains("<Frame x:Name=\"ContentFrame\" Grid.Row=\"1\" />", StringComparison.Ordinal) &&
+        markup.Contains("<Frame x:Name=\"ContentFrame\" />", StringComparison.Ordinal) &&
+        markup.Contains("<InfoBar x:Name=\"ErrorInfoBar\"", StringComparison.Ordinal) &&
         !markup.Contains("<TextBlock Text=\"TaskbarInfo 设置\"", StringComparison.Ordinal),
         "NavigationView should own the settings-window navigation header without a competing custom title");
+    AssertEqual(true,
+        !markup.Contains("Content=\"应用\"", StringComparison.Ordinal) &&
+        !markup.Contains("Content=\"确认\"", StringComparison.Ordinal) &&
+        !markup.Contains("Content=\"取消\"", StringComparison.Ordinal) &&
+        markup.Contains("VerticalAlignment=\"Top\"", StringComparison.Ordinal),
+        "settings should apply immediately without footer buttons, and surface errors as an overlay banner");
     foreach (string heading in new[]
     {
         "NewPanel(\"其他效果\"",
@@ -2153,6 +2206,20 @@ static void PerformanceDeviceLabelsIdentifyHardware()
         ["NVIDIA GeForce RTX 4060", "Intel Graphics"]), "multiple device tooltip");
 }
 
+static void CpuModelNamesShortenToBrandAndNumber()
+{
+    AssertEqual("Intel i7-12700h", TaskbarPerformanceDeviceSummary.ShortenCpuModelName(
+        "12th Gen Intel(R) Core(TM) i7-12700H"), "verbose Intel name shortens");
+    AssertEqual("Intel i5-11400f", TaskbarPerformanceDeviceSummary.ShortenCpuModelName(
+        "11th Gen Intel(R) Core(TM) i5-11400F"), "older Intel generation shortens");
+    AssertEqual("Intel i7-10750h", TaskbarPerformanceDeviceSummary.ShortenCpuModelName(
+        "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz"), "clock suffix drops");
+    AssertEqual("AMD Ryzen 7 5800X", TaskbarPerformanceDeviceSummary.ShortenCpuModelName(
+        "AMD Ryzen 7 5800X"), "AMD names stay unchanged");
+    AssertEqual(null, TaskbarPerformanceDeviceSummary.ShortenCpuModelName("  "),
+        "blank names stay unavailable");
+}
+
 static void TaskbarPerformanceCollectorCachesNetworkInterfaces()
 {
     string code = System.IO.File.ReadAllText(System.IO.Path.Combine(
@@ -2165,6 +2232,20 @@ static void TaskbarPerformanceCollectorCachesNetworkInterfaces()
         "network interface enumeration should have a bounded refresh interval");
     AssertEqual(true, code.Contains("GetNetworkInterfaces()", StringComparison.Ordinal),
         "network rate sampling should use the cached interface list");
+}
+
+static void TaskbarPerformanceCollectorReadsCpuModel()
+{
+    string code = System.IO.File.ReadAllText(System.IO.Path.Combine(
+        Environment.CurrentDirectory,
+        "TaskbarPerformanceCollector.cs"));
+
+    AssertEqual(true, code.Contains("ProcessorNameString", StringComparison.Ordinal),
+        "collector should read the CPU model name");
+    AssertEqual(true, code.Contains("CentralProcessor", StringComparison.Ordinal),
+        "collector should query the processor registry key");
+    AssertEqual(true, code.Contains("_cpuDeviceNames", StringComparison.Ordinal),
+        "collector should cache the CPU model name");
 }
 
 static void TaskbarPerformanceCollectorCachesTemperatureReadings()
@@ -2772,6 +2853,52 @@ static void UntimedFloatingLyricDisablesActiveColor()
         "plain LRC lyrics must not paint a synthetic active-color prefix");
     AssertEqual(true, FloatingLyricsLayout.ShouldUseActiveColor(true),
         "word-timed lyrics should retain progress highlighting");
+}
+
+static void SyllableProgressTracksSungCharacter()
+{
+    var engine = new LyricsEngine();
+    var line = new LyricsEngine.LyricLine { StartMs = 0, EndMs = 5000, Text = "你好世界" };
+    line.Syllables.Add(new LyricsEngine.SyllableInfo { Text = "你", StartMs = 0, DurationMs = 1000 });
+    line.Syllables.Add(new LyricsEngine.SyllableInfo { Text = "好", StartMs = 1000, DurationMs = 1000 });
+    line.Syllables.Add(new LyricsEngine.SyllableInfo { Text = "世", StartMs = 2000, DurationMs = 1000 });
+    line.Syllables.Add(new LyricsEngine.SyllableInfo { Text = "界", StartMs = 3000, DurationMs = 2000 });
+
+    AssertEqual(0.0, engine.GetLineProgress(line, TimeSpan.Zero), "line start should begin at zero");
+    AssertEqual(0.25, engine.GetLineProgress(line, TimeSpan.FromMilliseconds(1000)),
+        "second syllable starts at one quarter of the line");
+    AssertEqual(0.375, engine.GetLineProgress(line, TimeSpan.FromMilliseconds(1500)),
+        "mid-syllable progress should interpolate within the active syllable");
+    AssertEqual(0.75, engine.GetLineProgress(line, TimeSpan.FromMilliseconds(3000)),
+        "last syllable starts at three quarters of the line");
+    AssertEqual(1.0, engine.GetLineProgress(line, TimeSpan.FromMilliseconds(5000)),
+        "line is complete once the last syllable finishes");
+
+    var plain = new LyricsEngine.LyricLine { StartMs = 0, EndMs = 5000, Text = "没有逐字" };
+    AssertEqual(0.0, engine.GetLineProgress(plain, TimeSpan.FromMilliseconds(2500)),
+        "plain LRC lines must not report timed progress");
+}
+
+static void YrcMetadataLinesStayOutOfTheLyricsTimeline()
+{
+    var engine = new LyricsEngine();
+    var tryLoad = typeof(LyricsEngine).GetMethod("TryLoadLyrics",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+        ?? throw new InvalidOperationException("TryLoadLyrics was not found");
+    const string yrc =
+        "{\"t\":0,\"c\":[{\"tx\":\"作词 : 张三\"}]}\n" +
+        "[0,3000](0,500,0)第(500,500,0)一(1000,500,0)句(1500,500,0)歌(2000,500,0)词\n" +
+        "[3000,3000](3000,500,0)第(3500,500,0)二(4000,500,0)句(4500,500,0)歌(5000,500,0)词";
+
+    AssertEqual(true, (bool)tryLoad.Invoke(engine, new object[] { yrc, (object)3 })!,
+        "YRC lyrics with credit lines should load");
+    AssertEqual(2, engine.CurrentLyrics.Count,
+        "作词/作曲 metadata lines must not become lyric lines");
+    AssertEqual("第一句歌词", engine.CurrentLyrics[0].Text, "first real lyric line is preserved");
+
+    var (current, _) = engine.GetLyricsForTime(TimeSpan.FromMilliseconds(1500));
+    AssertEqual("第一句歌词", current?.Text,
+        "the timeline must show the lyric instead of a composer credit");
 }
 
 static void AssertEqual<T>(T expected, T actual, string message)

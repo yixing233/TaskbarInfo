@@ -11,22 +11,15 @@
                     PaneTitle="TaskbarInfo"
                     OpenPaneLength="224"
                     CompactPaneLength="48"
-                    ExpandedModeThresholdWidth="880"
-                    CompactModeThresholdWidth="760"
+                    ExpandedModeThresholdWidth="760"
+                    CompactModeThresholdWidth="640"
                     IsBackButtonVisible="Collapsed"
                     IsSettingsVisible="False"
                     DisplayModeChanged="NavMenu_DisplayModeChanged"
                     SelectionChanged="NavMenu_SelectionChanged">
         <NavigationView.MenuItems>
-            <NavigationViewItem Content="歌词组件" SelectsOnInvoked="False" IsExpanded="True">
+            <NavigationViewItem Content="歌词组件" Tag="Lyrics">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="MusicInfo" /></NavigationViewItem.Icon>
-                <NavigationViewItem.MenuItems>
-                    <NavigationViewItem Content="布局与显示" Tag="Typography" />
-                    <NavigationViewItem Content="其他效果" Tag="Visual" />
-                    <NavigationViewItem Content="悬浮歌词" Tag="Floating" />
-                    <NavigationViewItem Content="桌面歌词" Tag="DesktopWidget" />
-                    <NavigationViewItem Content="应用筛选" Tag="Applications" />
-                </NavigationViewItem.MenuItems>
             </NavigationViewItem>
             <NavigationViewItem Content="性能监控" Tag="TaskbarPerformance">
                 <NavigationViewItem.Icon><SymbolIcon Symbol="Repair" /></NavigationViewItem.Icon>
@@ -83,48 +76,16 @@
             </StackPanel>
             </Grid>
 
-            <Frame x:Name="ContentFrame" Grid.Row="1" />
-
-            <Grid Grid.Row="2" MinHeight="64" Height="Auto">
-            <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0" />
-            <Grid Padding="12,8" MinHeight="64">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+            <Grid Grid.Row="1">
+                <Frame x:Name="ContentFrame" />
                 <InfoBar x:Name="ErrorInfoBar"
-                         Grid.Column="0"
-                         HorizontalAlignment="Left"
-                         VerticalAlignment="Center"
-                         MinWidth="220"
-                         MaxWidth="360"
-                         MinHeight="40"
-                         MaxHeight="48"
+                         HorizontalAlignment="Stretch"
+                         VerticalAlignment="Top"
+                         Margin="16,8,16,0"
+                         MaxWidth="560"
                          IsOpen="False"
                          Severity="Error"
                          IsClosable="True" />
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Button Content="取消"
-                            MinWidth="64"
-                            Height="32"
-                            Padding="12,0"
-                            Background="Transparent"
-                            BorderBrush="Transparent"
-                            Click="Cancel_Click" />
-                    <Button Content="应用"
-                            MinWidth="68"
-                            Height="32"
-                            Padding="12,0"
-                            Click="Apply_Click" />
-                    <Button Content="确认"
-                            MinWidth="68"
-                            Height="32"
-                            Padding="12,0"
-                            Click="Confirm_Click"
-                            Style="{StaticResource AccentButtonStyle}" />
-                </StackPanel>
-            </Grid>
             </Grid>
         </Grid>
     </NavigationView>

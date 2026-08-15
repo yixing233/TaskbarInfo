@@ -96,7 +96,8 @@ namespace TaskbarInfo
                 }
 
                 var cached = await ReadCacheAsync(track, cancellationToken);
-                if (cached != null && TryLoadLyrics(cached.Lyrics, cached.Format))
+                // 旧缓存里可能存有纯 LRC（无逐字时间），不再使用，确保只命中逐字歌词缓存
+                if (cached != null && cached.Format != RawLyricsFormat.Lrc && TryLoadLyrics(cached.Lyrics, cached.Format))
                 {
                     return new SearchResult(SearchStatus.Loaded, cached.Source);
                 }
@@ -109,12 +110,13 @@ namespace TaskbarInfo
                     DurationMs = track.DurationMs
                 };
 
+                // 只保留能提供逐字歌词的源（QQ QRC / 网易云 YRC / 酷狗 KRC），
+                // 纯 LRC 源（如 LRCLIB、网易云 LRC 回退）不再参与，确保始终有逐字高亮。
                 var pending = new List<Task<ProviderAttempt>>
                 {
                     RunProviderAsync(() => SearchQQAsync(metadata), cancellationToken),
                     RunProviderAsync(() => SearchNeteaseAsync(metadata), cancellationToken),
-                    RunProviderAsync(() => SearchKugouAsync(metadata), cancellationToken),
-                    RunProviderAsync(() => SearchLrclibAsync(metadata), cancellationToken)
+                    RunProviderAsync(() => SearchKugouAsync(metadata), cancellationToken)
                 };
 
                 bool anyTimeout = false;
@@ -232,13 +234,9 @@ namespace TaskbarInfo
             if (result is not NeteaseSearchResult netease) return null;
 
             var response = await ProviderHelper.NeteaseApi.GetLyric(netease.Id);
-            if (!string.IsNullOrWhiteSpace(response?.Yrc?.Lyric))
-            {
-                return new ProviderLyrics("网易云音乐", response.Yrc.Lyric, RawLyricsFormat.Yrc);
-            }
-
-            return !string.IsNullOrWhiteSpace(response?.Lrc?.Lyric)
-                ? new ProviderLyrics("网易云音乐", response.Lrc.Lyric, RawLyricsFormat.Lrc)
+            // 只取网易云的逐字歌词（YRC）；纯 LRC 无逐字时间，不参与逐字高亮
+            return !string.IsNullOrWhiteSpace(response?.Yrc?.Lyric)
+                ? new ProviderLyrics("网易云音乐", response.Yrc.Lyric, RawLyricsFormat.Yrc)
                 : null;
         }
 
@@ -262,19 +260,6 @@ namespace TaskbarInfo
                 : null;
         }
 
-        private static async Task<ProviderLyrics?> SearchLrclibAsync(TrackMultiArtistMetadata metadata)
-        {
-            var result = await SearchHelper.Search(
-                metadata,
-                LyricsSearcherKind.LRCLIB,
-                CompareHelper.MatchType.Medium);
-            if (result is not LRCLIBSearchResult lrclib) return null;
-
-            var response = await ProviderHelper.LRCLIBApi.GetById(lrclib.Id);
-            return !string.IsNullOrWhiteSpace(response?.SyncedLyrics)
-                ? new ProviderLyrics("LRCLIB", response.SyncedLyrics, RawLyricsFormat.Lrc)
-                : null;
-        }
 
         private bool TryLoadLyrics(string raw, RawLyricsFormat format)
         {
@@ -294,7 +279,8 @@ namespace TaskbarInfo
                 }
 
                 var lines = ConvertLyricsData(data);
-                if (lines.Count == 0) return false;
+                // 只接受带逐字时间的歌词；纯 LRC/无逐字数据一律视为未命中
+                if (lines.Count == 0 || !lines.Any(l => l.HasSyllables)) return false;
                 CurrentLyrics = lines;
                 return true;
             }
@@ -351,18 +337,34 @@ namespace TaskbarInfo
             var lines = new List<LyricLine>();
             if (data.Lines == null) return lines;
 
+            // YRC 开头的作词/作曲等元数据行是 LineInfo（无音节），不应混进歌词时间轴；
+            // 只有整份歌词都不含逐字行（即纯 LRC）时才保留 LineInfo。
+            bool hasSyllableLines = data.Lines.Any(l => l is SyllableLineInfo);
+
             foreach (var iLine in data.Lines)
             {
+                if (hasSyllableLines && iLine is not SyllableLineInfo)
+                {
+                    continue;
+                }
+
                 var line = new LyricLine
                 {
-                    StartMs = iLine.StartTime ?? 0,
-                    EndMs = iLine.EndTime ?? 0,
                     Text = iLine.Text
                 };
 
                 // 处理音节信息
                 if (iLine is SyllableLineInfo syllableLine)
                 {
+                    // 空音节行（如 QRC 中无逐字标签的纯文本行）没有可靠时间，直接跳过
+                    if (!syllableLine.IsSyllable)
+                    {
+                        continue;
+                    }
+
+                    line.StartMs = syllableLine.Syllables[0].StartTime;
+                    line.EndMs = syllableLine.Syllables[^1].EndTime;
+
                     foreach (var s in syllableLine.Syllables)
                     {
                         line.Syllables.Add(new SyllableInfo
@@ -373,7 +375,12 @@ namespace TaskbarInfo
                         });
                     }
                 }
-                
+                else
+                {
+                    line.StartMs = iLine.StartTime ?? 0;
+                    line.EndMs = iLine.EndTime ?? 0;
+                }
+
                 if (!string.IsNullOrWhiteSpace(line.Text))
                     lines.Add(line);
             }
@@ -409,23 +416,65 @@ namespace TaskbarInfo
         public double GetLineProgress(LyricLine line, TimeSpan time)
         {
             if (line == null || !line.HasSyllables) return 0;
-            
+
             int ms = (int)time.TotalMilliseconds;
             if (ms < line.StartMs) return 0;
-            if (ms >= line.EndMs) return 1;
 
-            int durationMs = line.EndMs - line.StartMs;
-            if (durationMs <= 0) return 0;
+            var syllables = line.Syllables;
 
-            // 查找当前进行到哪个音节了
-            // 这种方式可以支持逐字高亮所需的百分比计算
-            var lastSyllable = line.Syllables.LastOrDefault();
-            if (lastSyllable != null && ms >= lastSyllable.EndMs) return 1;
+            // 行内总字数（以实际渲染的行文本为准，与渐变按文字宽度定位对应）
+            int totalChars = line.Text?.Length ?? 0;
+            if (totalChars <= 0)
+            {
+                foreach (var s in syllables)
+                {
+                    totalChars += s.Text?.Length ?? 0;
+                }
+            }
+            if (totalChars <= 0) return 0;
 
-            // 这里简单计算：已过音节数 / 总音节数 
-            // 完美的实现需要计算像素宽度，但由于 WPF TextBlock 限制，
-            // 我们先提供基于时间的音节定位。
-            return (double)(ms - line.StartMs) / durationMs;
+            // 最后一个音节唱完即视为整行完成（行尾的间奏不再推进高亮）
+            if (ms >= syllables[^1].EndMs) return 1;
+
+            // 找到当前正在演唱的音节
+            int activeIndex = -1;
+            for (int i = 0; i < syllables.Count; i++)
+            {
+                if (ms >= syllables[i].StartMs && ms < syllables[i].EndMs)
+                {
+                    activeIndex = i;
+                    break;
+                }
+            }
+
+            int charsBefore = 0;
+            int charsInActive = 0;
+            double fraction = 0;
+            if (activeIndex >= 0)
+            {
+                for (int i = 0; i < activeIndex; i++)
+                {
+                    charsBefore += syllables[i].Text?.Length ?? 0;
+                }
+                var active = syllables[activeIndex];
+                charsInActive = active.Text?.Length ?? 0;
+                fraction = active.DurationMs > 0
+                    ? (double)(ms - active.StartMs) / active.DurationMs
+                    : 0;
+                if (fraction < 0) fraction = 0;
+                if (fraction > 1) fraction = 1;
+            }
+            else
+            {
+                // 位于音节间隙（或行首空白）：进度停留在上一个已结束音节的末尾
+                for (int i = 0; i < syllables.Count && ms >= syllables[i].EndMs; i++)
+                {
+                    charsBefore += syllables[i].Text?.Length ?? 0;
+                }
+            }
+
+            double progress = (charsBefore + fraction * charsInActive) / (double)totalChars;
+            return Math.Min(1.0, progress);
         }
     }
 }

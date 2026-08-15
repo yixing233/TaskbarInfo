@@ -164,7 +164,7 @@
                 </ToolTip>
             </Border.ToolTip>
             <Border.ContextMenu>
-                <ContextMenu>
+                <ContextMenu Opened="LyricsContextMenu_Opened">
                     <!-- Media Controls Row -->
                     <MenuItem Style="{StaticResource PassiveMenuItemStyle}">
                         <MenuItem.Header>
@@ -187,9 +187,28 @@
                             </StackPanel>
                         </MenuItem.Header>
                     </MenuItem>
-                    
 
-                    
+                    <!-- Lyric Offset Row -->
+                    <MenuItem Style="{StaticResource PassiveMenuItemStyle}">
+                        <MenuItem.Header>
+                            <StackPanel Margin="8,4">
+                                <Grid HorizontalAlignment="Stretch">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" ToolTip="歌词提前 0.5 秒" Click="LyricOffsetDecrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf068;" Margin="4,0"/>
+                                    <TextBlock x:Name="LyricOffsetText" Grid.Column="1" Text="0.0 秒"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{DynamicResource ThemeSecondaryTextBrush}"/>
+                                    <Button Grid.Column="2" ToolTip="歌词延后 0.5 秒" Click="LyricOffsetIncrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf067;" Margin="4,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </MenuItem.Header>
+                    </MenuItem>
+                    <Separator/>
+
                     <MenuItem Header="设置" Click="OpenSettings_Click">
                         <MenuItem.Icon>
                            <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
@@ -215,6 +234,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- Drag Handle -->
@@ -238,6 +258,9 @@
                     </Border>
                 </Border>
 
+                <Border x:Name="AppIconBackdrop" Grid.Column="1" Width="26" Height="26" Margin="3,0,8,0"
+                        CornerRadius="6" Background="#FF2B2F36" IsHitTestVisible="False"
+                        Visibility="Collapsed"/>
                 <Image x:Name="AppIcon" Grid.Column="1" Width="24" Height="24" Margin="4,0,8,0" 
                        VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
                        Visibility="Collapsed" Cursor="Hand" MouseLeftButtonDown="AppIcon_MouseLeftButtonDown"/>
@@ -264,6 +287,27 @@
                         </TextBlock.Foreground>
                     </TextBlock>
                 </Canvas>
+
+                <!-- Width Grip -->
+                <Border x:Name="WidthGrip" Grid.Column="3" Width="10" Margin="2,0,0,0"
+                        VerticalAlignment="Stretch" Cursor="SizeWE"
+                        Background="Transparent" ToolTip="拖动调整歌词宽度"
+                        MouseLeftButtonDown="WidthGrip_MouseLeftButtonDown"
+                        MouseMove="WidthGrip_MouseMove"
+                        MouseLeftButtonUp="WidthGrip_MouseLeftButtonUp">
+                    <Border Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#55FFFFFF"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsMouseOver, ElementName=WidthGrip}" Value="True">
+                                        <Setter Property="Background" Value="#A0FFFFFF"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                </Border>
             </Grid>
         </Border>
     </Grid>

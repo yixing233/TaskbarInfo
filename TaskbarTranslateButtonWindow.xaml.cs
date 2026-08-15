@@ -6,7 +6,7 @@ namespace TaskbarInfo;
 
 public partial class TaskbarTranslateButtonWindow : Window, IDisposable
 {
-    public const int WidthInPixels = 32;
+    public const int WidthInPixels = 40;
     private const int DragThresholdInPixels = 3;
 
     private AppSettings _settings = new();

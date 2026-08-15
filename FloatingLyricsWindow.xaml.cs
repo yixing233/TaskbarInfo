@@ -25,6 +25,7 @@ namespace TaskbarInfo
         private Color _floatingActiveTextColor = Color.FromRgb(0x33, 0xBB, 0xFF);
         private bool _hasTimedLyricProgress;
         private double _lyricProgress;
+        private double _floatingScrollableDistance; // 当前行超宽时可滚动的距离，逐字模式下由进度驱动
         public bool IsAcrylicMode { get; }
         public event Action? CloseRequested;
         public event Action? SettingsRequested;
@@ -52,7 +53,6 @@ namespace TaskbarInfo
             ApplySettings();
             LockPositionMenuItem.IsChecked = _settings.FloatingLyricsLocked;
             this.Icon = App.GetAppIcon();
-            PopulateMonitorSelectionMenu();
             this.Loaded += FloatingLyricsWindow_Loaded;
             this.ContentRendered += FloatingLyricsWindow_ContentRendered;
         }
@@ -569,67 +569,6 @@ namespace TaskbarInfo
             FloatingPlayPauseIcon.Text = isPlaying ? "\uf04c" : "\uf04b";
         }
 
-        private void PopulateMonitorSelectionMenu()
-        {
-            if (MonitorSelectionMenuItem == null) return;
-            
-            MonitorSelectionMenuItem.Items.Clear();
-            
-            // Get all screens
-            var screens = System.Windows.Forms.Screen.AllScreens;
-            if (screens == null || screens.Length == 0) return;
-            
-            // Add "Auto" option (use current/default)
-            var autoItem = new MenuItem
-            {
-                Header = "自动 (主显示器)",
-                IsCheckable = true,
-                IsChecked = string.IsNullOrEmpty(_settings.FloatingLyricsMonitorDeviceName)
-            };
-            autoItem.Click += (s, e) => OnMonitorSelected("");
-            MonitorSelectionMenuItem.Items.Add(autoItem);
-            
-            // Add each screen as an option
-            for (int i = 0; i < screens.Length; i++)
-            {
-                var screen = screens[i];
-                var item = new MenuItem
-                {
-                    Header = $"{screen.DeviceName} ({screen.Bounds.Width}x{screen.Bounds.Height})" + (screen.Primary ? " [主]" : ""),
-                    IsCheckable = true,
-                    IsChecked = string.Equals(_settings.FloatingLyricsMonitorDeviceName, screen.DeviceName, StringComparison.OrdinalIgnoreCase)
-                };
-                string deviceName = screen.DeviceName;
-                item.Click += (s, e) => OnMonitorSelected(deviceName);
-                MonitorSelectionMenuItem.Items.Add(item);
-            }
-        }
-
-        private void OnMonitorSelected(string deviceName)
-        {
-            _settings.FloatingLyricsMonitorDeviceName = deviceName;
-            _settings.Save();
-            
-            // Update check states
-            if (MonitorSelectionMenuItem != null)
-            {
-                foreach (MenuItem item in MonitorSelectionMenuItem.Items)
-                {
-                    if (item.Tag is string itemDeviceName)
-                    {
-                        item.IsChecked = string.Equals(itemDeviceName, deviceName, StringComparison.OrdinalIgnoreCase);
-                    }
-                    else if (item.Header is string header && header.StartsWith("自动"))
-                    {
-                        item.IsChecked = string.IsNullOrEmpty(deviceName);
-                    }
-                }
-            }
-            
-            // Move window to selected monitor
-            MoveToMonitor(deviceName);
-        }
-
         private void MoveToMonitor(string deviceName)
         {
             try
@@ -720,6 +659,7 @@ namespace TaskbarInfo
             if (_resizeCoordinator.IsNativeWidthResizing) return;
 
             StopMarquee();
+            _floatingScrollableDistance = 0;
             LyricTextDuplicate.Visibility = Visibility.Collapsed;
             Canvas.SetLeft(MarqueePanel, 0);
             Canvas.SetTop(MarqueePanel, 0);
@@ -775,6 +715,18 @@ namespace TaskbarInfo
                 return;
             }
 
+            if (_hasTimedLyricProgress)
+            {
+                // 有逐字时间：滚动跟随逐字进度（由 UpdateProgress 驱动），不启动匀速循环
+                _floatingScrollableDistance = Math.Max(0, textWidth - viewportWidth) + 20;
+                MarqueePanel.Width = textWidth;
+                Canvas.SetLeft(MarqueePanel, 0);
+                Canvas.SetTop(MarqueePanel, Math.Max(0, (LyricViewport.ActualHeight - textHeight) / 2));
+                MarqueePanel.UpdateLayout();
+                ApplyProgressDrivenScroll();
+                return;
+            }
+
             LyricTextDuplicate.Visibility = Visibility.Visible;
 
             double distance = textWidth + FloatingLyricsLayout.MarqueeGap;
@@ -809,11 +761,21 @@ namespace TaskbarInfo
                 _hasTimedLyricProgress = hasTimedProgress;
                 _lyricProgress = Math.Clamp(progress, 0, 1);
                 ApplyLyricProgressBrush();
+                ApplyProgressDrivenScroll();
             }
             else
             {
                 Dispatcher.Invoke(() => UpdateProgress(progress, hasTimedProgress));
             }
+        }
+
+        // 逐字模式下滚动跟随进度：唱到哪个字，可视区就滚到哪个字
+        private void ApplyProgressDrivenScroll()
+        {
+            if (!_hasTimedLyricProgress || _floatingScrollableDistance <= 0) return;
+
+            _marqueeTransform.BeginAnimation(TranslateTransform.XProperty, null);
+            _marqueeTransform.X = -_lyricProgress * _floatingScrollableDistance;
         }
 
         private void ApplyLyricProgressBrush()
