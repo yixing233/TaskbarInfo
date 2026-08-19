@@ -118,13 +118,13 @@ namespace TaskbarInfo
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("TaskbarInfo-Updater");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TinyBar-Updater");
             return client;
         }
 
         private static string GetCacheDirectory() => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TaskbarInfo",
+            "TinyBar",
             "Updates");
 
         private static string BuildInstallerFileName(UpdatePackage package)
@@ -142,7 +142,9 @@ namespace TaskbarInfo
             }
 
             string name = Path.GetFileName(package.FileName);
-            if (!name.StartsWith("TaskbarInfo-Setup", StringComparison.OrdinalIgnoreCase) ||
+            if ((!name.StartsWith("TinyBar-Setup", StringComparison.OrdinalIgnoreCase) &&
+                 !name.StartsWith("TaskbarInfo-Setup", StringComparison.OrdinalIgnoreCase) &&
+                 !name.StartsWith("taskbarTool-Setup", StringComparison.OrdinalIgnoreCase)) ||
                 !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(name, package.FileName, StringComparison.Ordinal) ||
                 package.Sha256.Length != 64 ||
@@ -183,11 +185,13 @@ namespace TaskbarInfo
         {
             try
             {
-                foreach (FileInfo file in new DirectoryInfo(cacheDirectory)
-                    .EnumerateFiles("TaskbarInfo-Setup*.exe")
+                var dir = new DirectoryInfo(cacheDirectory);
+                var files = dir.EnumerateFiles("TinyBar-Setup*.exe")
+                    .Concat(dir.EnumerateFiles("TaskbarInfo-Setup*.exe"))
                     .Where(file => !string.Equals(file.FullName, currentInstaller, StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(file => file.LastWriteTimeUtc)
-                    .Skip(2))
+                    .Skip(2);
+                foreach (FileInfo file in files)
                 {
                     file.Delete();
                 }

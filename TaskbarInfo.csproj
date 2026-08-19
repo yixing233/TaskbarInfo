@@ -9,20 +9,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>TaskbarInfo</AssemblyName>
-    <Product>TaskbarInfo</Product>
-    <Title>TaskbarInfo</Title>
-    <Version>1.1.8</Version>
-    <AssemblyVersion>1.1.8.0</AssemblyVersion>
-    <FileVersion>1.1.8.0</FileVersion>
-    <InformationalVersion>1.1.8</InformationalVersion>
+    <AssemblyName>TinyBar</AssemblyName>
+    <Product>TinyBar</Product>
+    <Title>TinyBar</Title>
+    <Version>1.1.9</Version>
+    <AssemblyVersion>1.1.9.0</AssemblyVersion>
+    <FileVersion>1.1.9.0</FileVersion>
+    <InformationalVersion>1.1.9</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/TaskbarInfo</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>src\icons\LyricsX.ico</ApplicationIcon>
+    <ApplicationIcon>src\icons\TinyBar.ico</ApplicationIcon>
     <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;bin\**;obj\**;publish\**;decompiler\**;installer\**;tests\**</DefaultItemExcludes>
   </PropertyGroup>
   
   <ItemGroup>
+    <None Include="src\icons\TinyBar.ico" />
     <None Include="src\icons\LyricsX.ico" />
   </ItemGroup>
 
@@ -59,6 +60,7 @@
   <ItemGroup>
     <Resource Include="src\icons\*.png" />
     <Resource Include="Fonts\fa-solid-900.ttf" />
+    <Resource Include="Fonts\lucide.ttf" />
   </ItemGroup>
 
   <ItemGroup>

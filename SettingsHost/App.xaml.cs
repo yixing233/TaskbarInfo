@@ -1,9 +1,10 @@
+using System.IO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Dispatching;
 using Windows.UI.ViewManagement;
 using TaskbarInfo;
 
-namespace LyricsX.Settings;
+namespace TinyBar.Settings;
 
 public partial class App : Application
 {
@@ -12,8 +13,29 @@ public partial class App : Application
     private DispatcherQueue? _dispatcherQueue;
     private UISettings? _uiSettings;
 
+    private static void LogException(Exception? ex, string source)
+    {
+        if (ex == null) return;
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TinyBar");
+            Directory.CreateDirectory(dir);
+            string logFile = Path.Combine(dir, "settings_crash.log");
+            File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{source}] {ex}\r\n\r\n");
+        }
+        catch { }
+    }
+
     public App()
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            LogException(args.ExceptionObject as Exception, "AppDomain");
+        };
+        UnhandledException += (_, args) =>
+        {
+            LogException(args.Exception, "UnhandledException");
+        };
         InitializeComponent();
     }
 
@@ -21,6 +43,7 @@ public partial class App : Application
     {
         string[] commandLine = Environment.GetCommandLineArgs().Skip(1).ToArray();
         bool keepAlive = commandLine.Contains("--keep-alive", StringComparer.OrdinalIgnoreCase);
+        bool hidden = commandLine.Contains("--hidden", StringComparer.OrdinalIgnoreCase);
         _window = new MainWindow(keepAlive, ResolveNamedArgument(commandLine, "--update-event="));
         _window.Activate();
 
@@ -29,9 +52,9 @@ public partial class App : Application
         _uiSettings.ColorValuesChanged += UiSettings_ColorValuesChanged;
         _window.Closed += Window_Closed;
 
-        if (_window is MainWindow settingsWindow && commandLine.Contains("--keep-alive", StringComparer.OrdinalIgnoreCase))
+        if (_window is MainWindow settingsWindow && keepAlive)
         {
-            if (commandLine.Contains("--hidden", StringComparer.OrdinalIgnoreCase))
+            if (hidden)
             {
                 settingsWindow.HideForReuse();
             }

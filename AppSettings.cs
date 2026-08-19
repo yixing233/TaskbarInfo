@@ -18,7 +18,10 @@ namespace TaskbarInfo
         public string SelectedQuickTranslateDomain { get; set; } = TranslationDomainCatalog.General;
         public string QuickTranslateTargetLanguage { get; set; } = QuickTranslateTargetLanguages.Default;
         public bool EnableQuickTranslateAiPhonetic { get; set; } = false;
-        public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
+        public string QuickTranslateHotkey { get; set; } = "Alt+Shift+T";
+        public string FloatingLyricsHotkey { get; set; } = "";
+        public string DesktopWidgetHotkey { get; set; } = "";
+        public string WaterReminderDrinkHotkey { get; set; } = "";
         public string QuickTranslateWindowMaterial { get; set; } = "Mica";
         public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
         public bool EnableWaterReminder { get; set; } = false;
@@ -99,6 +102,7 @@ namespace TaskbarInfo
         public bool RunOnlyWithMusicApp { get; set; } = false;
         public string MusicAppProcessNames { get; set; } = "QQMusic,cloudmusic,Spotify,YesPlayMusic,Foobar2000"; 
         public bool AutoCheckUpdates { get; set; } = true;
+        public bool LaunchOnStartup { get; set; } = false;
 
         public static string SettingsPath => SettingsStorage.CurrentPath;
 

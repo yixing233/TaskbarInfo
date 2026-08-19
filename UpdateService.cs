@@ -198,7 +198,9 @@ namespace TaskbarInfo
             {
                 string? name = asset.Name?.Trim();
                 if (string.IsNullOrWhiteSpace(name) ||
-                    !name.StartsWith("TaskbarInfo-Setup", StringComparison.OrdinalIgnoreCase) ||
+                    (!name.StartsWith("TinyBar-Setup", StringComparison.OrdinalIgnoreCase) &&
+                     !name.StartsWith("TaskbarInfo-Setup", StringComparison.OrdinalIgnoreCase) &&
+                     !name.StartsWith("taskbarTool-Setup", StringComparison.OrdinalIgnoreCase)) ||
                     !name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                     !Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out Uri? downloadUri) ||
                     downloadUri.Scheme != Uri.UriSchemeHttps ||

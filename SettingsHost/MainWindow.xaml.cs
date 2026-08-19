@@ -12,11 +12,11 @@ using Microsoft.UI.Xaml.Media;
 using TaskbarInfo;
 using Windows.Media.Control;
 
-namespace LyricsX.Settings;
+namespace TinyBar.Settings;
 
 public sealed partial class MainWindow : Window
 {
-    private const string SharedSettingsAppliedEventName = "TaskbarInfo.Settings.Apply";
+    private const string SharedSettingsAppliedEventName = "TinyBar.Settings.Apply";
     private static readonly string[] FontWeightOptions = ["常规", "细体", "半粗", "粗体"];
     private sealed record DisplayOption(string DeviceName, string Label);
     private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr deviceContext, IntPtr monitorRect, IntPtr data);
@@ -42,7 +42,7 @@ public sealed partial class MainWindow : Window
     private const int DarkWindowBorderColor = 0x00404040;
     private static readonly UIntPtr WindowSizeSubclassId = new(1);
     private static readonly uint SettingsNavigateMessage =
-        RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
+        RegisterWindowMessage("TinyBar.Settings.Navigate");
 
     private readonly SettingsDocument _settings;
     private readonly string _settingsPath;
@@ -62,6 +62,8 @@ public sealed partial class MainWindow : Window
     private IntPtr _windowHandle;
     private bool _windowSizeSubclassInstalled;
     private string _lastLyricsTab = "Typography";
+    private string _lastGeneralTab = "General";
+    private string _lastQuickTranslateTab = "General";
 
     public MainWindow(bool keepAlive = false, string? updateEventName = null)
     {
@@ -97,6 +99,14 @@ public sealed partial class MainWindow : Window
     private void NavigateTo(string tag)
     {
         string navigationTag = IsLyricSubPageTag(tag) ? LyricsComponentTag : tag;
+        if (IsGeneralSubPageTag(tag) || tag == "About")
+        {
+            navigationTag = "GeneralSettings";
+        }
+        else if (IsTranslateSubPageTag(tag))
+        {
+            navigationTag = "QuickTranslate";
+        }
         Navigate(navigationTag);
         IEnumerable<NavigationViewItem> navigationItems = NavMenu.MenuItems
             .Concat(NavMenu.FooterMenuItems)
@@ -109,10 +119,28 @@ public sealed partial class MainWindow : Window
         {
             lyricsPage.SelectTab(tag);
         }
+        else if (IsGeneralSubPageTag(tag) && ContentFrame.Content is GeneralSettingsPage generalPage)
+        {
+            generalPage.SelectTab(tag);
+        }
+        else if (tag == "About" && ContentFrame.Content is GeneralSettingsPage generalAboutPage)
+        {
+            generalAboutPage.SelectTab("AboutTab");
+        }
+        else if (IsTranslateSubPageTag(tag) && ContentFrame.Content is QuickTranslateSettingsPage translatePage)
+        {
+            translatePage.SelectTab(tag is "TranslateProviders" or "QuickTranslateProviders" or "Providers" ? "Providers" : "General");
+        }
     }
 
     private static bool IsLyricSubPageTag(string? tag) =>
         tag is "Typography" or "Visual" or "Floating" or "DesktopWidget" or "Applications";
+
+    private static bool IsGeneralSubPageTag(string? tag) =>
+        tag is "General" or "AboutTab";
+
+    private static bool IsTranslateSubPageTag(string? tag) =>
+        tag is "TranslateGeneral" or "TranslateProviders" or "QuickTranslateProviders" or "Providers";
 
     public void HideForReuse()
     {
@@ -129,7 +157,8 @@ public sealed partial class MainWindow : Window
 
     private void ApplyWindowIcon()
     {
-        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LyricsX.ico");
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TinyBar.ico");
+        if (!File.Exists(iconPath)) iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LyricsX.ico");
         if (File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
     }
 
@@ -204,10 +233,15 @@ public sealed partial class MainWindow : Window
         if (message == SettingsNavigateMessage)
         {
             string? page = GetPageTag(wParam.ToInt32().ToString());
-            if (page != null)
+            DispatcherQueue.TryEnqueue(() =>
             {
-                DispatcherQueue.TryEnqueue(() => NavigateTo(page));
-            }
+                AppWindow.Show();
+                Activate();
+                if (page != null)
+                {
+                    NavigateTo(page);
+                }
+            });
             return IntPtr.Zero;
         }
 
@@ -365,7 +399,7 @@ public sealed partial class MainWindow : Window
             "Floating" => CreateFloatingPage(),
             "Applications" => CreateApplicationsPage(),
             "DesktopWidget" => CreateDesktopWidgetPage(),
-            "About" => CreateAboutPage(),
+            "GeneralSettings" or "About" or "General" or "AboutTab" => CreateGeneralSettingsPage(),
             _ => null
         };
     }
@@ -384,22 +418,27 @@ public sealed partial class MainWindow : Window
 
     private Page CreateTypographyPage()
     {
-        var panel = NewPanel("字体与排版", "任务栏歌词的字体和显示方式。");
-        panel.AddRow(LabeledFontPicker("字体", _settings.FontFamily, value => _settings.FontFamily = value));
-        panel.AddRow(LabeledNumberBox("字体大小", _settings.FontSize, 8, 48, value => _settings.FontSize = value));
-        panel.AddRow(LabeledComboBox("字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.FontWeight), value => _settings.FontWeight = ToFontWeight(value)));
-        panel.AddRow(LabeledNumberBox("下一句字号差", _settings.NextLyricFontSizeDiff, 0, 12, value => _settings.NextLyricFontSizeDiff = value));
-        panel.AddRow(LabeledComboBox("下一句字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.NextLyricFontWeight), value => _settings.NextLyricFontWeight = ToFontWeight(value)));
-        panel.AddRow(LabeledToggle("显示双行歌词", _settings.IsDoubleLine, value => _settings.IsDoubleLine = value));
-        panel.AddRow(LabeledNumberBox("任务栏歌词宽度", _settings.Width, 180, 1600, value => _settings.Width = value));
-        panel.AddRow(LabeledDisplaySelector(_settings.TaskbarMonitorDeviceName,
-            value => _settings.TaskbarMonitorDeviceName = value));
-        panel.AddRow(LabeledNumberBox("任务栏右侧偏移", _settings.OffsetX, 0, 200, value =>
-        {
-            _settings.OffsetX = (int)value;
-            _changedTaskbarLyricOffset = true;
-        }));
-        panel.AddRow(LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value, step: 0.5));
+        var panel = NewPanel();
+        panel.AddRow(SectionHeader("字体与排版"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledFontPicker("字体", _settings.FontFamily, value => _settings.FontFamily = value),
+            LabeledNumberBox("字体大小", _settings.FontSize, 8, 48, value => _settings.FontSize = value),
+            LabeledComboBox("字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.FontWeight), value => _settings.FontWeight = ToFontWeight(value)),
+            LabeledNumberBox("下一句字号差", _settings.NextLyricFontSizeDiff, 0, 12, value => _settings.NextLyricFontSizeDiff = value),
+            LabeledComboBox("下一句字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.NextLyricFontWeight), value => _settings.NextLyricFontWeight = ToFontWeight(value)),
+            LabeledToggle("显示双行歌词", _settings.IsDoubleLine, value => _settings.IsDoubleLine = value)));
+
+        panel.AddRow(SectionHeader("任务栏位置与对齐"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledNumberBox("任务栏歌词宽度", _settings.Width, 180, 1600, value => _settings.Width = value),
+            LabeledDisplaySelector(_settings.TaskbarMonitorDeviceName, value => _settings.TaskbarMonitorDeviceName = value),
+            LabeledNumberBox("任务栏右侧偏移", _settings.OffsetX, 0, 200, value =>
+            {
+                _settings.OffsetX = (int)value;
+                _changedTaskbarLyricOffset = true;
+            }),
+            LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value, step: 0.5)));
+
         return Wrap(panel);
     }
 
@@ -474,18 +513,24 @@ public sealed partial class MainWindow : Window
 
     private Page CreateVisualPage()
     {
-        var panel = NewPanel("其他效果", "颜色请使用 #RRGGBB 或 #AARRGGBB 格式。");
-        panel.AddRow(LabeledColorPicker("歌词颜色", _settings.TextColor, value => _settings.TextColor = value));
-        panel.AddRow(LabeledColorPicker("高亮颜色", _settings.ActiveTextColor, value => _settings.ActiveTextColor = value));
-        panel.AddRow(LabeledColorPicker("任务栏背景", _settings.BackgroundColor, value => _settings.BackgroundColor = value));
-        panel.AddRow(LabeledToggle("启用文字阴影", _settings.EnableShadow, value => _settings.EnableShadow = value));
-        panel.AddRow(LabeledToggle("启用文字描边", _settings.EnableOutline, value => _settings.EnableOutline = value));
+        var panel = NewPanel();
+        panel.AddRow(SectionHeader("颜色与背景"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledColorPicker("歌词颜色", _settings.TextColor, value => _settings.TextColor = value),
+            LabeledColorPicker("高亮颜色", _settings.ActiveTextColor, value => _settings.ActiveTextColor = value),
+            LabeledColorPicker("任务栏背景", _settings.BackgroundColor, value => _settings.BackgroundColor = value)));
+
+        panel.AddRow(SectionHeader("文字特效"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("启用文字阴影", _settings.EnableShadow, value => _settings.EnableShadow = value),
+            LabeledToggle("启用文字描边", _settings.EnableOutline, value => _settings.EnableOutline = value)));
+
         return Wrap(panel);
     }
 
     private Page CreateTaskbarPerformancePage()
     {
-        var panel = NewPanel("性能监控", "独立于任务栏歌词显示的性能组件；GPU 计数器不可用时会自动隐藏 GPU 数据。");
+        var panel = NewPanel();
         var selectedMetrics = TaskbarPerformanceMetricCatalog
             .Normalize(_settings.TaskbarPerformanceMetrics)
             .ToList();
@@ -503,28 +548,6 @@ public sealed partial class MainWindow : Window
             .ToList();
         ListView? orderEditor = null;
         const double MetricToggleColumnWidth = 56;
-        panel.AddRow(LabeledToggle(
-            "启用任务栏性能监控",
-            _settings.EnableTaskbarPerformanceMonitor,
-            value => _settings.EnableTaskbarPerformanceMonitor = value));
-        panel.AddRow(LabeledDisplaySelector(_settings.TaskbarPerformanceMonitorDeviceName,
-            value => _settings.TaskbarPerformanceMonitorDeviceName = value));
-        panel.AddRow(LabeledNumberBox(
-            "任务栏摘要数量",
-            _settings.TaskbarPerformanceSummaryMetricCount,
-            1,
-            TaskbarPerformanceMetricCatalog.Definitions.Count,
-            value =>
-            {
-                _settings.TaskbarPerformanceSummaryMetricCount = (int)value;
-                NormalizeSummaryMetrics();
-                RefreshMetricOrderEditor();
-            }));
-        panel.AddRow(LabeledToggle(
-            "增强温度读取（管理员权限）",
-            _settings.EnableEnhancedTemperatureSensors,
-            value => _settings.EnableEnhancedTemperatureSensors = value,
-            "AMD 锐龙 CPU 温度依赖内核驱动（PawnIO）才能读取。开启后将以管理员权限运行辅助进程；若仍无温度，请安装 LibreHardwareMonitor 官方程序附带的 PawnIO 驱动。"));
 
         string[] refreshOptions = ["1 秒", "2 秒", "5 秒"];
         string selectedRefresh = _settings.TaskbarPerformanceRefreshSeconds switch
@@ -533,35 +556,71 @@ public sealed partial class MainWindow : Window
             5 => "5 秒",
             _ => "1 秒"
         };
-        panel.AddRow(LabeledComboBox(
-            "刷新频率",
-            refreshOptions,
-            selectedRefresh,
-            value => _settings.TaskbarPerformanceRefreshSeconds = value switch
-            {
-                "2 秒" => 2,
-                "5 秒" => 5,
-                _ => 1
-            }));
-        panel.AddRow(LabeledToggle(
-            "显示双行指标",
-            _settings.TaskbarPerformanceIsDoubleLine,
-            value => _settings.TaskbarPerformanceIsDoubleLine = value));
-        panel.AddRow(LabeledFontPicker(
-            "字体",
-            _settings.TaskbarPerformanceFontFamily,
-            value => _settings.TaskbarPerformanceFontFamily = value));
-        panel.AddRow(LabeledNumberBox(
-            "字体大小",
-            _settings.TaskbarPerformanceFontSize,
-            8,
-            24,
-            value => _settings.TaskbarPerformanceFontSize = value));
-        panel.AddRow(LabeledComboBox(
-            "字体粗细",
-            FontWeightOptions,
-            ToChineseFontWeight(_settings.TaskbarPerformanceFontWeight),
-            value => _settings.TaskbarPerformanceFontWeight = ToFontWeight(value)));
+
+        var resetPosition = new Button { Content = "恢复默认位置", HorizontalAlignment = HorizontalAlignment.Left };
+        resetPosition.Click += (_, _) =>
+        {
+            _settings.TaskbarPerformanceOffsetX = null;
+            _resetTaskbarPerformancePosition = true;
+            QueueSettingsApply();
+        };
+
+        panel.AddRow(SectionHeader("监控与数据源"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle(
+                "启用任务栏性能监控",
+                _settings.EnableTaskbarPerformanceMonitor,
+                value => _settings.EnableTaskbarPerformanceMonitor = value),
+            LabeledDisplaySelector(_settings.TaskbarPerformanceMonitorDeviceName,
+                value => _settings.TaskbarPerformanceMonitorDeviceName = value),
+            LabeledNumberBox(
+                "任务栏摘要数量",
+                _settings.TaskbarPerformanceSummaryMetricCount,
+                1,
+                TaskbarPerformanceMetricCatalog.Definitions.Count,
+                value =>
+                {
+                    _settings.TaskbarPerformanceSummaryMetricCount = (int)value;
+                    NormalizeSummaryMetrics();
+                    RefreshMetricOrderEditor();
+                }),
+            LabeledToggle(
+                "增强温度读取（管理员权限）",
+                _settings.EnableEnhancedTemperatureSensors,
+                value => _settings.EnableEnhancedTemperatureSensors = value,
+                "AMD 锐龙 CPU 温度依赖内核驱动（PawnIO）才能读取。开启后将以管理员权限运行辅助进程；若仍无温度，请安装 LibreHardwareMonitor 官方程序附带的 PawnIO 驱动。"),
+            LabeledComboBox(
+                "刷新频率",
+                refreshOptions,
+                selectedRefresh,
+                value => _settings.TaskbarPerformanceRefreshSeconds = value switch
+                {
+                    "2 秒" => 2,
+                    "5 秒" => 5,
+                    _ => 1
+                })));
+
+        panel.AddRow(SectionHeader("字体与显示"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle(
+                "显示双行指标",
+                _settings.TaskbarPerformanceIsDoubleLine,
+                value => _settings.TaskbarPerformanceIsDoubleLine = value),
+            LabeledFontPicker(
+                "字体",
+                _settings.TaskbarPerformanceFontFamily,
+                value => _settings.TaskbarPerformanceFontFamily = value),
+            LabeledNumberBox(
+                "字体大小",
+                _settings.TaskbarPerformanceFontSize,
+                8,
+                24,
+                value => _settings.TaskbarPerformanceFontSize = value),
+            LabeledComboBox(
+                "字体粗细",
+                FontWeightOptions,
+                ToChineseFontWeight(_settings.TaskbarPerformanceFontWeight),
+                value => _settings.TaskbarPerformanceFontWeight = ToFontWeight(value))));
 
         orderEditor = new ListView
         {
@@ -570,10 +629,7 @@ public sealed partial class MainWindow : Window
             AllowDrop = true,
             SelectionMode = ListViewSelectionMode.None,
             IsItemClickEnabled = false,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            // ListView 默认按内容宽度测量项目，导致行内的 Star 列没有铺满，
-            // 开关会停在中间并在右侧留下大块空白。
-            HorizontalContentAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
         ScrollViewer.SetVerticalScrollMode(orderEditor, ScrollMode.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(orderEditor, ScrollBarVisibility.Disabled);
@@ -784,16 +840,10 @@ public sealed partial class MainWindow : Window
 
         RefreshMetricOrderEditor();
         panel.AddRow(SectionHeader("指标显示与顺序"));
-        panel.AddRow(orderEditor);
+        panel.AddRow(CreateSettingsCard(orderEditor));
 
-        var resetPosition = new Button { Content = "恢复默认位置", HorizontalAlignment = HorizontalAlignment.Left };
-        resetPosition.Click += (_, _) =>
-        {
-            _settings.TaskbarPerformanceOffsetX = null;
-            _resetTaskbarPerformancePosition = true;
-            QueueSettingsApply();
-        };
-        panel.AddRow(resetPosition);
+        panel.AddRow(SectionHeader("位置重置"));
+        panel.AddRow(CreateSettingsCard(resetPosition));
 
         return Wrap(panel);
     }
@@ -810,19 +860,14 @@ public sealed partial class MainWindow : Window
 
     private Page CreateWaterReminderPage()
     {
-        var panel = NewPanel("喝水助手", "在任务栏显示今日饮水进度，并按设定节奏提醒。达到每日目标后，当天不再推送提醒。", titleFontSize: 24);
-        panel.AddRow(SectionHeader("任务栏组件"));
-        panel.AddRow(LabeledToggle(
-            "启用喝水助手",
-            _settings.EnableWaterReminder,
-            value => _settings.EnableWaterReminder = value));
+        var panel = NewPanel();
 
         var resetPosition = new Button
         {
             Width = 32,
             Height = 32,
             Padding = new Thickness(0),
-            VerticalAlignment = VerticalAlignment.Bottom,
+            VerticalAlignment = VerticalAlignment.Center,
             Content = new SymbolIcon(Symbol.Refresh)
         };
         ToolTipService.SetToolTip(resetPosition, "恢复默认组件位置");
@@ -843,52 +888,63 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(resetPosition, 1);
         displayEditor.Children.Add(displaySelector);
         displayEditor.Children.Add(resetPosition);
-        panel.AddRow(displayEditor);
+
+        panel.AddRow(SectionHeader("任务栏组件"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle(
+                "启用喝水助手",
+                _settings.EnableWaterReminder,
+                value => _settings.EnableWaterReminder = value),
+            displayEditor));
 
         panel.AddRow(SectionHeader("提醒节奏"));
-        panel.AddRow(LabeledNumberBox(
-            "提醒间隔（分钟）",
-            _settings.WaterReminderIntervalMinutes,
-            15,
-            240,
-            value => _settings.WaterReminderIntervalMinutes = (int)value));
-        panel.AddRow(LabeledNumberBox(
-            "稍后提醒（分钟）",
-            _settings.WaterReminderSnoozeMinutes,
-            5,
-            60,
-            value => _settings.WaterReminderSnoozeMinutes = (int)value));
-        panel.AddRow(LabeledNumberBox(
-            "每日目标（次）",
-            _settings.WaterReminderDailyGoal,
-            1,
-            24,
-            value => _settings.WaterReminderDailyGoal = (int)value));
+        panel.AddRow(CreateSettingsCard(
+            LabeledNumberBox(
+                "提醒间隔（分钟）",
+                _settings.WaterReminderIntervalMinutes,
+                15,
+                240,
+                value => _settings.WaterReminderIntervalMinutes = (int)value),
+            LabeledNumberBox(
+                "稍后提醒（分钟）",
+                _settings.WaterReminderSnoozeMinutes,
+                5,
+                60,
+                value => _settings.WaterReminderSnoozeMinutes = (int)value),
+            LabeledNumberBox(
+                "每日目标（次）",
+                _settings.WaterReminderDailyGoal,
+                1,
+                24,
+                value => _settings.WaterReminderDailyGoal = (int)value)));
 
-        panel.AddRow(SectionHeader("静默时段"));
-        panel.AddRow(LabeledTimePicker(
-            "开始时间",
-            _settings.WaterReminderQuietStart,
-            value => _settings.WaterReminderQuietStart = value));
-        panel.AddRow(LabeledTimePicker(
-            "结束时间",
-            _settings.WaterReminderQuietEnd,
-            value => _settings.WaterReminderQuietEnd = value));
-        panel.AddRow(LabeledToggle(
-            "显示系统通知",
-            _settings.WaterReminderShowSystemNotification,
-            value => _settings.WaterReminderShowSystemNotification = value));
-        panel.AddRow(LabeledToggle(
-            "全屏时隐藏提醒",
-            _settings.WaterReminderHideInFullscreen,
-            value => _settings.WaterReminderHideInFullscreen = value));
+        panel.AddRow(SectionHeader("静默时段与打卡"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledTimePicker(
+                "开始时间",
+                _settings.WaterReminderQuietStart,
+                value => _settings.WaterReminderQuietStart = value),
+            LabeledTimePicker(
+                "结束时间",
+                _settings.WaterReminderQuietEnd,
+                value => _settings.WaterReminderQuietEnd = value),
+            LabeledToggle(
+                "显示系统通知",
+                _settings.WaterReminderShowSystemNotification,
+                value => _settings.WaterReminderShowSystemNotification = value),
+            LabeledToggle(
+                "全屏时隐藏提醒",
+                _settings.WaterReminderHideInFullscreen,
+                value => _settings.WaterReminderHideInFullscreen = value),
+            CreateHotkeyRow("打卡快捷键", _settings.WaterReminderDrinkHotkey, "Alt+Shift+W", value => _settings.WaterReminderDrinkHotkey = value, "按下快捷键快速记录一次饮水打卡。")));
+
         panel.AddRow(SectionHeader("饮水统计"));
         _waterReminderStatisticsHost = new ContentControl
         {
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Content = CreateWaterReminderStatistics()
         };
-        panel.AddRow(_waterReminderStatisticsHost);
+        panel.AddRow(CreateSettingsCard(_waterReminderStatisticsHost));
         return Wrap(panel);
     }
 
@@ -1158,25 +1214,23 @@ public sealed partial class MainWindow : Window
 
     private Page CreateQuickTranslatePage()
     {
-        var root = new StackPanel
-        {
-            Spacing = 16
-        };
+        return new QuickTranslateSettingsPage(
+            CreateQuickTranslateGeneralPage(),
+            CreateQuickTranslateProvidersPage(),
+            _lastQuickTranslateTab,
+            tag => _lastQuickTranslateTab = tag);
+    }
 
-        var general = NewPanel("快捷翻译", "配置任务栏翻译入口与窗口行为。", titleFontSize: 24);
-        var taskbarEntry = new StackPanel { Spacing = 10 };
-        taskbarEntry.Children.Add(SectionHeader("任务栏入口"));
-        taskbarEntry.Children.Add(LabeledToggle(
-            "显示任务栏翻译按钮",
-            _settings.EnableTaskbarTranslateButton,
-            value => _settings.EnableTaskbarTranslateButton = value));
+    private Page CreateQuickTranslateGeneralPage()
+    {
+        var panel = NewPanel();
 
         var resetButtonPosition = new Button
         {
             Width = 32,
             Height = 32,
             Padding = new Thickness(0),
-            VerticalAlignment = VerticalAlignment.Bottom,
+            VerticalAlignment = VerticalAlignment.Center,
             Content = new SymbolIcon(Symbol.Refresh)
         };
         ToolTipService.SetToolTip(resetButtonPosition, "恢复默认按钮位置");
@@ -1195,159 +1249,243 @@ public sealed partial class MainWindow : Window
         Grid.SetColumn(resetButtonPosition, 1);
         displayEditor.Children.Add(displaySelector);
         displayEditor.Children.Add(resetButtonPosition);
-        taskbarEntry.Children.Add(displayEditor);
-        general.AddRow(taskbarEntry);
 
-        var hotkeyBox = new TextBox
-        {
-            Text = NormalizeQuickTranslateHotkey(_settings.QuickTranslateHotkey),
-            PlaceholderText = "点击后按下组合键",
-            IsReadOnly = true,
-            MinWidth = 220
-        };
-        hotkeyBox.KeyDown += (_, args) => CaptureQuickTranslateHotkey(hotkeyBox, args);
-        var resetHotkeyButton = new Button
-        {
-            Width = 32,
-            Height = 32,
-            Padding = new Thickness(0),
-            Content = new SymbolIcon(Symbol.Refresh)
-        };
-        ToolTipService.SetToolTip(resetHotkeyButton, "重置为 Ctrl+Alt+T");
-        resetHotkeyButton.Click += (_, _) => SetQuickTranslateHotkey(hotkeyBox, "Ctrl+Alt+T");
-        var clearHotkeyButton = new Button
-        {
-            Width = 32,
-            Height = 32,
-            Padding = new Thickness(0),
-            Content = new SymbolIcon(Symbol.Clear)
-        };
-        ToolTipService.SetToolTip(clearHotkeyButton, "移除快捷键");
-        clearHotkeyButton.Click += (_, _) => SetQuickTranslateHotkey(hotkeyBox, string.Empty);
-        var hotkeyEditor = new Grid();
-        hotkeyEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        hotkeyEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
-        hotkeyEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        hotkeyEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
-        hotkeyEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(hotkeyBox, 0);
-        Grid.SetColumn(resetHotkeyButton, 2);
-        Grid.SetColumn(clearHotkeyButton, 4);
-        hotkeyEditor.Children.Add(hotkeyBox);
-        hotkeyEditor.Children.Add(resetHotkeyButton);
-        hotkeyEditor.Children.Add(clearHotkeyButton);
+        panel.AddRow(SectionHeader("任务栏入口"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle(
+                "显示任务栏翻译按钮",
+                _settings.EnableTaskbarTranslateButton,
+                value => _settings.EnableTaskbarTranslateButton = value),
+            displayEditor));
+
         string selectedMaterial = QuickTranslateWindowMaterialParser.Parse(_settings.QuickTranslateWindowMaterial) switch
         {
             QuickTranslateWindowMaterial.Acrylic => "Acrylic",
             QuickTranslateWindowMaterial.Solid => "纯色",
             _ => "Mica"
         };
-        var interaction = new StackPanel { Spacing = 10 };
-        interaction.Children.Add(Field("全局快捷键", hotkeyEditor, "点击输入框后按下组合键；移除后不注册全局快捷键。"));
-        interaction.Children.Add(LabeledFontPicker(
-            "翻译窗口字体",
-            _settings.QuickTranslateFontFamily,
-            value => _settings.QuickTranslateFontFamily = value));
-        interaction.Children.Add(LabeledComboBox("窗口材质", ["Mica", "Acrylic", "纯色"], selectedMaterial, value =>
-        {
-            _settings.QuickTranslateWindowMaterial = value switch
-            {
-                "Acrylic" => "Acrylic",
-                "纯色" => "Solid",
-                _ => "Mica"
-            };
-        }));
-        interaction.Children.Add(LabeledToggle(
-            "AI 生成音标",
-            _settings.EnableQuickTranslateAiPhonetic,
-            value => _settings.EnableQuickTranslateAiPhonetic = value));
-        general.AddRow(interaction);
 
-        root.Children.Add(general);
+        panel.AddRow(SectionHeader("交互与外观"));
+        panel.AddRow(CreateSettingsCard(
+            CreateHotkeyRow("全局快捷键", _settings.QuickTranslateHotkey, "Alt+Shift+T", value => _settings.QuickTranslateHotkey = value, "点击输入框后按下组合键；移除后不注册全局快捷键。"),
+            LabeledFontPicker(
+                "翻译窗口字体",
+                _settings.QuickTranslateFontFamily,
+                value => _settings.QuickTranslateFontFamily = value),
+            LabeledComboBoxRow("窗口材质", ["Mica", "Acrylic", "纯色"], selectedMaterial, value =>
+            {
+                _settings.QuickTranslateWindowMaterial = value switch
+                {
+                    "Acrylic" => "Acrylic",
+                    "纯色" => "Solid",
+                    _ => "Mica"
+                };
+            }),
+            LabeledToggle(
+                "AI 生成音标",
+                _settings.EnableQuickTranslateAiPhonetic,
+                value => _settings.EnableQuickTranslateAiPhonetic = value)));
+
+        return Wrap(panel);
+    }
+
+    private Page CreateQuickTranslateProvidersPage()
+    {
+        var panel = NewPanel();
 
         var providerLayout = new Grid
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            ColumnSpacing = 16
         };
-        providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(240) });
-        providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1) });
+        providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
         providerLayout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var providerSection = new Border
-        {
-            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
-            BorderThickness = new Thickness(0, 1, 0, 0),
-            Padding = new Thickness(0, 18, 0, 0),
-            Child = providerLayout
-        };
-        root.Children.Add(providerSection);
 
-        var leftColumn = new Grid
+        // Left Column: Master list card
+        var leftCard = new Border
         {
-            Padding = new Thickness(0, 0, 20, 0)
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Brush,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 4, 0, 14)
         };
-        leftColumn.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        leftColumn.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        var providerHeader = new Grid();
+
+        var leftGrid = new Grid();
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        leftGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var providerHeader = new Grid
+        {
+            Padding = new Thickness(12, 8, 8, 8)
+        };
         providerHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         providerHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         providerHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        providerHeader.Children.Add(new TextBlock
+
+        var providerHeaderTitle = new TextBlock
         {
-            Text = "翻译服务商",
-            FontSize = 16,
+            Text = "服务商列表",
+            FontSize = 13.5,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        Grid.SetColumn(providerHeaderTitle, 0);
+        providerHeader.Children.Add(providerHeaderTitle);
+
+        var addProviderButton = new Button
+        {
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            Content = new SymbolIcon(Symbol.Add)
+        };
+        ToolTipService.SetToolTip(addProviderButton, "添加翻译服务商");
+
+        var removeProviderButton = new Button
+        {
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            Margin = new Thickness(4, 0, 0, 0),
+            Content = new SymbolIcon(Symbol.Delete)
+        };
+        ToolTipService.SetToolTip(removeProviderButton, "移除当前选中的翻译服务商");
+
+        Grid.SetColumn(addProviderButton, 1);
+        Grid.SetColumn(removeProviderButton, 2);
+        providerHeader.Children.Add(addProviderButton);
+        providerHeader.Children.Add(removeProviderButton);
+        leftGrid.Children.Add(providerHeader);
+
+        var leftDivider = new Border
+        {
+            Height = 1,
+            Background = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            Opacity = 0.5
+        };
+        Grid.SetRow(leftDivider, 1);
+        leftGrid.Children.Add(leftDivider);
 
         var providerList = new ListView
         {
             SelectionMode = ListViewSelectionMode.Single,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 14, 0, 0)
+            Margin = new Thickness(0, 4, 0, 4),
+            MaxHeight = 480
         };
-        Grid.SetRow(providerList, 1);
-        leftColumn.Children.Add(providerHeader);
-        leftColumn.Children.Add(providerList);
-        Grid.SetColumn(leftColumn, 0);
-        providerLayout.Children.Add(leftColumn);
+        Grid.SetRow(providerList, 2);
+        leftGrid.Children.Add(providerList);
+        leftCard.Child = leftGrid;
 
-        var providerDivider = new Border
+        Grid.SetColumn(leftCard, 0);
+        providerLayout.Children.Add(leftCard);
+
+        // Right Column: Detail Cards
+        var rightStack = new StackPanel
         {
-            Background = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush
+            Spacing = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
-        Grid.SetColumn(providerDivider, 1);
-        providerLayout.Children.Add(providerDivider);
+
+        var emptyStateCard = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Brush,
+            Padding = new Thickness(24, 40, 24, 40),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 4, 0, 14),
+            Visibility = Visibility.Collapsed
+        };
+        emptyStateCard.Child = new TextBlock
+        {
+            Text = "请在左侧选择或添加翻译服务商",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Opacity = 0.6
+        };
+        rightStack.Children.Add(emptyStateCard);
 
         var detailPanel = new StackPanel
         {
-            Spacing = 12,
-            Padding = new Thickness(24, 0, 0, 12)
+            Spacing = 0,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
+
+        // Header Summary Card
+        var topSummaryGrid = new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        topSummaryGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        topSummaryGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var titleInfoStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var detailTitleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         var detailTitle = new TextBlock
         {
-            FontSize = 20,
-            FontWeight = FontWeights.SemiBold
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
         };
+        var providerTypeBadge = new Border
+        {
+            CornerRadius = new CornerRadius(4),
+            Background = Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush,
+            Padding = new Thickness(6, 2, 6, 2),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var providerTypeBadgeText = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255)),
+            FontWeight = FontWeights.Medium
+        };
+        providerTypeBadge.Child = providerTypeBadgeText;
+        detailTitleRow.Children.Add(detailTitle);
+        detailTitleRow.Children.Add(providerTypeBadge);
+
         var detailEndpoint = new TextBlock
         {
-            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(
-                Windows.UI.Color.FromArgb(180, 96, 94, 92)),
+            FontSize = 12,
+            Opacity = 0.65,
             TextTrimming = TextTrimming.CharacterEllipsis
         };
-        detailPanel.Children.Add(detailTitle);
-        detailPanel.Children.Add(detailEndpoint);
-        detailPanel.Children.Add(SectionHeader("设置"));
+        titleInfoStack.Children.Add(detailTitleRow);
+        titleInfoStack.Children.Add(detailEndpoint);
+        Grid.SetColumn(titleInfoStack, 0);
+        topSummaryGrid.Children.Add(titleInfoStack);
 
-        var providerIdBox = new TextBox { MinWidth = 360 };
-        var providerNameBox = new TextBox { MinWidth = 360 };
-        var appIdBox = new TextBox { MinWidth = 360 };
-        var secretBox = new PasswordBox { MinWidth = 360 };
-        var extraCredentialBox = new AutoSuggestBox { MinWidth = 360 };
+        var setDefaultButton = new Button
+        {
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(setDefaultButton, 1);
+        topSummaryGrid.Children.Add(setDefaultButton);
+
+        var headerCard = CreateSettingsCard(topSummaryGrid);
+        detailPanel.Children.Add(headerCard);
+
+        // Input controls
+        var providerIdBox = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var providerNameBox = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var appIdBox = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var cloudSecretBox = new PasswordBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var aiApiKeyBox = new PasswordBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        var extraCredentialBox = new AutoSuggestBox { HorizontalAlignment = HorizontalAlignment.Stretch };
         var systemPromptBox = new TextBox
         {
-            MinWidth = 360,
-            Height = 112,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Height = 100,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             PlaceholderText = TranslationProviderProfiles.DefaultAiSystemPrompt
@@ -1359,37 +1497,52 @@ public sealed partial class MainWindow : Window
             Padding = new Thickness(0),
             Content = new SymbolIcon(Symbol.Refresh)
         };
-        ToolTipService.SetToolTip(fetchModelsButton, "获取可用模型");
-        var apiBaseUrlBox = new TextBox { MinWidth = 360, PlaceholderText = "https://" };
-        var appIdLabel = new TextBlock();
-        var appSecretLabel = new TextBlock();
-        var extraCredentialLabel = new TextBlock();
-        var appIdField = new StackPanel { Spacing = 4 };
-        var appSecretField = new StackPanel { Spacing = 4 };
-        var extraCredentialField = new StackPanel { Spacing = 4 };
-        var systemPromptField = new StackPanel { Spacing = 4 };
+        ToolTipService.SetToolTip(fetchModelsButton, "获取可用模型列表");
+        var apiBaseUrlBox = new TextBox { HorizontalAlignment = HorizontalAlignment.Stretch, PlaceholderText = "https://" };
+
         var extraCredentialEditor = new Grid { ColumnSpacing = 8 };
         extraCredentialEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         extraCredentialEditor.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        appIdField.Children.Add(appIdLabel);
-        appIdField.Children.Add(appIdBox);
-        appSecretField.Children.Add(appSecretLabel);
-        appSecretField.Children.Add(secretBox);
-        extraCredentialField.Children.Add(extraCredentialLabel);
         Grid.SetColumn(extraCredentialBox, 0);
         Grid.SetColumn(fetchModelsButton, 1);
         extraCredentialEditor.Children.Add(extraCredentialBox);
         extraCredentialEditor.Children.Add(fetchModelsButton);
-        extraCredentialField.Children.Add(extraCredentialEditor);
-        systemPromptField.Children.Add(new TextBlock { Text = "系统提示词" });
-        systemPromptField.Children.Add(new TextBlock
-        {
-            Text = "留空时使用默认翻译提示词；可使用 {target_language} 代表当前目标语言，{domain} 代表快捷翻译中选择的领域。",
-            FontSize = 12,
-            Opacity = 0.72,
-            TextWrapping = TextWrapping.Wrap
-        });
-        systemPromptField.Children.Add(systemPromptBox);
+
+        // Card 1: 基本信息
+        detailPanel.Children.Add(SectionHeader("基本信息"));
+        detailPanel.Children.Add(CreateSettingsCard(
+            Field("服务商名称", providerNameBox, "显示在快捷翻译窗口服务商下拉列表中。"),
+            Field("服务商 ID", providerIdBox, "在翻译窗口中标识该配置；只能使用字母、数字、下划线和短横线。"),
+            Field("API 接口地址 (Base URL)", apiBaseUrlBox, "请求接口基础地址。支持自建网关或兼容第三方代理服务。")
+        ));
+
+        // Card 2: 凭证与模型
+        var credentialsSectionHeader = SectionHeader("接口凭证与模型");
+        var cloudCredentialsCard = CreateSettingsCard(
+            Field("应用 ID (App ID)", appIdBox, "服务商控制台分配的应用 ID 或开发者 ID。"),
+            Field("应用密钥 (App Secret)", cloudSecretBox, "服务商控制台分配的应用密钥。")
+        );
+        var aiCredentialsCard = CreateSettingsCard(
+            Field("API 密钥 (API Key)", aiApiKeyBox, "模型服务商提供的 API Token 或 Key。"),
+            Field("模型名称 (Model)", extraCredentialEditor, "例如 deepseek-ai/DeepSeek-V3；支持点击右侧刷新按钮自动获取可用模型列表。")
+        );
+
+        detailPanel.Children.Add(credentialsSectionHeader);
+        detailPanel.Children.Add(cloudCredentialsCard);
+        detailPanel.Children.Add(aiCredentialsCard);
+
+        // Card 3: 系统提示词 (Prompt - AI Only)
+        var promptSectionHeader = SectionHeader("系统提示词 (Prompt)");
+        var promptCard = CreateSettingsCard(
+            Field("系统提示词", systemPromptBox, "留空时使用默认翻译提示词；支持变量：{target_language} 代表目标语言，{domain} 代表快捷翻译中选择的领域。")
+        );
+        detailPanel.Children.Add(promptSectionHeader);
+        detailPanel.Children.Add(promptCard);
+
+        rightStack.Children.Add(detailPanel);
+        Grid.SetColumn(rightStack, 1);
+        providerLayout.Children.Add(rightStack);
+
         var modelCandidates = new List<string>();
         bool synchronizing = false;
 
@@ -1401,7 +1554,7 @@ public sealed partial class MainWindow : Window
             "自定义服务商";
 
         string GetProviderEndpoint(TranslationProviderProfile profile) =>
-            string.IsNullOrWhiteSpace(profile.ApiBaseUrl) ? "未配置" : profile.ApiBaseUrl;
+            string.IsNullOrWhiteSpace(profile.ApiBaseUrl) ? "未配置接口地址" : profile.ApiBaseUrl;
 
         void UpdateModelSuggestions(string? query)
         {
@@ -1423,21 +1576,65 @@ public sealed partial class MainWindow : Window
 
         FrameworkElement CreateProviderListEntry(TranslationProviderProfile profile)
         {
-            var content = new StackPanel { Spacing = 3 };
-            content.Children.Add(new TextBlock
+            var entry = new Grid
+            {
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Padding = new Thickness(2, 4, 2, 4)
+            };
+            entry.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            entry.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var topRow = new Grid();
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            topRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var nameBlock = new TextBlock
             {
                 Text = GetProviderDisplayName(profile),
                 FontWeight = FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            content.Children.Add(new TextBlock
+                FontSize = 13,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(nameBlock, 0);
+            topRow.Children.Add(nameBlock);
+
+            bool isDefault = string.Equals(profile.Id, _settings.SelectedTranslationProviderId, StringComparison.OrdinalIgnoreCase);
+            if (isDefault)
             {
-                Text = GetProviderEndpoint(profile),
-                FontSize = 12,
-                Opacity = 0.72,
+                var defaultBadge = new Border
+                {
+                    CornerRadius = new CornerRadius(4),
+                    Background = Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush,
+                    Padding = new Thickness(5, 1, 5, 1),
+                    Margin = new Thickness(4, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                defaultBadge.Child = new TextBlock
+                {
+                    Text = "默认",
+                    FontSize = 10.5,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 255, 255))
+                };
+                Grid.SetColumn(defaultBadge, 1);
+                topRow.Children.Add(defaultBadge);
+            }
+            Grid.SetRow(topRow, 0);
+            entry.Children.Add(topRow);
+
+            var bottomText = new TextBlock
+            {
+                Text = TranslationService.IsAiProvider(profile.Provider) ? "AI 大模型" : (profile.Provider ?? "云翻译"),
+                FontSize = 11.5,
+                Opacity = 0.65,
+                Margin = new Thickness(0, 2, 0, 0),
                 TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            return content;
+            };
+            Grid.SetRow(bottomText, 1);
+            entry.Children.Add(bottomText);
+
+            return entry;
         }
 
         void UpdateSelectedProfile()
@@ -1446,118 +1643,147 @@ public sealed partial class MainWindow : Window
             TranslationProviderProfile? profile = SelectedProfile();
             if (profile == null) return;
 
+            bool isAi = TranslationService.IsAiProvider(profile.Provider);
             profile.Id = providerIdBox.Text.Trim();
             profile.DisplayName = providerNameBox.Text.Trim();
-            profile.AppId = appIdBox.Text;
-            profile.AppSecret = secretBox.Password;
+            profile.AppId = appIdBox.Text.Trim();
+            profile.AppSecret = isAi ? aiApiKeyBox.Password : cloudSecretBox.Password;
             profile.ExtraCredential = extraCredentialBox.Text.Trim();
-            profile.ApiBaseUrl = apiBaseUrlBox.Text.Trim();
-            profile.SystemPrompt = systemPromptBox.Text;
-            _settings.SelectedTranslationProviderId = profile.Id;
-            if (providerList.SelectedItem is ListViewItem item)
-            {
-                item.Content = CreateProviderListEntry(profile);
-            }
+            profile.SystemPrompt = systemPromptBox.Text.Trim();
+            profile.ApiBaseUrl = string.IsNullOrWhiteSpace(apiBaseUrlBox.Text) ? string.Empty : apiBaseUrlBox.Text.Trim();
             detailTitle.Text = GetProviderDisplayName(profile);
             detailEndpoint.Text = GetProviderEndpoint(profile);
+
+            if (providerList.SelectedItem is ListViewItem currentItem)
+            {
+                currentItem.Content = CreateProviderListEntry(profile);
+            }
+
             QueueSettingsApply();
         }
 
-        void LoadSelectedProfile()
+        void PopulateEditor(TranslationProviderProfile? profile)
         {
             synchronizing = true;
-            TranslationProviderProfile? profile = SelectedProfile();
-            bool hasProfile = profile != null;
-            providerIdBox.IsEnabled = hasProfile;
-            providerNameBox.IsEnabled = hasProfile;
-            appIdBox.IsEnabled = hasProfile;
-            secretBox.IsEnabled = hasProfile;
-            extraCredentialBox.IsEnabled = hasProfile;
-            apiBaseUrlBox.IsEnabled = hasProfile;
-            string provider = profile?.Provider ?? string.Empty;
-            bool isAiProvider = TranslationService.IsAiProvider(provider);
-            appIdLabel.Text = TranslationProviderProfiles.GetAppIdLabel(provider);
-            appSecretLabel.Text = TranslationProviderProfiles.GetAppSecretLabel(provider);
-            extraCredentialLabel.Text = TranslationProviderProfiles.GetExtraCredentialLabel(provider);
-            appSecretField.Visibility = string.IsNullOrEmpty(appSecretLabel.Text)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            appIdField.Visibility = string.IsNullOrEmpty(appIdLabel.Text)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            extraCredentialField.Visibility = string.IsNullOrEmpty(extraCredentialLabel.Text)
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            systemPromptField.Visibility = hasProfile && isAiProvider
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            systemPromptBox.IsEnabled = hasProfile && isAiProvider;
-            fetchModelsButton.Visibility = hasProfile && isAiProvider
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            providerIdBox.Text = profile?.Id ?? string.Empty;
-            providerNameBox.Text = profile?.DisplayName ?? string.Empty;
-            appIdBox.Text = profile?.AppId ?? string.Empty;
-            secretBox.Password = profile?.AppSecret ?? string.Empty;
-            extraCredentialBox.Text = profile?.ExtraCredential ?? string.Empty;
-            apiBaseUrlBox.Text = profile?.ApiBaseUrl ?? string.Empty;
-            systemPromptBox.Text = profile?.SystemPrompt ?? string.Empty;
-            detailTitle.Text = profile == null ? "未选择服务商" : GetProviderDisplayName(profile);
-            detailEndpoint.Text = profile == null ? string.Empty : GetProviderEndpoint(profile);
-            synchronizing = false;
-            modelCandidates.Clear();
-            UpdateModelSuggestions(extraCredentialBox.Text);
+            try
+            {
+                if (profile == null)
+                {
+                    detailPanel.Visibility = Visibility.Collapsed;
+                    emptyStateCard.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                emptyStateCard.Visibility = Visibility.Collapsed;
+                detailPanel.Visibility = Visibility.Visible;
+
+                bool isDefault = string.Equals(profile.Id, _settings.SelectedTranslationProviderId, StringComparison.OrdinalIgnoreCase);
+                detailTitle.Text = GetProviderDisplayName(profile);
+                detailEndpoint.Text = GetProviderEndpoint(profile);
+
+                bool isAi = TranslationService.IsAiProvider(profile.Provider);
+                providerTypeBadgeText.Text = isAi ? "AI 大模型" : "云端翻译";
+                
+                setDefaultButton.IsEnabled = !isDefault;
+                setDefaultButton.Content = new SymbolIcon(Symbol.Accept);
+                ToolTipService.SetToolTip(setDefaultButton, isDefault ? "当前已是默认服务商" : "设为默认服务商");
+
+                providerIdBox.Text = profile.Id;
+                providerNameBox.Text = profile.DisplayName;
+                appIdBox.Text = profile.AppId;
+                cloudSecretBox.Password = profile.AppSecret ?? string.Empty;
+                aiApiKeyBox.Password = profile.AppSecret ?? string.Empty;
+                extraCredentialBox.Text = profile.ExtraCredential;
+                systemPromptBox.Text = profile.SystemPrompt ?? string.Empty;
+                apiBaseUrlBox.Text = profile.ApiBaseUrl ?? string.Empty;
+
+                cloudCredentialsCard.Visibility = isAi ? Visibility.Collapsed : Visibility.Visible;
+                aiCredentialsCard.Visibility = isAi ? Visibility.Visible : Visibility.Collapsed;
+                promptSectionHeader.Visibility = isAi ? Visibility.Visible : Visibility.Collapsed;
+                promptCard.Visibility = isAi ? Visibility.Visible : Visibility.Collapsed;
+
+                modelCandidates.Clear();
+                UpdateModelSuggestions(extraCredentialBox.Text);
+            }
+            finally
+            {
+                synchronizing = false;
+            }
         }
 
-        void RefreshProviderList(TranslationProviderProfile? selectedProfile)
+        void RefreshProviderList(TranslationProviderProfile? preferredSelection = null)
         {
-            synchronizing = true;
             providerList.Items.Clear();
             foreach (TranslationProviderProfile profile in _settings.TranslationProviders)
             {
                 providerList.Items.Add(new ListViewItem
                 {
                     Content = CreateProviderListEntry(profile),
-                    Tag = profile
+                    Tag = profile,
+                    HorizontalContentAlignment = HorizontalAlignment.Stretch
                 });
             }
-            providerList.SelectedItem = providerList.Items
+
+            preferredSelection ??= _settings.TranslationProviders.FirstOrDefault();
+            ListViewItem? selectedItem = providerList.Items
                 .OfType<ListViewItem>()
-                .FirstOrDefault(item => ReferenceEquals(item.Tag, selectedProfile))
+                .FirstOrDefault(item => ReferenceEquals(item.Tag, preferredSelection))
                 ?? providerList.Items.OfType<ListViewItem>().FirstOrDefault();
-            synchronizing = false;
-            LoadSelectedProfile();
+
+            providerList.SelectedItem = selectedItem;
+            PopulateEditor((selectedItem?.Tag as TranslationProviderProfile) ?? preferredSelection);
+            removeProviderButton.IsEnabled = _settings.TranslationProviders.Count > 1;
         }
 
         providerList.SelectionChanged += (_, _) =>
         {
-            if (synchronizing) return;
             TranslationProviderProfile? profile = SelectedProfile();
-            if (profile != null) _settings.SelectedTranslationProviderId = profile.Id;
-            LoadSelectedProfile();
+            PopulateEditor(profile);
+        };
+
+        setDefaultButton.Click += (_, _) =>
+        {
+            TranslationProviderProfile? profile = SelectedProfile();
+            if (profile == null) return;
+            _settings.SelectedTranslationProviderId = profile.Id;
+            RefreshProviderList(profile);
             QueueSettingsApply();
         };
+
         providerIdBox.TextChanged += (_, _) => UpdateSelectedProfile();
         providerNameBox.TextChanged += (_, _) => UpdateSelectedProfile();
         appIdBox.TextChanged += (_, _) => UpdateSelectedProfile();
-        secretBox.PasswordChanged += (_, _) => UpdateSelectedProfile();
-        extraCredentialBox.TextChanged += (_, args) =>
+        cloudSecretBox.PasswordChanged += (_, _) => UpdateSelectedProfile();
+        aiApiKeyBox.PasswordChanged += (_, _) => UpdateSelectedProfile();
+        extraCredentialBox.TextChanged += (sender, args) =>
         {
-            UpdateSelectedProfile();
-            if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            if (sender is not AutoSuggestBox currentBox) return;
+            try
             {
-                UpdateModelSuggestions(extraCredentialBox.Text);
+                UpdateSelectedProfile();
+                if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+                {
+                    UpdateModelSuggestions(currentBox.Text);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
             }
         };
-        extraCredentialBox.SuggestionChosen += (_, args) =>
+        extraCredentialBox.SuggestionChosen += (sender, args) =>
         {
-            extraCredentialBox.Text = args.SelectedItem as string ?? extraCredentialBox.Text;
-            UpdateSelectedProfile();
+            if (sender is not AutoSuggestBox currentBox) return;
+            try
+            {
+                currentBox.Text = args.SelectedItem as string ?? string.Empty;
+                UpdateSelectedProfile();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         };
+        extraCredentialBox.GotFocus += (_, _) => UpdateModelSuggestions(extraCredentialBox.Text);
         extraCredentialBox.LostFocus += (_, _) => extraCredentialBox.IsSuggestionListOpen = false;
-        apiBaseUrlBox.TextChanged += (_, _) => UpdateSelectedProfile();
-        systemPromptBox.TextChanged += (_, _) => UpdateSelectedProfile();
-
         fetchModelsButton.Click += async (_, _) =>
         {
             TranslationProviderProfile? profile = SelectedProfile();
@@ -1597,19 +1823,6 @@ public sealed partial class MainWindow : Window
             }
         };
 
-        var addProviderButton = new Button
-        {
-            MinWidth = 72,
-            Height = 32,
-            Padding = new Thickness(8, 0, 8, 0),
-            Content = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                Spacing = 4,
-                Children = { new SymbolIcon(Symbol.Add), new TextBlock { Text = "新增" } }
-            }
-        };
-        ToolTipService.SetToolTip(addProviderButton, "添加翻译服务商");
         void AddProvider(string? provider)
         {
             TranslationProviderProfile profile = TranslationProviderProfiles.CreateNew(_settings.TranslationProviders, provider);
@@ -1649,16 +1862,7 @@ public sealed partial class MainWindow : Window
         providerMenu.Items.Add(new MenuFlyoutSeparator());
         providerMenu.Items.Add(CreateProviderMenuItem("自定义服务商", null));
         addProviderButton.Click += (_, _) => providerMenu.ShowAt(addProviderButton);
-        Grid.SetColumn(addProviderButton, 1);
-        providerHeader.Children.Add(addProviderButton);
-        var removeProviderButton = new Button
-        {
-            Width = 32,
-            Height = 32,
-            Padding = new Thickness(0),
-            Content = new SymbolIcon(Symbol.Delete)
-        };
-        ToolTipService.SetToolTip(removeProviderButton, "移除翻译服务商");
+
         removeProviderButton.Click += async (_, _) =>
         {
             TranslationProviderProfile? profile = SelectedProfile();
@@ -1683,36 +1887,117 @@ public sealed partial class MainWindow : Window
             RefreshProviderList(null);
             QueueSettingsApply();
         };
-        Grid.SetColumn(removeProviderButton, 2);
-        providerHeader.Children.Add(removeProviderButton);
 
-        detailPanel.Children.Add(Field("ID", providerIdBox, "服务商 ID，用于在翻译窗口中识别该配置；只能使用字母、数字、- 和 _。"));
-        detailPanel.Children.Add(Field("显示名称", providerNameBox, "显示在快捷翻译窗口的服务商列表中。"));
-        detailPanel.Children.Add(appIdField);
-        detailPanel.Children.Add(appSecretField);
-        detailPanel.Children.Add(extraCredentialField);
-        detailPanel.Children.Add(systemPromptField);
-        detailPanel.Children.Add(Field("API Base URL", apiBaseUrlBox, "请求地址。可替换为兼容当前服务类型的自建或代理接口。"));
-        Grid.SetColumn(detailPanel, 2);
-        providerLayout.Children.Add(detailPanel);
         TranslationProviderProfile? initiallySelected = _settings.TranslationProviders.FirstOrDefault(profile =>
             string.Equals(profile.Id, _settings.SelectedTranslationProviderId, StringComparison.OrdinalIgnoreCase));
         RefreshProviderList(initiallySelected);
 
-        var viewer = new ScrollViewer
-        {
-            Padding = new Thickness(28, 16, 28, 12),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            HorizontalScrollMode = ScrollMode.Disabled,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollMode = ScrollMode.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = root
-        };
-        return new Page { Content = viewer };
+        panel.AddRow(providerLayout);
+        return Wrap(panel);
     }
 
-    private void CaptureQuickTranslateHotkey(TextBox hotkeyBox, KeyRoutedEventArgs args)
+    private FrameworkElement CreateHotkeyRow(string label, string currentValue, string defaultHotkey, Action<string> onUpdate, string? description = null)
+    {
+        var row = new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 36
+        };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        FrameworkElement titleElement;
+        var title = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            titleElement = title;
+        }
+        else
+        {
+            var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+            titleRow.Children.Add(title);
+            titleRow.Children.Add(InformationButton(description));
+            titleElement = titleRow;
+        }
+        Grid.SetColumn(titleElement, 0);
+        row.Children.Add(titleElement);
+
+        var hotkeyBox = new TextBox
+        {
+            Text = NormalizeHotkey(currentValue),
+            PlaceholderText = "点击按下快捷键",
+            IsReadOnly = true,
+            Width = 140,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center
+        };
+        hotkeyBox.KeyDown += (_, args) => CaptureHotkey(hotkeyBox, args, onUpdate);
+
+        var resetHotkeyButton = new Button
+        {
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Content = new SymbolIcon(Symbol.Refresh)
+        };
+        if (!string.IsNullOrWhiteSpace(defaultHotkey))
+        {
+            ToolTipService.SetToolTip(resetHotkeyButton, $"重置为 {defaultHotkey}");
+            resetHotkeyButton.Click += (_, _) =>
+            {
+                hotkeyBox.Text = NormalizeHotkey(defaultHotkey);
+                onUpdate(hotkeyBox.Text);
+                QueueSettingsApply();
+            };
+        }
+        else
+        {
+            resetHotkeyButton.Visibility = Visibility.Collapsed;
+        }
+
+        var clearHotkeyButton = new Button
+        {
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Content = new SymbolIcon(Symbol.Clear)
+        };
+        ToolTipService.SetToolTip(clearHotkeyButton, "移除快捷键");
+        clearHotkeyButton.Click += (_, _) =>
+        {
+            hotkeyBox.Text = string.Empty;
+            onUpdate(string.Empty);
+            QueueSettingsApply();
+        };
+
+        var controls = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        controls.Children.Add(hotkeyBox);
+        if (!string.IsNullOrWhiteSpace(defaultHotkey))
+        {
+            controls.Children.Add(resetHotkeyButton);
+        }
+        controls.Children.Add(clearHotkeyButton);
+
+        Grid.SetColumn(controls, 2);
+        row.Children.Add(controls);
+
+        return row;
+    }
+
+    private FrameworkElement CreateHotkeyField(string label, string currentValue, string defaultHotkey, Action<string> onUpdate, string? description = null) =>
+        CreateHotkeyRow(label, currentValue, defaultHotkey, onUpdate, description);
+
+    private void CaptureHotkey(TextBox hotkeyBox, KeyRoutedEventArgs args, Action<string> onUpdate)
     {
         uint modifiers = 0;
         if (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
@@ -1728,43 +2013,58 @@ public sealed partial class MainWindow : Window
 
         if (QuickTranslateHotkey.TryCreate(modifiers, (uint)args.Key, out QuickTranslateHotkey hotkey))
         {
-            SetQuickTranslateHotkey(hotkeyBox, hotkey.ToDisplayString());
+            string display = hotkey.ToDisplayString();
+            hotkeyBox.Text = display;
+            onUpdate(display);
+            QueueSettingsApply();
         }
         args.Handled = true;
     }
 
-    private void SetQuickTranslateHotkey(TextBox hotkeyBox, string value)
-    {
-        hotkeyBox.Text = NormalizeQuickTranslateHotkey(value);
-        _settings.QuickTranslateHotkey = hotkeyBox.Text;
-        QueueSettingsApply();
-    }
-
-    private static string NormalizeQuickTranslateHotkey(string? value) =>
+    private static string NormalizeHotkey(string? value) =>
         QuickTranslateHotkey.TryParse(value, out QuickTranslateHotkey hotkey)
             ? hotkey.ToDisplayString()
             : string.Empty;
 
+    private void CaptureQuickTranslateHotkey(TextBox hotkeyBox, KeyRoutedEventArgs args) =>
+        CaptureHotkey(hotkeyBox, args, value => _settings.QuickTranslateHotkey = value);
+
+    private void SetQuickTranslateHotkey(TextBox hotkeyBox, string value)
+    {
+        hotkeyBox.Text = NormalizeHotkey(value);
+        _settings.QuickTranslateHotkey = hotkeyBox.Text;
+        QueueSettingsApply();
+    }
+
+    private static string NormalizeQuickTranslateHotkey(string? value) => NormalizeHotkey(value);
+
     private Page CreateFloatingPage()
     {
-        var panel = NewPanel("悬浮歌词", "控制独立悬浮歌词窗口的外观和交互。");
-        panel.AddRow(LabeledToggle("启用悬浮歌词", _settings.EnableFloatingLyrics, value => _settings.EnableFloatingLyrics = value));
-        panel.AddRow(LabeledToggle("锁定位置", _settings.FloatingLyricsLocked, value => _settings.FloatingLyricsLocked = value));
-        panel.AddRow(LabeledToggle("鼠标穿透", _settings.FloatingLyricsClickThrough, value => _settings.FloatingLyricsClickThrough = value));
-        panel.AddRow(LabeledToggle("亚克力背景", _settings.FloatingLyricsUseAcrylic, value => _settings.FloatingLyricsUseAcrylic = value));
-        panel.AddRow(LabeledToggle("启用文字阴影", _settings.FloatingLyricsEnableShadow, value => _settings.FloatingLyricsEnableShadow = value));
-        panel.AddRow(LabeledFontPicker("字体", _settings.FloatingLyricsFontFamily, value => _settings.FloatingLyricsFontFamily = value));
-        panel.AddRow(LabeledNumberBox("字体大小", _settings.FloatingLyricsFontSize, 10, 72, value => _settings.FloatingLyricsFontSize = value));
-        panel.AddRow(LabeledComboBox("字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.FloatingLyricsFontWeight), value => _settings.FloatingLyricsFontWeight = ToFontWeight(value)));
-        panel.AddRow(LabeledNumberBox("窗口宽度", _settings.FloatingLyricsWidth ?? 360, 180, 1600, value => _settings.FloatingLyricsWidth = value));
-        panel.AddRow(LabeledColorPicker("文字颜色", _settings.FloatingLyricsTextColor, value => _settings.FloatingLyricsTextColor = value));
-        panel.AddRow(LabeledColorPicker("背景颜色", _settings.FloatingLyricsBackgroundColor, value => _settings.FloatingLyricsBackgroundColor = value));
+        var panel = NewPanel();
+        panel.AddRow(SectionHeader("窗口与交互"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("启用悬浮歌词", _settings.EnableFloatingLyrics, value => _settings.EnableFloatingLyrics = value),
+            CreateHotkeyRow("切换快捷键", _settings.FloatingLyricsHotkey, "Alt+Shift+F", value => _settings.FloatingLyricsHotkey = value, "快速显示或隐藏独立悬浮歌词窗口。"),
+            LabeledToggle("锁定位置", _settings.FloatingLyricsLocked, value => _settings.FloatingLyricsLocked = value),
+            LabeledToggle("鼠标穿透", _settings.FloatingLyricsClickThrough, value => _settings.FloatingLyricsClickThrough = value)));
+
+        panel.AddRow(SectionHeader("外观与排版"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("亚克力背景", _settings.FloatingLyricsUseAcrylic, value => _settings.FloatingLyricsUseAcrylic = value),
+            LabeledToggle("启用文字阴影", _settings.FloatingLyricsEnableShadow, value => _settings.FloatingLyricsEnableShadow = value),
+            LabeledFontPicker("字体", _settings.FloatingLyricsFontFamily, value => _settings.FloatingLyricsFontFamily = value),
+            LabeledNumberBox("字体大小", _settings.FloatingLyricsFontSize, 10, 72, value => _settings.FloatingLyricsFontSize = value),
+            LabeledComboBox("字体粗细", FontWeightOptions, ToChineseFontWeight(_settings.FloatingLyricsFontWeight), value => _settings.FloatingLyricsFontWeight = ToFontWeight(value)),
+            LabeledNumberBox("窗口宽度", _settings.FloatingLyricsWidth ?? 360, 180, 1600, value => _settings.FloatingLyricsWidth = value),
+            LabeledColorPicker("文字颜色", _settings.FloatingLyricsTextColor, value => _settings.FloatingLyricsTextColor = value),
+            LabeledColorPicker("背景颜色", _settings.FloatingLyricsBackgroundColor, value => _settings.FloatingLyricsBackgroundColor = value)));
+
         return Wrap(panel);
     }
 
     private Page CreateApplicationsPage()
     {
-        var panel = NewPanel("应用筛选", "选择参与歌词显示的播放应用，并限制歌词的显示条件。");
+        var panel = NewPanel();
         var selectedAppIds = new HashSet<string>(_settings.IncludedAppIds, StringComparer.OrdinalIgnoreCase);
         var appIdBox = new TextBox
         {
@@ -1855,51 +2155,240 @@ public sealed partial class MainWindow : Window
         };
 
         panel.AddRow(SectionHeader("显示条件"));
-        panel.AddRow(LabeledToggle("仅在指定播放器运行时显示", _settings.RunOnlyWithMusicApp, value => _settings.RunOnlyWithMusicApp = value));
-        panel.AddRow(LabeledTextBox("播放器进程名", _settings.MusicAppProcessNames, value => _settings.MusicAppProcessNames = value, "仅在开启上方选项时生效；使用英文逗号分隔。"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("仅在指定播放器运行时显示", _settings.RunOnlyWithMusicApp, value => _settings.RunOnlyWithMusicApp = value),
+            LabeledTextBox("播放器进程名", _settings.MusicAppProcessNames, value => _settings.MusicAppProcessNames = value, "仅在开启上方选项时生效；使用英文逗号分隔。")));
+
         panel.AddRow(SectionHeader("媒体来源"));
-        panel.AddRow(detector);
-        panel.AddRow(Field("已选媒体应用", appIdBox, "可手动编辑应用标识；检测结果勾选后会自动写入。"));
+        panel.AddRow(CreateSettingsCard(
+            detector,
+            Field("已选媒体应用", appIdBox, "可手动编辑应用标识；检测结果勾选后会自动写入。")));
+
         return Wrap(panel);
     }
 
-    private Page CreateAboutPage()
+    private Page CreateGeneralSettingsPage()
     {
-        var panel = NewPanel("关于", "TaskbarInfo 是面向 Windows 任务栏的信息组件：集中管理歌词、性能监控与快捷翻译。");
-        var identity = new StackPanel { Spacing = 2 };
-        identity.Children.Add(new TextBlock
+        return new GeneralSettingsPage(
+            CreateGeneralPage(),
+            CreateAboutTabPage(),
+            _lastGeneralTab,
+            tag => _lastGeneralTab = tag);
+    }
+
+    private Page CreateAboutPage() => CreateGeneralSettingsPage();
+
+    private Page CreateGeneralPage()
+    {
+        var panel = NewPanel();
+
+        panel.AddRow(SectionHeader("常规行为"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("开机自启动", _settings.LaunchOnStartup, value => _settings.LaunchOnStartup = value, "登录 Windows 时自动在后台启动 TinyBar。"),
+            LabeledToggle("启动时自动检查更新", _settings.AutoCheckUpdates, value => _settings.AutoCheckUpdates = value)));
+
+        string settingsWindowMaterial = QuickTranslateWindowMaterialParser.Parse(_settings.SettingsWindowMaterial) switch
         {
-            Text = "TaskbarInfo",
-            FontSize = 28,
+            QuickTranslateWindowMaterial.Acrylic => "Acrylic",
+            QuickTranslateWindowMaterial.Solid => "纯色",
+            _ => "Mica"
+        };
+        panel.AddRow(SectionHeader("窗口外观"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledComboBoxRow(
+                "应用主题",
+                ["跟随系统", "浅色", "深色"],
+                ApplicationThemeParser.ToDisplayName(ApplicationThemeParser.Parse(_settings.ApplicationTheme)),
+                value =>
+                {
+                    _settings.ApplicationTheme = value switch
+                    {
+                        "浅色" => "Light",
+                        "深色" => "Dark",
+                        _ => "System"
+                    };
+                    ApplyApplicationTheme();
+                }),
+            LabeledComboBoxRow("设置窗口材质", ["Mica", "Acrylic", "纯色"], settingsWindowMaterial, value =>
+            {
+                _settings.SettingsWindowMaterial = value switch
+                {
+                    "Acrylic" => "Acrylic",
+                    "纯色" => "Solid",
+                    _ => "Mica"
+                };
+            })));
+
+        panel.AddRow(SectionHeader("全局快捷键"));
+        panel.AddRow(CreateSettingsCard(
+            CreateHotkeyRow("快捷翻译", _settings.QuickTranslateHotkey, "Alt+Shift+T", value => _settings.QuickTranslateHotkey = value, "快速呼出快捷翻译窗口。"),
+            CreateHotkeyRow("悬浮歌词", _settings.FloatingLyricsHotkey, "Alt+Shift+F", value => _settings.FloatingLyricsHotkey = value, "快速显示或隐藏独立悬浮歌词窗口。"),
+            CreateHotkeyRow("桌面歌词", _settings.DesktopWidgetHotkey, "Alt+Shift+D", value => _settings.DesktopWidgetHotkey = value, "快速显示或隐藏桌面媒体组件。"),
+            CreateHotkeyRow("饮水打卡", _settings.WaterReminderDrinkHotkey, "Alt+Shift+W", value => _settings.WaterReminderDrinkHotkey = value, "按下快捷键快速记录一次饮水打卡。")));
+
+        return Wrap(panel);
+    }
+
+    private Page CreateAboutTabPage()
+    {
+        var panel = NewPanel();
+
+        var headerCard = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Brush,
+            Padding = new Thickness(16, 14, 16, 14),
+            Margin = new Thickness(0, 0, 0, 10),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(14) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        string iconPngPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TinyBar.png");
+        FrameworkElement logoElement;
+        if (File.Exists(iconPngPath))
+        {
+            logoElement = new Image
+            {
+                Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(iconPngPath)),
+                Width = 36,
+                Height = 36,
+                Stretch = Stretch.Uniform
+            };
+        }
+        else
+        {
+            logoElement = new FontIcon
+            {
+                Glyph = "\uE8D6",
+                FontSize = 20,
+                Foreground = Application.Current.Resources["AccentFillColorDefaultBrush"] as Brush
+            };
+        }
+
+        var logoBorder = new Border
+        {
+            Width = 44,
+            Height = 44,
+            CornerRadius = new CornerRadius(8),
+            Background = Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush,
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = logoElement
+        };
+        Grid.SetColumn(logoBorder, 0);
+        headerGrid.Children.Add(logoBorder);
+
+        var identityStack = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        titleRow.Children.Add(new TextBlock
+        {
+            Text = "TinyBar",
+            FontSize = 20,
             FontWeight = FontWeights.SemiBold
         });
-        identity.Children.Add(new TextBlock
+        var pill = new Border
         {
-            Text = "Windows 任务栏信息组件",
+            Background = Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush,
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(6, 1, 6, 1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = UpdateService.CurrentVersionDisplay,
+                FontSize = 11,
+                FontWeight = FontWeights.Medium
+            }
+        };
+        titleRow.Children.Add(pill);
+        identityStack.Children.Add(titleRow);
+
+        identityStack.Children.Add(new TextBlock
+        {
+            Text = "Windows 任务栏信息组件：集中管理歌词、性能监控、喝水助手与快捷翻译。",
+            FontSize = 12,
             Opacity = 0.72
         });
+        Grid.SetColumn(identityStack, 2);
+        headerGrid.Children.Add(identityStack);
 
-        var version = new TextBlock
+        headerCard.Child = headerGrid;
+        panel.AddRow(headerCard);
+
+        var versionRow = new Grid();
+        versionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        versionRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var versionTextStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        versionTextStack.Children.Add(new TextBlock { Text = "当前版本", FontWeight = FontWeights.Medium });
+        versionTextStack.Children.Add(new TextBlock
         {
-            Text = $"当前版本  {UpdateService.CurrentVersionDisplay}",
-            VerticalAlignment = VerticalAlignment.Center
+            Text = ".NET 9.0 · WinUI 3 · Windows 10/11 x64",
+            FontSize = 12,
+            Opacity = 0.65
+        });
+        Grid.SetColumn(versionTextStack, 0);
+        versionRow.Children.Add(versionTextStack);
+
+        var versionBadge = new Border
+        {
+            Background = Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush,
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 3, 8, 3),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = UpdateService.CurrentVersionDisplay,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold
+            }
         };
+        Grid.SetColumn(versionBadge, 1);
+        versionRow.Children.Add(versionBadge);
+
+        var updateRow = new Grid();
+        updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        updateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var updateTextStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var updateTitleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        updateTitleRow.Children.Add(new TextBlock { Text = "软件更新", FontWeight = FontWeights.Medium });
+        updateTitleRow.Children.Add(InformationButton("通过 GitHub Releases 检查并在软件内下载安装正式版本。"));
+        updateTextStack.Children.Add(updateTitleRow);
+
         var updateStatus = new TextBlock
         {
             Text = "尚未检查更新。",
-            Opacity = 0.72,
+            FontSize = 12,
+            Opacity = 0.65,
             TextWrapping = TextWrapping.Wrap
         };
+        updateTextStack.Children.Add(updateStatus);
+        Grid.SetColumn(updateTextStack, 0);
+        updateRow.Children.Add(updateTextStack);
+
         var installUpdateButton = new Button
         {
             Content = "下载并安装",
+            Style = Application.Current.Resources["AccentButtonStyle"] as Style,
             Visibility = Visibility.Collapsed
         };
         installUpdateButton.Click += (_, _) =>
         {
             if (!TryRequestInAppUpdate())
             {
-                updateStatus.Text = "无法连接 TaskbarInfo 主进程，请从托盘菜单重新打开检查更新。";
+                updateStatus.Text = "无法连接 TinyBar 主进程，请从托盘菜单重新打开检查更新。";
                 return;
             }
 
@@ -1907,10 +2396,47 @@ public sealed partial class MainWindow : Window
             updateStatus.Text = "正在打开更新窗口…";
             Close();
         };
-        var checkButton = new Button { Content = "检查更新" };
+
+        var checkIcon = new FontIcon
+        {
+            Glyph = "\uE72C",
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var checkProgressRing = new ProgressRing
+        {
+            Width = 14,
+            Height = 14,
+            IsActive = false,
+            Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var checkText = new TextBlock
+        {
+            Text = "检查更新",
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var checkButtonStack = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        checkButtonStack.Children.Add(checkIcon);
+        checkButtonStack.Children.Add(checkProgressRing);
+        checkButtonStack.Children.Add(checkText);
+
+        var checkButton = new Button
+        {
+            Content = checkButtonStack
+        };
         checkButton.Click += async (_, _) =>
         {
             checkButton.IsEnabled = false;
+            checkIcon.Visibility = Visibility.Collapsed;
+            checkProgressRing.IsActive = true;
+            checkProgressRing.Visibility = Visibility.Visible;
             installUpdateButton.Visibility = Visibility.Collapsed;
             updateStatus.Text = "正在检查更新…";
             try
@@ -1950,68 +2476,72 @@ public sealed partial class MainWindow : Window
             }
             finally
             {
+                checkProgressRing.IsActive = false;
+                checkProgressRing.Visibility = Visibility.Collapsed;
+                checkIcon.Visibility = Visibility.Visible;
                 checkButton.IsEnabled = true;
             }
         };
 
-        var updatePanel = new StackPanel { Spacing = 8 };
-        updatePanel.Children.Add(checkButton);
-        updatePanel.Children.Add(updateStatus);
-        updatePanel.Children.Add(installUpdateButton);
-
-        var content = new Grid { ColumnSpacing = 28 };
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var left = new StackPanel { Spacing = 16 };
-        left.Children.Add(identity);
-        left.Children.Add(Field("版本", version, null));
-        left.Children.Add(Field("更新", updatePanel, "通过 GitHub Releases 检查并在软件内下载安装正式版本。"));
-
-        var right = new StackPanel
+        var updateActions = new StackPanel
         {
-            Spacing = 12,
-            Margin = new Thickness(0, 8, 0, 0)
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
         };
-        string settingsWindowMaterial = QuickTranslateWindowMaterialParser.Parse(_settings.SettingsWindowMaterial) switch
-        {
-            QuickTranslateWindowMaterial.Acrylic => "Acrylic",
-            QuickTranslateWindowMaterial.Solid => "纯色",
-            _ => "Mica"
-        };
-        right.Children.Add(SectionHeader("窗口外观"));
-        right.Children.Add(LabeledComboBox(
-            "应用主题",
-            ["跟随系统", "浅色", "深色"],
-            ApplicationThemeParser.ToDisplayName(ApplicationThemeParser.Parse(_settings.ApplicationTheme)),
-            value =>
-            {
-                _settings.ApplicationTheme = value switch
-                {
-                    "浅色" => "Light",
-                    "深色" => "Dark",
-                    _ => "System"
-                };
-                ApplyApplicationTheme();
-            }));
-        right.Children.Add(LabeledComboBox("设置窗口材质", ["Mica", "Acrylic", "纯色"], settingsWindowMaterial, value =>
-        {
-            _settings.SettingsWindowMaterial = value switch
-            {
-                "Acrylic" => "Acrylic",
-                "纯色" => "Solid",
-                _ => "Mica"
-            };
-        }));
-        right.Children.Add(SectionHeader("相关来源"));
-        right.Children.Add(CreateSourceLinks());
-        right.Children.Add(LabeledToggle("启动时自动检查更新", _settings.AutoCheckUpdates, value => _settings.AutoCheckUpdates = value));
+        updateActions.Children.Add(checkButton);
+        updateActions.Children.Add(installUpdateButton);
+        Grid.SetColumn(updateActions, 2);
+        updateRow.Children.Add(updateActions);
 
-        Grid.SetColumn(right, 1);
-        content.Children.Add(left);
-        content.Children.Add(right);
-        panel.AddRow(content);
+        panel.AddRow(SectionHeader("版本与更新"));
+        panel.AddRow(CreateSettingsCard(versionRow, updateRow));
+
+        panel.AddRow(SectionHeader("相关来源与社区"));
+        panel.AddRow(CreateSourceLinks());
+
         return Wrap(panel);
+    }
+
+    private static FrameworkElement CreateSettingsCard(params FrameworkElement[] items)
+    {
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Brush,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 4, 0, 14)
+        };
+
+        var stack = new StackPanel();
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (i > 0)
+            {
+                var divider = new Border
+                {
+                    Height = 1,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    Background = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+                    Opacity = 0.5
+                };
+                stack.Children.Add(divider);
+            }
+
+            var rowWrapper = new Grid
+            {
+                Padding = new Thickness(16, 8, 16, 8),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                MinHeight = 44
+            };
+            rowWrapper.Children.Add(items[i]);
+            stack.Children.Add(rowWrapper);
+        }
+
+        card.Child = stack;
+        return card;
     }
 
     private bool TryRequestInAppUpdate()
@@ -2035,22 +2565,126 @@ public sealed partial class MainWindow : Window
 
     private static FrameworkElement CreateSourceLinks()
     {
-        var links = new StackPanel { Spacing = 4 };
-        links.Children.Add(CreateSourceLink("项目源码", UpdateService.RepositoryUrl));
-        links.Children.Add(CreateSourceLink("发布页面", UpdateService.ReleasesUrl));
-        links.Children.Add(CreateSourceLink("问题反馈", $"{UpdateService.RepositoryUrl}/issues"));
-        return links;
+        var grid = new Grid { RowSpacing = 8, ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 14) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var link1 = CreateLinkTile("项目源码", "GitHub 开源仓库与源码", "\uE943", () => OpenUrl(UpdateService.RepositoryUrl));
+        var link2 = CreateLinkTile("版本发布", "查看更新日志与历史版本", "\uE8EC", () => OpenUrl(UpdateService.ReleasesUrl));
+        var link3 = CreateLinkTile("问题反馈", "提交 Bug 报告与功能建议", "\uE73E", () => OpenUrl($"{UpdateService.RepositoryUrl}/issues"));
+        var link4 = CreateLinkTile("配置目录", "打开本地数据与配置文件夹", "\uE838", OpenConfigFolder);
+
+        Grid.SetRow(link1, 0);
+        Grid.SetColumn(link1, 0);
+        grid.Children.Add(link1);
+
+        Grid.SetRow(link2, 0);
+        Grid.SetColumn(link2, 1);
+        grid.Children.Add(link2);
+
+        Grid.SetRow(link3, 1);
+        Grid.SetColumn(link3, 0);
+        grid.Children.Add(link3);
+
+        Grid.SetRow(link4, 1);
+        Grid.SetColumn(link4, 1);
+        grid.Children.Add(link4);
+
+        return grid;
     }
 
-    private static HyperlinkButton CreateSourceLink(string label, string url)
+    private static FrameworkElement CreateLinkTile(string title, string description, string glyph, Action onClick)
     {
-        return new HyperlinkButton
+        var button = new Button
         {
-            Content = label,
-            NavigateUri = new Uri(url),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(0)
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(14, 12, 14, 12),
+            Background = Application.Current.Resources["CardBackgroundFillColorDefaultBrush"] as Brush,
+            BorderBrush = Application.Current.Resources["CardStrokeColorDefaultBrush"] as Brush,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8)
         };
+
+        var contentGrid = new Grid();
+        contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        contentGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconContainer = new Border
+        {
+            Width = 32,
+            Height = 32,
+            CornerRadius = new CornerRadius(6),
+            Background = Application.Current.Resources["LayerFillColorDefaultBrush"] as Brush,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new FontIcon { Glyph = glyph, FontSize = 16, Opacity = 0.85 }
+        };
+        Grid.SetColumn(iconContainer, 0);
+        contentGrid.Children.Add(iconContainer);
+
+        var textStack = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        textStack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13
+        });
+        textStack.Children.Add(new TextBlock
+        {
+            Text = description,
+            FontSize = 11,
+            Opacity = 0.65,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        Grid.SetColumn(textStack, 2);
+        contentGrid.Children.Add(textStack);
+
+        var arrow = new FontIcon
+        {
+            Glyph = "\uE8A7",
+            FontSize = 12,
+            Opacity = 0.5,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(arrow, 3);
+        contentGrid.Children.Add(arrow);
+
+        button.Content = contentGrid;
+        button.Click += (_, _) => onClick();
+        return button;
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private static void OpenConfigFolder()
+    {
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TinyBar");
+            Directory.CreateDirectory(dir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"\"{dir}\"",
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 
     private static TextBlock SectionHeader(string title)
@@ -2058,9 +2692,44 @@ public sealed partial class MainWindow : Window
         return new TextBlock
         {
             Text = title,
-            FontSize = 16,
-            FontWeight = FontWeights.SemiBold
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Opacity = 0.85,
+            Margin = new Thickness(2, 6, 0, 4)
         };
+    }
+
+    private FrameworkElement LabeledComboBoxRow(string label, IReadOnlyList<string> options, string initial, Action<string> update)
+    {
+        var box = new ComboBox
+        {
+            ItemsSource = options,
+            SelectedItem = options.Contains(initial) ? initial : options[0],
+            Width = 140,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        box.SelectionChanged += (_, _) =>
+        {
+            update(box.SelectedItem as string ?? options[0]);
+            QueueSettingsApply();
+        };
+
+        var row = new Grid
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            MinHeight = 36
+        };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(title, 0);
+        Grid.SetColumn(box, 2);
+        row.Children.Add(title);
+        row.Children.Add(box);
+        return row;
     }
 
     private static Button InformationButton(string description)
@@ -2115,10 +2784,8 @@ public sealed partial class MainWindow : Window
 
     private Page CreateDesktopWidgetPage()
     {
-        var panel = NewPanel("桌面歌词", "桌面歌词组件外观沿用现有桌面组件实现，仅在此处配置。");
-        panel.AddRow(LabeledToggle("启用桌面媒体组件", _settings.EnableDesktopWidget, value => _settings.EnableDesktopWidget = value));
-        panel.AddRow(LabeledComboBox("主题", ["深色", "浅色"], _settings.DesktopWidgetTheme == 1 ? "浅色" : "深色", value => _settings.DesktopWidgetTheme = value == "浅色" ? 1 : 0));
-        panel.AddRow(LabeledToggle("锁定组件位置", _settings.DesktopWidgetLocked, value => _settings.DesktopWidgetLocked = value));
+        var panel = NewPanel();
+
         var reset = new Button { Content = "重置组件位置", HorizontalAlignment = HorizontalAlignment.Left };
         reset.Click += (_, _) =>
         {
@@ -2130,23 +2797,36 @@ public sealed partial class MainWindow : Window
             _resetDesktopWidgetPosition = true;
             QueueSettingsApply();
         };
-        panel.AddRow(reset);
+
+        panel.AddRow(SectionHeader("桌面媒体组件"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("启用桌面媒体组件", _settings.EnableDesktopWidget, value => _settings.EnableDesktopWidget = value),
+            CreateHotkeyRow("切换快捷键", _settings.DesktopWidgetHotkey, "Alt+Shift+D", value => _settings.DesktopWidgetHotkey = value, "快速显示或隐藏桌面媒体组件。"),
+            LabeledComboBox("主题", ["深色", "浅色"], _settings.DesktopWidgetTheme == 1 ? "浅色" : "深色", value => _settings.DesktopWidgetTheme = value == "浅色" ? 1 : 0),
+            LabeledToggle("锁定组件位置", _settings.DesktopWidgetLocked, value => _settings.DesktopWidgetLocked = value)));
+
+        panel.AddRow(SectionHeader("位置重置"));
+        panel.AddRow(CreateSettingsCard(reset));
+
         return Wrap(panel);
     }
 
-    private static FormPanel NewPanel(string title, string subtitle, double? titleFontSize = null)
+    private static FormPanel NewPanel(string? title = null, string? subtitle = null, double? titleFontSize = null)
     {
         var panel = new FormPanel();
-        var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var titleBlock = new TextBlock
+        if (!string.IsNullOrWhiteSpace(title))
         {
-            Text = title,
-            Style = Application.Current.Resources["TitleTextBlockStyle"] as Style
-        };
-        if (titleFontSize is double fontSize) titleBlock.FontSize = fontSize;
-        header.Children.Add(titleBlock);
-        if (!string.IsNullOrWhiteSpace(subtitle)) header.Children.Add(InformationButton(subtitle));
-        panel.AddRow(header);
+            var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            var titleBlock = new TextBlock
+            {
+                Text = title,
+                Style = Application.Current.Resources["TitleTextBlockStyle"] as Style
+            };
+            if (titleFontSize is double fontSize) titleBlock.FontSize = fontSize;
+            header.Children.Add(titleBlock);
+            if (!string.IsNullOrWhiteSpace(subtitle)) header.Children.Add(InformationButton(subtitle));
+            panel.AddRow(header);
+        }
         return panel;
     }
 
@@ -2441,30 +3121,57 @@ public sealed partial class MainWindow : Window
 
         void UpdateSuggestions(string query)
         {
-            string[] suggestions = GetFontSuggestions(query);
-            box.ItemsSource = suggestions;
-            box.IsSuggestionListOpen = suggestions.Length > 0 && !string.IsNullOrWhiteSpace(query);
+            try
+            {
+                string[] suggestions = GetFontSuggestions(query);
+                box.ItemsSource = suggestions;
+                box.IsSuggestionListOpen = suggestions.Length > 0 && !string.IsNullOrWhiteSpace(query);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         }
 
-        box.TextChanged += (_, args) =>
+        box.TextChanged += (sender, args) =>
         {
-            Commit(box.Text);
-            if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
+            if (sender is not AutoSuggestBox currentBox) return;
+
+            try
             {
-                UpdateSuggestions(box.Text);
+                string text = currentBox.Text;
+                Commit(text);
+                UpdateSuggestions(text);
+            }
+            catch (ObjectDisposedException)
+            {
             }
         };
-        box.SuggestionChosen += (_, args) =>
+        box.SuggestionChosen += (sender, args) =>
         {
-            string fontName = args.SelectedItem as string ?? box.Text;
-            box.Text = fontName;
-            Commit(fontName);
+            if (sender is not AutoSuggestBox currentBox) return;
+            try
+            {
+                string fontName = args.SelectedItem as string ?? currentBox.Text;
+                currentBox.Text = fontName;
+                Commit(fontName);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         };
-        box.QuerySubmitted += (_, args) =>
+        box.QuerySubmitted += (sender, args) =>
         {
-            string fontName = args.ChosenSuggestion as string ?? box.Text;
-            box.Text = fontName;
-            Commit(fontName);
+            if (sender is not AutoSuggestBox currentBox) return;
+            try
+            {
+                string fontName = args.ChosenSuggestion as string ?? currentBox.Text;
+                currentBox.Text = fontName;
+                Commit(fontName);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
         };
 
         return Field(label, box, "输入以搜索本机已安装字体，也可直接输入字体名称。");
@@ -2668,6 +3375,7 @@ public sealed partial class MainWindow : Window
         {
             PreserveRuntimeComponentPositions();
             _settings.Save(_settingsPath);
+            AutoStartupService.SetAutoStart(_settings.LaunchOnStartup);
             ApplyApplicationTheme();
             ApplyWindowMaterial();
             _changedTaskbarLyricOffset = false;
@@ -2897,7 +3605,7 @@ public sealed partial class MainWindow : Window
         "2" => "Floating",
         "3" => "Applications",
         "4" => "DesktopWidget",
-        "5" => "About",
+        "5" or "GeneralSettings" or "About" => "GeneralSettings",
         "6" => "QuickTranslate",
         "7" => "TaskbarPerformance",
         "8" => "WaterReminder",
@@ -3018,7 +3726,193 @@ public sealed partial class MainWindow : Window
 
         private void SelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
         {
-            string selectedTag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "Typography";
+            string selectedTag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "General";
+            _onTabChanged(selectedTag);
+            UpdateVisibility();
+        }
+
+        private void UpdateVisibility()
+        {
+            string? selected = (_selectorBar.SelectedItem as SelectorBarItem)?.Tag as string;
+            foreach ((string tag, Page page) in _pagesByTag)
+            {
+                page.Visibility = string.Equals(tag, selected, StringComparison.Ordinal)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+        }
+    }
+
+    private sealed class GeneralSettingsPage : Page
+    {
+        private static readonly (string Tag, string Label)[] TabDefinitions =
+        [
+            ("General", "通用设置"),
+            ("AboutTab", "关于")
+        ];
+
+        private readonly IReadOnlyDictionary<string, Page> _pagesByTag;
+        private readonly Grid _contentHost;
+        private readonly SelectorBar _selectorBar;
+        private readonly Action<string> _onTabChanged;
+
+        public GeneralSettingsPage(
+            Page general,
+            Page about,
+            string initialTab,
+            Action<string> onTabChanged)
+        {
+            _onTabChanged = onTabChanged;
+            _pagesByTag = new Dictionary<string, Page>(StringComparer.Ordinal)
+            {
+                ["General"] = general,
+                ["AboutTab"] = about
+            };
+
+            _selectorBar = new SelectorBar
+            {
+                Margin = new Thickness(20, 2, 20, 0),
+                Padding = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            foreach ((string tag, string label) in TabDefinitions)
+            {
+                _selectorBar.Items.Add(new SelectorBarItem
+                {
+                    Text = label,
+                    Tag = tag,
+                    MinHeight = 28,
+                    Padding = new Thickness(10, 2, 10, 2)
+                });
+            }
+            _selectorBar.SelectionChanged += SelectorBar_SelectionChanged;
+
+            _contentHost = new Grid();
+            foreach (Page page in _pagesByTag.Values)
+            {
+                page.Visibility = Visibility.Collapsed;
+                _contentHost.Children.Add(page);
+            }
+
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.Children.Add(_selectorBar);
+            root.Children.Add(_contentHost);
+            Grid.SetRow(_selectorBar, 0);
+            Grid.SetRow(_contentHost, 1);
+            Content = root;
+
+            SelectTab(initialTab);
+        }
+
+        public void SelectTab(string subTag)
+        {
+            if (_selectorBar.Items.OfType<SelectorBarItem>()
+                .FirstOrDefault(item => item.Tag as string == subTag) is SelectorBarItem target)
+            {
+                _selectorBar.SelectedItem = target;
+            }
+
+            UpdateVisibility();
+        }
+
+        private void SelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+        {
+            string selectedTag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "General";
+            _onTabChanged(selectedTag);
+            UpdateVisibility();
+        }
+
+        private void UpdateVisibility()
+        {
+            string? selected = (_selectorBar.SelectedItem as SelectorBarItem)?.Tag as string;
+            foreach ((string tag, Page page) in _pagesByTag)
+            {
+                page.Visibility = string.Equals(tag, selected, StringComparison.Ordinal)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+        }
+    }
+
+    private sealed class QuickTranslateSettingsPage : Page
+    {
+        private static readonly (string Tag, string Label)[] TabDefinitions =
+        [
+            ("General", "通用设置"),
+            ("Providers", "服务商配置")
+        ];
+
+        private readonly IReadOnlyDictionary<string, Page> _pagesByTag;
+        private readonly Grid _contentHost;
+        private readonly SelectorBar _selectorBar;
+        private readonly Action<string> _onTabChanged;
+
+        public QuickTranslateSettingsPage(
+            Page general,
+            Page providers,
+            string initialTab,
+            Action<string> onTabChanged)
+        {
+            _onTabChanged = onTabChanged;
+            _pagesByTag = new Dictionary<string, Page>(StringComparer.Ordinal)
+            {
+                ["General"] = general,
+                ["Providers"] = providers
+            };
+
+            _selectorBar = new SelectorBar
+            {
+                Margin = new Thickness(20, 2, 20, 0),
+                Padding = new Thickness(0, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            foreach ((string tag, string label) in TabDefinitions)
+            {
+                _selectorBar.Items.Add(new SelectorBarItem
+                {
+                    Text = label,
+                    Tag = tag,
+                    MinHeight = 28,
+                    Padding = new Thickness(10, 2, 10, 2)
+                });
+            }
+            _selectorBar.SelectionChanged += SelectorBar_SelectionChanged;
+
+            _contentHost = new Grid();
+            foreach (Page page in _pagesByTag.Values)
+            {
+                page.Visibility = Visibility.Collapsed;
+                _contentHost.Children.Add(page);
+            }
+
+            var root = new Grid();
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            root.Children.Add(_selectorBar);
+            root.Children.Add(_contentHost);
+            Grid.SetRow(_selectorBar, 0);
+            Grid.SetRow(_contentHost, 1);
+            Content = root;
+
+            SelectTab(initialTab);
+        }
+
+        public void SelectTab(string subTag)
+        {
+            if (_selectorBar.Items.OfType<SelectorBarItem>()
+                .FirstOrDefault(item => item.Tag as string == subTag) is SelectorBarItem target)
+            {
+                _selectorBar.SelectedItem = target;
+            }
+
+            UpdateVisibility();
+        }
+
+        private void SelectorBar_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+        {
+            string selectedTag = (sender.SelectedItem as SelectorBarItem)?.Tag as string ?? "General";
             _onTabChanged(selectedTag);
             UpdateVisibility();
         }
@@ -3050,7 +3944,10 @@ public sealed class SettingsDocument
     public string SelectedQuickTranslateDomain { get; set; } = TranslationDomainCatalog.General;
     public string QuickTranslateTargetLanguage { get; set; } = QuickTranslateTargetLanguages.Default;
     public bool EnableQuickTranslateAiPhonetic { get; set; }
-    public string QuickTranslateHotkey { get; set; } = "Ctrl+Alt+T";
+    public string QuickTranslateHotkey { get; set; } = "Alt+Shift+T";
+    public string FloatingLyricsHotkey { get; set; } = "";
+    public string DesktopWidgetHotkey { get; set; } = "";
+    public string WaterReminderDrinkHotkey { get; set; } = "";
     public string QuickTranslateWindowMaterial { get; set; } = "Mica";
     public string QuickTranslateFontFamily { get; set; } = "Microsoft YaHei UI";
     public bool EnableWaterReminder { get; set; }
@@ -3124,6 +4021,7 @@ public sealed class SettingsDocument
     public bool RunOnlyWithMusicApp { get; set; }
     public string MusicAppProcessNames { get; set; } = "QQMusic,cloudmusic,Spotify,YesPlayMusic,Foobar2000";
     public bool AutoCheckUpdates { get; set; } = true;
+    public bool LaunchOnStartup { get; set; } = false;
 
     public static SettingsDocument Load(string path)
     {

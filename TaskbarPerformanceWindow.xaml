@@ -13,7 +13,7 @@
         UseLayoutRounding="True"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Window.Resources>
-        <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
+        <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
 
         <!-- Keep the independent component menu visually identical to the lyric menu. -->
         <Style TargetType="ContextMenu">
@@ -54,7 +54,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ContentPresenter Grid.Column="0" ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                 <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,10,0"/>
-                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xf00c;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xe06c;" FontFamily="{StaticResource Lucide}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -85,7 +85,7 @@
     <Window.ContextMenu>
         <ContextMenu>
             <MenuItem Header="设置" Click="OpenSettings_Click">
-                <MenuItem.Icon><TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" /></MenuItem.Icon>
+                <MenuItem.Icon><TextBlock Text="&#xe154;" FontFamily="{StaticResource Lucide}" FontSize="14" /></MenuItem.Icon>
             </MenuItem>
         </ContextMenu>
     </Window.ContextMenu>

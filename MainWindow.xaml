@@ -5,20 +5,20 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TaskbarInfo"
         mc:Ignorable="d"
-        Title="TaskbarInfo" Height="30" Width="200"
+        Title="TinyBar" Height="30" Width="200"
         WindowStyle="None" ResizeMode="NoResize" 
         Background="Transparent" AllowsTransparency="True"
         ShowInTaskbar="False"
         Loaded="Window_Loaded"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Window.Resources>
-        <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
+        <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
 
         <Style x:Key="MediaButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontAwesome}"/>
+            <Setter Property="FontFamily" Value="{StaticResource Lucide}"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -79,7 +79,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ContentPresenter Grid.Column="0" ContentSource="Icon" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                 <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="0,0,10,0"/>
-                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xf00c;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
+                                <TextBlock x:Name="CheckIcon" Grid.Column="2" Text="&#xe06c;" FontFamily="{StaticResource Lucide}" FontSize="12" Foreground="#0067C0" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,10,0"/>
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -122,23 +122,23 @@
         <ContextMenu x:Key="TrayContextMenu" Placement="MousePoint">
             <MenuItem Header="设置" Click="OpenSettings_Click">
                 <MenuItem.Icon>
-                    <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                    <TextBlock Text="&#xe154;" FontFamily="{StaticResource Lucide}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                 </MenuItem.Icon>
             </MenuItem>
             <MenuItem Header="检查更新..." Click="CheckForUpdates_Click">
                 <MenuItem.Icon>
-                    <TextBlock Text="&#xf0ab;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                    <TextBlock Text="&#xe412;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                 </MenuItem.Icon>
             </MenuItem>
             <Separator/>
             <MenuItem Header="重启" Click="Restart_Click">
                 <MenuItem.Icon>
-                    <TextBlock Text="&#xf021;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                    <TextBlock Text="&#xe149;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                 </MenuItem.Icon>
             </MenuItem>
             <MenuItem Header="退出" Click="Exit_Click">
                 <MenuItem.Icon>
-                    <TextBlock Text="&#xf00d;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="#FF4D4F"/>
+                    <TextBlock Text="&#xe140;" FontFamily="{StaticResource Lucide}" FontSize="14" Foreground="#FF4D4F"/>
                 </MenuItem.Icon>
             </MenuItem>
         </ContextMenu>
@@ -175,9 +175,9 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" ToolTip="上一首" Click="PreviousTrack_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf048;" Margin="4,0"/>
-                                    <Button x:Name="PlayPauseButton" Grid.Column="1" ToolTip="播放" Click="PlayPause_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf04b;" Margin="4,0"/>
-                                    <Button Grid.Column="2" ToolTip="下一首" Click="NextTrack_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf051;" Margin="4,0"/>
+                                    <Button Grid.Column="0" ToolTip="上一首" Click="PreviousTrack_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xe15f;" Margin="4,0"/>
+                                    <Button x:Name="PlayPauseButton" Grid.Column="1" ToolTip="播放" Click="PlayPause_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xe13c;" Margin="4,0"/>
+                                    <Button Grid.Column="2" ToolTip="下一首" Click="NextTrack_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xe160;" Margin="4,0"/>
                                 </Grid>
                                 <TextBlock x:Name="MenuSongInfoText" Text="暂无媒体播放" 
                                            HorizontalAlignment="Center" TextAlignment="Center"
@@ -198,11 +198,11 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Button Grid.Column="0" ToolTip="歌词提前 0.5 秒" Click="LyricOffsetDecrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf068;" Margin="4,0"/>
+                                    <Button Grid.Column="0" ToolTip="歌词提前 0.5 秒" Click="LyricOffsetDecrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xe11c;" Margin="4,0"/>
                                     <TextBlock x:Name="LyricOffsetText" Grid.Column="1" Text="0.0 秒"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                FontSize="11" Foreground="{DynamicResource ThemeSecondaryTextBrush}"/>
-                                    <Button Grid.Column="2" ToolTip="歌词延后 0.5 秒" Click="LyricOffsetIncrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xf067;" Margin="4,0"/>
+                                    <Button Grid.Column="2" ToolTip="歌词延后 0.5 秒" Click="LyricOffsetIncrease_Click" Style="{StaticResource MediaButtonStyle}" Content="&#xe13d;" Margin="4,0"/>
                                 </Grid>
                             </StackPanel>
                         </MenuItem.Header>
@@ -211,19 +211,19 @@
 
                     <MenuItem Header="设置" Click="OpenSettings_Click">
                         <MenuItem.Icon>
-                           <TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                           <TextBlock Text="&#xe154;" FontFamily="{StaticResource Lucide}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                         </MenuItem.Icon>
                     </MenuItem>
 
                     <MenuItem Header="悬浮歌词" IsCheckable="True" Checked="FloatingLyrics_Checked" Unchecked="FloatingLyrics_Unchecked" x:Name="FloatingLyricsMenuItem">
                          <MenuItem.Icon>
-                            <TextBlock Text="&#xf24d;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                            <TextBlock Text="&#xe426;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                          </MenuItem.Icon>
                     </MenuItem>
 
                     <MenuItem Header="鼠标穿透" IsCheckable="True" Checked="FloatingLyricsCtx_Checked" Unchecked="FloatingLyricsCtx_Unchecked" x:Name="FloatingLyricsCtxItem" Margin="20,0,0,0">
                          <MenuItem.Icon>
-                            <TextBlock Text="&#xf245;" FontFamily="{StaticResource FontAwesome}" FontSize="12" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
+                            <TextBlock Text="&#xe10b;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}"/>
                          </MenuItem.Icon>
                     </MenuItem>
                     

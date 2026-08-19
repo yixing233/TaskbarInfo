@@ -19,14 +19,14 @@ namespace TaskbarInfo;
 
 public partial class QuickTranslatePopupWindow : Window
 {
-    private const double PopupWidth = 420;
+    private const double PopupWidth = 480;
     private const double CompactPopupHeight = 294;
     private const double CompactResultTextBoxHeight = 64;
     private const double MaximumResultTextBoxHeight = 156;
     private const double ResultTextBoxLineHeight = 18;
     private const double ResultTextBoxVerticalPadding = 12;
     private const double ErrorStatusHeight = 34;
-    private const int ResultDisplayUnitsPerLine = 42;
+    private const int ResultDisplayUnitsPerLine = 48;
     private const byte AcrylicTintOpacity = 96;
     private static readonly Duration PopupTransitionDuration = new(TimeSpan.FromMilliseconds(160));
     private static readonly IntPtr HwndTopmost = new(-1);
@@ -692,7 +692,7 @@ public partial class QuickTranslatePopupWindow : Window
                 .OfType<ComboBoxItem>()
                 .FirstOrDefault(item => string.Equals(item.Tag as string, targetLanguage,
                     StringComparison.OrdinalIgnoreCase))
-                ?? TargetLanguageBox.Items.OfType<ComboBoxItem>().FirstOrDefault();
+            ?? TargetLanguageBox.Items.OfType<ComboBoxItem>().FirstOrDefault();
         }
         finally
         {
@@ -706,9 +706,28 @@ public partial class QuickTranslatePopupWindow : Window
         DomainBox.Visibility = isAiProvider ? Visibility.Visible : Visibility.Collapsed;
         AddDomainButton.Visibility = isAiProvider ? Visibility.Visible : Visibility.Collapsed;
         DomainLeadingGap.Width = new GridLength(isAiProvider ? 6 : 0);
-        DomainColumn.Width = new GridLength(isAiProvider ? 90 : 0);
+        DomainColumn.Width = new GridLength(isAiProvider ? 110 : 0);
         DomainTrailingGap.Width = new GridLength(isAiProvider ? 6 : 0);
         AddDomainColumn.Width = new GridLength(isAiProvider ? 32 : 0);
+    }
+
+    private async void CopyResult_Click(object sender, RoutedEventArgs e)
+    {
+        string text = ResultTextBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        try
+        {
+            System.Windows.Clipboard.SetText(text);
+            CopyButtonText.Text = "已复制";
+            CopyButtonIcon.Text = "\ue06c"; // lucide-check
+            await Task.Delay(1500);
+            CopyButtonText.Text = "复制";
+            CopyButtonIcon.Text = "\ue09e"; // lucide-copy
+        }
+        catch
+        {
+        }
     }
 
     private TranslationProviderProfile? SelectedProvider() =>

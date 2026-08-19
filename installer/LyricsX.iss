@@ -1,8 +1,8 @@
 ; 需要 Inno Setup 6.1 或更高版本（依赖 DownloadTemporaryFile 自动下载并静默安装运行库）。
-#define MyAppName "TaskbarInfo"
-#define MyAppVersion "1.1.8"
-#define MyAppPublisher "TaskbarInfo"
-#define MyAppExeName "TaskbarInfo.exe"
+#define MyAppName "TinyBar"
+#define MyAppVersion "1.1.9"
+#define MyAppPublisher "TinyBar"
+#define MyAppExeName "TinyBar.exe"
 
 #ifndef PublishDirectory
   #define PublishDirectory "..\publish\win-x64"
@@ -25,8 +25,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir={#SetupOutputDirectory}
-OutputBaseFilename=TaskbarInfo-Setup-v{#MyAppVersion}
-SetupIconFile=..\src\icons\LyricsX.ico
+OutputBaseFilename=TinyBar-Setup-v{#MyAppVersion}
+SetupIconFile=..\src\icons\TinyBar.ico
 Compression={#SetupCompression}
 SolidCompression=yes
 WizardStyle=modern
@@ -52,6 +52,9 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "立即启动 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "TaskbarInfo"; Flags: dontcreatekey uninsdeletevalue
 
 [Code]
 const

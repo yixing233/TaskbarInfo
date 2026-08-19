@@ -108,7 +108,7 @@ namespace TaskbarInfo
             UpdateMonitorPlacement(placement);
 
             var parameters = new HwndSourceParameters(
-                "TaskbarInfo Desktop Widget",
+                "TinyBar Desktop Widget",
                 placement.Width,
                 placement.Height)
             {
@@ -243,7 +243,7 @@ namespace TaskbarInfo
                 TrackTitleText.Text = track.HasTrack ? track.Title : "等待播放";
                 TrackArtistText.Text = track.HasTrack
                     ? (string.IsNullOrWhiteSpace(track.Artist) ? "未知艺术家" : track.Artist)
-                    : "TaskbarInfo";
+                    : "TinyBar";
                 _duration = track.DurationMs is > 0
                     ? TimeSpan.FromMilliseconds(track.DurationMs.Value)
                     : TimeSpan.Zero;
@@ -294,7 +294,7 @@ namespace TaskbarInfo
         {
             RunOnUi(() =>
             {
-                PlayPauseButton.Content = isPlaying ? "\uf04c" : "\uf04b";
+                PlayPauseButton.Content = isPlaying ? "\ue12e" : "\ue13c";
                 PlayPauseButton.ToolTip = isPlaying ? "暂停" : "播放";
             });
         }

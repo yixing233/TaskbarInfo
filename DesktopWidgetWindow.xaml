@@ -6,7 +6,7 @@
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <UserControl.Resources>
-        <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
+        <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
         <SolidColorBrush x:Key="DesktopWidgetWindowBackgroundBrush" Color="#FF081025"/>
         <SolidColorBrush x:Key="DesktopWidgetCardBackgroundBrush" Color="#E6081025"/>
         <SolidColorBrush x:Key="DesktopWidgetCardBorderBrush" Color="#16FFFFFF"/>
@@ -29,7 +29,7 @@
             <Setter Property="Foreground" Value="{DynamicResource DesktopWidgetControlForegroundBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontFamily" Value="{StaticResource FontAwesome}"/>
+            <Setter Property="FontFamily" Value="{StaticResource Lucide}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -204,7 +204,7 @@
                                VerticalAlignment="Center"/>
                     <TextBlock x:Name="TrackArtistText"
                                Grid.Row="1"
-                               Text="TaskbarInfo"
+                               Text="TinyBar"
                                Foreground="{DynamicResource DesktopWidgetSecondaryTextBrush}"
                                FontSize="11"
                                TextTrimming="CharacterEllipsis"
@@ -254,9 +254,9 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button ToolTip="上一首" Content="&#xf048;" Style="{StaticResource DesktopMediaButtonStyle}" Click="PreviousTrack_Click"/>
-                            <Button x:Name="PlayPauseButton" ToolTip="播放" Content="&#xf04b;" Style="{StaticResource DesktopMediaButtonStyle}" Click="PlayPause_Click"/>
-                            <Button ToolTip="下一首" Content="&#xf051;" Style="{StaticResource DesktopMediaButtonStyle}" Click="NextTrack_Click"/>
+                            <Button ToolTip="上一首" Content="&#xe15f;" Style="{StaticResource DesktopMediaButtonStyle}" Click="PreviousTrack_Click"/>
+                            <Button x:Name="PlayPauseButton" ToolTip="播放" Content="&#xe13c;" Style="{StaticResource DesktopMediaButtonStyle}" Click="PlayPause_Click"/>
+                            <Button ToolTip="下一首" Content="&#xe160;" Style="{StaticResource DesktopMediaButtonStyle}" Click="NextTrack_Click"/>
                         </StackPanel>
                         <TextBlock Grid.Column="2"
                                    VerticalAlignment="Center"
@@ -275,7 +275,7 @@
                 <MenuItem x:Name="LockPositionMenuItem" Header="锁定位置" IsCheckable="True" Click="LockPosition_Click" Style="{StaticResource DesktopWidgetContextMenuItemStyle}"/>
                 <MenuItem x:Name="MonitorSelectionMenuItem" Header="显示屏选择" Style="{StaticResource DesktopWidgetContextMenuItemStyle}">
                     <MenuItem.Icon>
-                        <TextBlock Text="&#xf108;" FontFamily="{StaticResource FontAwesome}" FontSize="13" Foreground="{StaticResource DesktopWidgetControlForegroundBrush}"/>
+                        <TextBlock Text="&#xe11d;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{StaticResource DesktopWidgetControlForegroundBrush}"/>
                     </MenuItem.Icon>
                     <MenuItem.ItemsPanel>
                         <ItemsPanelTemplate>

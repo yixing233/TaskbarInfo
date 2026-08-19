@@ -19,11 +19,34 @@ namespace TaskbarInfo
     public class LyricsEngine
     {
         private static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(7);
-        private static readonly string CacheDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LyricsX",
-            "lyrics-cache");
+        private static readonly string CacheDirectory = ResolveCacheDirectory();
         private readonly SemaphoreSlim _searchGate = new(1, 1);
+
+        private static string ResolveCacheDirectory()
+        {
+            string baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string modernDir = Path.Combine(baseDir, "TinyBar", "lyrics-cache");
+            try
+            {
+                if (!Directory.Exists(modernDir))
+                {
+                    string legacyLyricsX = Path.Combine(baseDir, "LyricsX", "lyrics-cache");
+                    string legacyTaskbar = Path.Combine(baseDir, "TaskbarInfo", "lyrics-cache");
+                    if (Directory.Exists(legacyLyricsX))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(modernDir)!);
+                        Directory.Move(legacyLyricsX, modernDir);
+                    }
+                    else if (Directory.Exists(legacyTaskbar))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(modernDir)!);
+                        Directory.Move(legacyTaskbar, modernDir);
+                    }
+                }
+            }
+            catch { }
+            return modernDir;
+        }
 
         public enum SearchStatus
         {

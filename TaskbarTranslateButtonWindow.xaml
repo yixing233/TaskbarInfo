@@ -11,7 +11,7 @@
         Background="Transparent"
         ShowActivated="False">
     <Window.Resources>
-        <FontFamily x:Key="FontAwesome">./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid</FontFamily>
+        <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
 
         <Style x:Key="TaskbarTranslateContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -109,7 +109,7 @@
                  Background="Transparent"
                  BorderBrush="Transparent"
                 Foreground="#D8FFFFFF"
-                FontFamily="./Fonts/fa-solid-900.ttf#Font Awesome 6 Free Solid"
+                FontFamily="./Fonts/lucide.ttf#lucide"
                  FontSize="14"
                  ToolTip="快捷翻译"
                  PreviewMouseLeftButtonDown="TranslateButton_PreviewMouseLeftButtonDown"
@@ -119,11 +119,11 @@
             <Button.ContextMenu>
                 <ContextMenu Style="{StaticResource TaskbarTranslateContextMenuStyle}">
                     <MenuItem Header="设置" Click="OpenSettings_Click" Style="{StaticResource TaskbarTranslateMenuItemStyle}">
-                        <MenuItem.Icon><TextBlock Text="&#xf013;" FontFamily="{StaticResource FontAwesome}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}" /></MenuItem.Icon>
+                        <MenuItem.Icon><TextBlock Text="&#xe154;" FontFamily="{StaticResource Lucide}" FontSize="14" Foreground="{DynamicResource ThemeMenuIconBrush}" /></MenuItem.Icon>
                     </MenuItem>
                 </ContextMenu>
             </Button.ContextMenu>
-            &#xf1ab;
+            &#xe0fe;
         </Button>
     </Border>
 </Window>

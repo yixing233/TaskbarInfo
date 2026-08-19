@@ -566,7 +566,7 @@ namespace TaskbarInfo
             }
 
             FloatingPlayPauseButton.ToolTip = isPlaying ? "暂停" : "播放";
-            FloatingPlayPauseIcon.Text = isPlaying ? "\uf04c" : "\uf04b";
+            FloatingPlayPauseIcon.Text = isPlaying ? "\ue12e" : "\ue13c";
         }
 
         private void MoveToMonitor(string deviceName)

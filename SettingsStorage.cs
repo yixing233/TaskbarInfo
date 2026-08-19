@@ -14,6 +14,24 @@ public static class SettingsStorage
             throw new ArgumentException("A local application data path is required.", nameof(localApplicationDataPath));
         }
 
-        return Path.Combine(localApplicationDataPath, "TaskbarInfo", "settings.json");
+        string newPath = Path.Combine(localApplicationDataPath, "TinyBar", "settings.json");
+        string legacyPath1 = Path.Combine(localApplicationDataPath, "taskbarTool", "settings.json");
+        string legacyPath2 = Path.Combine(localApplicationDataPath, "TaskbarInfo", "settings.json");
+
+        if (!File.Exists(newPath))
+        {
+            string? source = File.Exists(legacyPath1) ? legacyPath1 : (File.Exists(legacyPath2) ? legacyPath2 : null);
+            if (source != null)
+            {
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(newPath)!);
+                    File.Copy(source, newPath, overwrite: false);
+                }
+                catch { }
+            }
+        }
+
+        return newPath;
     }
 }

@@ -15,6 +15,7 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display">
     <Window.Resources>
+        <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
         <SolidColorBrush x:Key="SystemAccentColor" Color="#0067C0"/>
         <SolidColorBrush x:Key="SystemAccentHoverColor" Color="#1975C5"/>
         <SolidColorBrush x:Key="TextPrimaryColor" Color="#1B2530"/>
@@ -119,7 +120,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="检查更新" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
                     <Button Grid.Column="1" Style="{StaticResource WindowControlButton}" ToolTip="关闭" Click="Close_Click">
-                        <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12"/>
+                        <TextBlock Text="&#xe1b2;" FontFamily="{StaticResource Lucide}" FontSize="12"/>
                     </Button>
                 </Grid>
             </Border>

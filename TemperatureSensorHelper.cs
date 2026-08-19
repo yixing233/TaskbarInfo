@@ -95,7 +95,7 @@ public static class TemperatureSensorHelper
 
 public sealed class TemperatureSensorHelperClient : IDisposable
 {
-    private readonly string _pipeName = $"TaskbarInfo.Temperature.{Environment.ProcessId}.{Guid.NewGuid():N}";
+    private readonly string _pipeName = $"TinyBar.Temperature.{Environment.ProcessId}.{Guid.NewGuid():N}";
     private readonly string _token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
     private bool _started;
 

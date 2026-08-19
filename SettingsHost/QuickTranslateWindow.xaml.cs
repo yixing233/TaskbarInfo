@@ -10,7 +10,7 @@ using TaskbarInfo;
 using Windows.Graphics;
 using Windows.System;
 
-namespace LyricsX.Settings;
+namespace TinyBar.Settings;
 
 public sealed partial class QuickTranslateWindow : Window
 {
@@ -44,7 +44,8 @@ public sealed partial class QuickTranslateWindow : Window
         IntPtr initialWindowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         uint dpi = initialWindowHandle == IntPtr.Zero ? 96 : GetDpiForWindow(initialWindowHandle);
         AppWindow.Resize(ScaleWindowSizeForDpi(WindowWidth, WindowHeight, dpi));
-        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LyricsX.ico");
+        string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TinyBar.ico");
+        if (!File.Exists(iconPath)) iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LyricsX.ico");
         if (File.Exists(iconPath)) AppWindow.SetIcon(iconPath);
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {

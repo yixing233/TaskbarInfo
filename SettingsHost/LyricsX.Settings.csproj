@@ -13,15 +13,14 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <Platforms>x64</Platforms>
     <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;bin\**;obj\**;publish\**</DefaultItemExcludes>
-    <RootNamespace>LyricsX.Settings</RootNamespace>
-    <AssemblyName>TaskbarInfo.Settings</AssemblyName>
-    <Version>1.1.8</Version>
-    <AssemblyVersion>1.1.8.0</AssemblyVersion>
-    <FileVersion>1.1.8.0</FileVersion>
-    <InformationalVersion>1.1.8</InformationalVersion>
-    <RepositoryUrl>https://github.com/yixing233/TaskbarInfo</RepositoryUrl>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>..\src\icons\LyricsX.ico</ApplicationIcon>
+    <RootNamespace>TinyBar.Settings</RootNamespace>
+    <AssemblyName>TinyBar.Settings</AssemblyName>
+    <Product>TinyBar</Product>
+    <Version>1.1.9</Version>
+    <AssemblyVersion>1.1.9.0</AssemblyVersion>
+    <FileVersion>1.1.9.0</FileVersion>
+    <InformationalVersion>1.1.9</InformationalVersion>
+    <ApplicationIcon>..\src\icons\TinyBar.ico</ApplicationIcon>
     <EnableMsixTooling>true</EnableMsixTooling>
   </PropertyGroup>
 
@@ -42,6 +41,9 @@
     <Compile Include="..\TranslationProviderProfile.cs" Link="TranslationProviderProfile.cs" />
     <Compile Include="..\TranslationService.cs" Link="TranslationService.cs" />
     <Compile Include="..\WaterReminderHistory.cs" Link="WaterReminderHistory.cs" />
+    <Compile Include="..\AutoStartupService.cs" Link="AutoStartupService.cs" />
+    <Content Include="..\src\icons\TinyBar.ico" Link="Assets\TinyBar.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\src\icons\TinyBar.png" Link="Assets\TinyBar.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\src\icons\LyricsX.ico" Link="Assets\LyricsX.ico" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />

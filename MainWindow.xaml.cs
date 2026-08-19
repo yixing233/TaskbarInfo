@@ -21,13 +21,16 @@ namespace TaskbarInfo
 {
     public partial class MainWindow : Window
     {
-        private const string SharedSettingsAppliedEventName = "TaskbarInfo.Settings.Apply";
+        private const string SharedSettingsAppliedEventName = "TinyBar.Settings.Apply";
         private const int QuickTranslateHotkeyId = 0x4C58;
+        private const int FloatingLyricsHotkeyId = 0x4C59;
+        private const int DesktopWidgetHotkeyId = 0x4C5A;
+        private const int WaterReminderDrinkHotkeyId = 0x4C5B;
         private const int QuickTranslateSettingsPage = 6;
         private const int TaskbarPerformanceSettingsPage = 7;
         private const int WaterReminderSettingsPage = 8;
         private static readonly uint SettingsNavigateMessage =
-            UnmanagedMethods.RegisterWindowMessage("TaskbarInfo.Settings.Navigate");
+            UnmanagedMethods.RegisterWindowMessage("TinyBar.Settings.Navigate");
 
         public MainWindow()
         {
@@ -167,7 +170,7 @@ namespace TaskbarInfo
 
             if (found)
             {
-                SetTrayText("TaskbarInfo");
+                SetTrayText("TinyBar");
 
                 if (this.Visibility != Visibility.Visible)
                 {
@@ -180,7 +183,7 @@ namespace TaskbarInfo
             }
             else
             {
-                SetTrayText("TaskbarInfo - 已隐藏，等待播放器运行");
+                SetTrayText("TinyBar - 已隐藏，等待播放器运行");
                 // Hide everything
                 if (this.Visibility == Visibility.Visible)
                 {
@@ -203,8 +206,8 @@ namespace TaskbarInfo
                 // Tray Icon
                 try
                 {
-                    var trayUri = new Uri("pack://application:,,,/src/icons/托盘图标.png");
-                    var info = Application.GetResourceStream(trayUri);
+                    var trayUri = new Uri("pack://application:,,,/src/icons/TinyBar_Tray.png");
+                    var info = Application.GetResourceStream(trayUri) ?? Application.GetResourceStream(new Uri("pack://application:,,,/src/icons/托盘图标.png"));
                     if (info != null)
                     {
                         using (var stream = info.Stream)
@@ -232,7 +235,7 @@ namespace TaskbarInfo
             }
             _notifyIcon.Visible = true;
             _notifyIcon.Visible = true;
-            _notifyIcon.Text = "TaskbarInfo";
+            _notifyIcon.Text = "TinyBar";
             _notifyIcon.BalloonTipClicked += NotifyIcon_BalloonTipClicked;
             
             // Handle Mouse Up to show WPF ContextMenu
@@ -428,7 +431,7 @@ namespace TaskbarInfo
                 {
                     _notifyIcon?.ShowBalloonTip(
                         5000,
-                        "TaskbarInfo 有新版本",
+                        "TinyBar 有新版本",
                         $"当前 {result.CurrentVersionDisplay}，最新 {result.LatestVersionDisplay}。点击此通知可下载并安装。",
                         System.Windows.Forms.ToolTipIcon.Info);
                     return;
@@ -483,12 +486,13 @@ namespace TaskbarInfo
         private void ShowTrayWarning(string message)
         {
             if (_notifyIcon == null) return;
-            _notifyIcon.ShowBalloonTip(3000, "TaskbarInfo", message, System.Windows.Forms.ToolTipIcon.Warning);
+            _notifyIcon.ShowBalloonTip(3000, "TinyBar", message, System.Windows.Forms.ToolTipIcon.Warning);
         }
 
         private void ApplySettings()
         {
             ApplyApplicationTheme();
+            AutoStartupService.Sync(_settings.LaunchOnStartup);
 
             // Sync Process Monitoring
             SetupProcessMonitor();
@@ -796,7 +800,14 @@ namespace TaskbarInfo
             }
         }
 
-        private void ConfigureQuickTranslateHotkey()
+        private readonly System.Collections.Generic.Dictionary<int, string> _activeRegisteredHotkeys = new();
+        private readonly System.Collections.Generic.Dictionary<int, string> _lastConfiguredHotkeys = new();
+        private readonly System.Collections.Generic.Dictionary<int, string> _warnedOccupiedHotkeys = new();
+
+        private void ConfigureQuickTranslateHotkey() => ConfigureGlobalHotkeys();
+        private void UnregisterQuickTranslateHotkey() => UnregisterGlobalHotkeys();
+
+        private void ConfigureGlobalHotkeys()
         {
             var source = PresentationSource.FromVisual(this) as HwndSource;
             if (source == null) return;
@@ -808,39 +819,106 @@ namespace TaskbarInfo
                 _mainWindowSource.AddHook(MainWindowMessageHook);
             }
 
-            UnregisterQuickTranslateHotkey();
-            string configuredHotkey = _settings.QuickTranslateHotkey?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(configuredHotkey)) return;
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            if (handle == IntPtr.Zero) return;
 
-            if (!QuickTranslateHotkey.TryParse(configuredHotkey, out QuickTranslateHotkey hotkey))
+            SyncFeatureHotkey(handle, QuickTranslateHotkeyId, _settings.QuickTranslateHotkey, "快捷翻译");
+            SyncFeatureHotkey(handle, FloatingLyricsHotkeyId, _settings.FloatingLyricsHotkey, "悬浮歌词");
+            SyncFeatureHotkey(handle, DesktopWidgetHotkeyId, _settings.DesktopWidgetHotkey, "桌面歌词");
+            SyncFeatureHotkey(handle, WaterReminderDrinkHotkeyId, _settings.WaterReminderDrinkHotkey, "饮水打卡");
+
+            _quickTranslateHotkeyRegistered = _activeRegisteredHotkeys.ContainsKey(QuickTranslateHotkeyId);
+        }
+
+        private void SyncFeatureHotkey(IntPtr handle, int id, string? hotkeyText, string name)
+        {
+            string configured = hotkeyText?.Trim() ?? string.Empty;
+
+            if (_lastConfiguredHotkeys.TryGetValue(id, out string? lastConfigured) &&
+                string.Equals(lastConfigured, configured, StringComparison.OrdinalIgnoreCase))
             {
-                ShowTrayWarning("快捷翻译快捷键格式无效，请使用 Ctrl+Alt+T 这类格式。");
                 return;
             }
 
-            IntPtr handle = new WindowInteropHelper(this).Handle;
-            _quickTranslateHotkeyRegistered = handle != IntPtr.Zero &&
-                UnmanagedMethods.RegisterHotKey(
-                    handle,
-                    QuickTranslateHotkeyId,
-                    hotkey.Modifiers | UnmanagedMethods.MOD_NOREPEAT,
-                    hotkey.VirtualKey);
-            if (!_quickTranslateHotkeyRegistered)
+            if (_activeRegisteredHotkeys.ContainsKey(id))
             {
-                ShowTrayWarning("快捷翻译快捷键已被其他程序占用。");
+                UnmanagedMethods.UnregisterHotKey(handle, id);
+                _activeRegisteredHotkeys.Remove(id);
+            }
+
+            _lastConfiguredHotkeys[id] = configured;
+
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                _warnedOccupiedHotkeys.Remove(id);
+                return;
+            }
+
+            if (!QuickTranslateHotkey.TryParse(configured, out QuickTranslateHotkey hotkey))
+            {
+                if (!_warnedOccupiedHotkeys.TryGetValue(id, out string? warned) ||
+                    !string.Equals(warned, configured, StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowTrayWarning($"{name}快捷键格式无效，请使用 Alt+Shift+字母 这类格式。");
+                    _warnedOccupiedHotkeys[id] = configured;
+                }
+                return;
+            }
+
+            bool success = UnmanagedMethods.RegisterHotKey(
+                handle,
+                id,
+                hotkey.Modifiers | UnmanagedMethods.MOD_NOREPEAT,
+                hotkey.VirtualKey);
+
+            if (success)
+            {
+                _activeRegisteredHotkeys[id] = configured;
+                _warnedOccupiedHotkeys.Remove(id);
+            }
+            else
+            {
+                if (!_warnedOccupiedHotkeys.TryGetValue(id, out string? warned) ||
+                    !string.Equals(warned, configured, StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowTrayWarning($"{name}快捷键「{configured}」已被其他程序占用。");
+                    _warnedOccupiedHotkeys[id] = configured;
+                }
             }
         }
 
-        private void UnregisterQuickTranslateHotkey()
+        private void UnregisterGlobalHotkeys()
         {
-            if (!_quickTranslateHotkeyRegistered) return;
-
             IntPtr handle = new WindowInteropHelper(this).Handle;
             if (handle != IntPtr.Zero)
             {
-                UnmanagedMethods.UnregisterHotKey(handle, QuickTranslateHotkeyId);
+                foreach (int id in _activeRegisteredHotkeys.Keys)
+                {
+                    UnmanagedMethods.UnregisterHotKey(handle, id);
+                }
             }
+            _activeRegisteredHotkeys.Clear();
+            _lastConfiguredHotkeys.Clear();
+            _warnedOccupiedHotkeys.Clear();
             _quickTranslateHotkeyRegistered = false;
+        }
+
+        private void ToggleFloatingLyrics()
+        {
+            _settings.EnableFloatingLyrics = !_settings.EnableFloatingLyrics;
+            _settings.Save();
+            ManageFloatingWindow();
+            if (FloatingLyricsMenuItem != null)
+            {
+                FloatingLyricsMenuItem.IsChecked = _settings.EnableFloatingLyrics;
+            }
+        }
+
+        private void ToggleDesktopWidget()
+        {
+            _settings.EnableDesktopWidget = !_settings.EnableDesktopWidget;
+            _settings.Save();
+            ManageDesktopWidget();
         }
 
         private IntPtr MainWindowMessageHook(
@@ -850,10 +928,29 @@ namespace TaskbarInfo
             IntPtr lParam,
             ref bool handled)
         {
-            if (message == UnmanagedMethods.WM_HOTKEY && wParam.ToInt32() == QuickTranslateHotkeyId)
+            if (message == UnmanagedMethods.WM_HOTKEY)
             {
-                handled = true;
-                Dispatcher.BeginInvoke(new Action(ShowQuickTranslate));
+                int hotkeyId = wParam.ToInt32();
+                if (hotkeyId == QuickTranslateHotkeyId)
+                {
+                    handled = true;
+                    Dispatcher.BeginInvoke(new Action(ShowQuickTranslate));
+                }
+                else if (hotkeyId == FloatingLyricsHotkeyId)
+                {
+                    handled = true;
+                    Dispatcher.BeginInvoke(new Action(ToggleFloatingLyrics));
+                }
+                else if (hotkeyId == DesktopWidgetHotkeyId)
+                {
+                    handled = true;
+                    Dispatcher.BeginInvoke(new Action(ToggleDesktopWidget));
+                }
+                else if (hotkeyId == WaterReminderDrinkHotkeyId)
+                {
+                    handled = true;
+                    Dispatcher.BeginInvoke(new Action(RecordWaterDrink));
+                }
             }
             return IntPtr.Zero;
         }
@@ -871,14 +968,28 @@ namespace TaskbarInfo
                 string settingsHost = System.IO.Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory,
                     "SettingsHost",
-                    "TaskbarInfo.Settings.exe");
+                    "TinyBar.Settings.exe");
                 if (!System.IO.File.Exists(settingsHost))
                 {
-                    System.Windows.MessageBox.Show("设置窗口组件未找到，请重新生成开发版本。", "TaskbarInfo", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    settingsHost = System.IO.Path.Combine(
+                        AppDomain.CurrentDomain.BaseDirectory,
+                        "SettingsHost",
+                        "taskbarTool.Settings.exe");
+                }
+                if (!System.IO.File.Exists(settingsHost))
+                {
+                    settingsHost = System.IO.Path.Combine(
+                        AppDomain.CurrentDomain.BaseDirectory,
+                        "SettingsHost",
+                        "TaskbarInfo.Settings.exe");
+                }
+                if (!System.IO.File.Exists(settingsHost))
+                {
+                    System.Windows.MessageBox.Show("设置窗口组件未找到，请重新生成开发版本。", "TinyBar", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                string applyEventName = $"TaskbarInfo.Settings.{Environment.ProcessId}.{Guid.NewGuid():N}";
+                string applyEventName = $"TinyBar.Settings.{Environment.ProcessId}.{Guid.NewGuid():N}";
                 settingsAppliedEvent = new EventWaitHandle(false, EventResetMode.AutoReset, applyEventName);
                 settingsAppliedWait = ThreadPool.RegisterWaitForSingleObject(
                     settingsAppliedEvent,
@@ -929,7 +1040,7 @@ namespace TaskbarInfo
             catch (Exception exception)
             {
                 DisposeSettingsApplyNotification(settingsAppliedEvent, settingsAppliedWait);
-                System.Windows.MessageBox.Show($"无法打开设置窗口：{exception.Message}", "TaskbarInfo", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"无法打开设置窗口：{exception.Message}", "TinyBar", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -940,7 +1051,21 @@ namespace TaskbarInfo
             string settingsHost = System.IO.Path.Combine(
                 AppDomain.CurrentDomain.BaseDirectory,
                 "SettingsHost",
-                "TaskbarInfo.Settings.exe");
+                "TinyBar.Settings.exe");
+            if (!System.IO.File.Exists(settingsHost))
+            {
+                settingsHost = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "SettingsHost",
+                    "taskbarTool.Settings.exe");
+            }
+            if (!System.IO.File.Exists(settingsHost))
+            {
+                settingsHost = System.IO.Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "SettingsHost",
+                    "TaskbarInfo.Settings.exe");
+            }
             if (!System.IO.File.Exists(settingsHost)) return;
 
             try
@@ -1126,7 +1251,7 @@ namespace TaskbarInfo
         {
             if (_settingsUpdateRequestedEvent != null) return;
 
-            _settingsUpdateRequestEventName = $"TaskbarInfo.UpdateRequest.{Environment.ProcessId}";
+            _settingsUpdateRequestEventName = $"TinyBar.UpdateRequest.{Environment.ProcessId}";
             _settingsUpdateRequestedEvent = new EventWaitHandle(
                 false,
                 EventResetMode.AutoReset,
@@ -1461,13 +1586,13 @@ namespace TaskbarInfo
             if (isPlaying)
             {
                 // Currently playing - show pause icon
-                PlayPauseButton.Content = "\uf04c"; // Pause icon (FontAwesome)
+                PlayPauseButton.Content = "\ue12e"; // Pause icon (Lucide)
                 PlayPauseButton.ToolTip = "暂停";
             }
             else
             {
                 // Paused or stopped - show play icon
-                PlayPauseButton.Content = "\uf04b"; // Play icon (FontAwesome)
+                PlayPauseButton.Content = "\ue13c"; // Play icon (Lucide)
                 PlayPauseButton.ToolTip = "播放";
             }
         }
