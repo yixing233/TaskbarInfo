@@ -141,6 +141,9 @@ var tests = new (string Name, Action Test)[]
     ("Global hotkeys settings persist and default safely", GlobalHotkeysSettingsPersistAndDefaultSafely),
     ("Settings host exposes global hotkey editors", SettingsHostExposesGlobalHotkeyEditors),
     ("Main window registers and dispatches global hotkeys", MainWindowRegistersAndDispatchesGlobalHotkeys),
+    ("Taskbar hover media controls setting persists and defaults to true", TaskbarHoverMediaControlsSettingPersists),
+    ("Settings host exposes taskbar hover media controls toggle", SettingsHostExposesTaskbarHoverMediaControlsToggle),
+    ("Audio device model tracks default state and icons", AudioDeviceModelTracksDefaultStateAndIcons),
 };
 
 var failures = new List<string>();
@@ -3039,6 +3042,47 @@ static void MainWindowRegistersAndDispatchesGlobalHotkeys()
         code.Contains("ToggleDesktopWidget", StringComparison.Ordinal) &&
         code.Contains("RecordWaterDrink", StringComparison.Ordinal),
         "main window should register and dispatch global hotkeys to respective actions");
+}
+
+static void TaskbarHoverMediaControlsSettingPersists()
+{
+    var settings = new AppSettings();
+    AssertEqual(true, settings.EnableTaskbarHoverMediaControls, "default EnableTaskbarHoverMediaControls");
+
+    settings.EnableTaskbarHoverMediaControls = false;
+    var clone = settings.Clone();
+    AssertEqual(false, clone.EnableTaskbarHoverMediaControls, "cloned EnableTaskbarHoverMediaControls");
+
+    string json = JsonSerializer.Serialize(settings);
+    var deserialized = JsonSerializer.Deserialize<AppSettings>(json);
+    AssertEqual(false, deserialized?.EnableTaskbarHoverMediaControls, "roundtrip EnableTaskbarHoverMediaControls");
+}
+
+static void SettingsHostExposesTaskbarHoverMediaControlsToggle()
+{
+    string settingsWindowCode = ReadSourceFile("SettingsHost", "MainWindow.xaml.cs");
+    AssertEqual(true, settingsWindowCode.Contains("\"鼠标悬停时显示媒体控制栏\"", StringComparison.Ordinal) &&
+        settingsWindowCode.Contains("_settings.EnableTaskbarHoverMediaControls", StringComparison.Ordinal),
+        "settings host should expose hover media controls toggle");
+}
+
+static void AudioDeviceModelTracksDefaultStateAndIcons()
+{
+    var dev = new AudioPlaybackDevice
+    {
+        Id = "{0.0.0.00000000}.{test-guid}",
+        Name = "耳机 (WH-1000XM4)",
+        IsDefault = true,
+        IconGlyph = AudioDeviceService.DetermineIconForDevice("耳机 (WH-1000XM4)")
+    };
+
+    AssertEqual(true, dev.IsDefault, "device is default");
+    AssertEqual("\ue0f1", dev.IconGlyph, "headphones icon glyph");
+    AssertEqual("\ue05c", AudioDeviceService.DetermineIconForDevice("Bluetooth Audio"), "bluetooth icon glyph");
+    AssertEqual("\ue166", AudioDeviceService.DetermineIconForDevice("Realtek High Definition Audio"), "speaker icon glyph");
+    AssertEqual("\ue210", AudioDeviceService.DetermineIconForDevice("LG HDR 4K (HDMI Audio)"), "monitor audio icon glyph");
+    AssertEqual("\ue356", AudioDeviceService.DetermineIconForDevice("USB DAC Output"), "usb audio icon glyph");
+    AssertEqual("耳机 (WH-1000XM4)", dev.Name, "device name");
 }
 
 static void AssertEqual<T>(T expected, T actual, string message)

@@ -1,6 +1,6 @@
 ; 需要 Inno Setup 6.1 或更高版本（依赖 DownloadTemporaryFile 自动下载并静默安装运行库）。
 #define MyAppName "TinyBar"
-#define MyAppVersion "1.1.9"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "TinyBar"
 #define MyAppExeName "TinyBar.exe"
 

@@ -59,6 +59,7 @@ namespace TaskbarInfo
         public bool EnableShadow { get; set; } = false;
         public string FontWeight { get; set; } = "SemiBold"; // Normal, SemiBold, Bold etc.
         public bool EnableOutline { get; set; } = false; // Simulated outline
+        public bool EnableTaskbarHoverMediaControls { get; set; } = true;
 
         public int OffsetX { get; set; } = 10;
         public int? TaskbarPerformanceOffsetX { get; set; }

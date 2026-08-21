@@ -48,8 +48,14 @@ namespace TaskbarInfo
                 CloseQuickTranslatePopup();
                 CloseSettingsHost();
                 UnregisterQuickTranslateHotkey();
+                _audioDeviceService.Dispose();
+                _hoverWatchTimer?.Stop();
+                _audioDeviceToastTimer?.Stop();
             };
             
+            _hoverWatchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
+            _hoverWatchTimer.Tick += HoverWatchTimer_Tick;
+
             // Initialize references first
             _mainLyricControl = InfoText;
             _nextLyricControl = NextLyricText;
@@ -103,6 +109,9 @@ namespace TaskbarInfo
         private DesktopWidgetWindow? _desktopWidget;
         private DispatcherTimer? _desktopHostTimer;
         private readonly UpdateService _updateService = new UpdateService();
+        private readonly AudioDeviceService _audioDeviceService = new AudioDeviceService();
+        private bool _isUpdatingVolumeSliderProgrammatically;
+        private DispatcherTimer? _hoverWatchTimer;
         private UpdateCheckResult? _pendingUpdateResult;
         private bool _isCheckingUpdates;
         
@@ -306,6 +315,7 @@ namespace TaskbarInfo
 
             _mediaManager.Initialize();
             _isMediaPlaying = _mediaManager.IsPlaying;
+            InitializeAudioDeviceControls();
 
             if (_settings.AutoCheckUpdates)
             {
@@ -505,6 +515,16 @@ namespace TaskbarInfo
             _floatingWindow?.ApplySettings(_settings);
             ManageDesktopWidget();
             _desktopWidget?.ApplySettings(_settings);
+
+            if (!_settings.EnableTaskbarHoverMediaControls && HoverMediaControlsBar != null)
+            {
+                HoverMediaControlsBar.Opacity = 0;
+                HoverMediaControlsBar.IsHitTestVisible = false;
+                HoverMediaControlsBar.Visibility = Visibility.Collapsed;
+                TextContainer.Opacity = 1;
+                VolumePopup.IsOpen = false;
+                AudioDevicePopup.IsOpen = false;
+            }
 
             // Do NOT set this.Width/Height here, as it causes conflict with MoveWindow in InjectIntoTaskbar
             // this.Width = _settings.Width;
@@ -1583,17 +1603,448 @@ namespace TaskbarInfo
             _floatingWindow?.SetPlaybackState(isPlaying);
             _desktopWidget?.SetPlaybackState(isPlaying);
 
-            if (isPlaying)
+            string glyph = isPlaying ? "\ue12e" : "\ue13c";
+            string tooltip = isPlaying ? "暂停" : "播放";
+
+            if (PlayPauseButton != null)
             {
-                // Currently playing - show pause icon
-                PlayPauseButton.Content = "\ue12e"; // Pause icon (Lucide)
-                PlayPauseButton.ToolTip = "暂停";
+                PlayPauseButton.Content = glyph;
+                PlayPauseButton.ToolTip = tooltip;
+            }
+
+            if (HoverPlayPauseButton != null)
+            {
+                HoverPlayPauseButton.Content = glyph;
+                HoverPlayPauseButton.ToolTip = tooltip;
+            }
+        }
+
+        private void InitializeAudioDeviceControls()
+        {
+            _audioDeviceService.VolumeChanged += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(() => UpdateVolumeUI(e.MasterVolume, e.IsMuted));
+            };
+            _audioDeviceService.DefaultDeviceChanged += (s, e) =>
+            {
+                Dispatcher.BeginInvoke(RefreshAudioDevicesList);
+            };
+
+            float currentVol = _audioDeviceService.GetMasterVolume();
+            bool isMuted = _audioDeviceService.IsMuted();
+            UpdateVolumeUI(currentVol, isMuted);
+        }
+
+        private void UpdateVolumeUI(float volume, bool isMuted)
+        {
+            if (float.IsNaN(volume) || float.IsInfinity(volume))
+            {
+                volume = 0.5f;
+            }
+            volume = Math.Clamp(volume, 0f, 1f);
+            int percent = Math.Clamp((int)Math.Round(volume * 100f), 0, 100);
+
+            if (VolumePercentText != null)
+            {
+                VolumePercentText.Text = isMuted ? "静音" : $"{percent}%";
+            }
+
+            if (VolumeSlider != null)
+            {
+                if (!VolumeSlider.IsMouseCaptureWithin && Math.Abs(VolumeSlider.Value - percent) >= 1)
+                {
+                    _isUpdatingVolumeSliderProgrammatically = true;
+                    VolumeSlider.Value = percent;
+                    _isUpdatingVolumeSliderProgrammatically = false;
+                }
+            }
+
+            string icon = GetVolumeGlyph(volume, isMuted);
+            if (HoverVolumeButton != null)
+            {
+                HoverVolumeButton.Content = icon;
+                HoverVolumeButton.ToolTip = isMuted ? "已静音 (点击/滚轮调节)" : $"音量: {percent}% (滚轮调节)";
+            }
+            if (VolumeMuteToggleButton != null)
+            {
+                VolumeMuteToggleButton.Content = isMuted ? "\ue1ac" : "\ue1ab";
+                VolumeMuteToggleButton.ToolTip = isMuted ? "取消静音" : "静音";
+            }
+        }
+
+        private static string GetVolumeGlyph(float volume, bool isMuted)
+        {
+            if (isMuted || volume <= 0.001f) return "\ue1ac"; // Lucide volume-x
+            if (volume < 0.40f) return "\ue1aa"; // Lucide volume-1
+            return "\ue1ab"; // Lucide volume-2
+        }
+
+        private static bool IsPointInElementPhysicalBounds(FrameworkElement element, UnmanagedMethods.POINT pt, double margin = 20)
+        {
+            try
+            {
+                if (!element.IsVisible || element.ActualWidth <= 0 || element.ActualHeight <= 0)
+                    return false;
+
+                Point p1 = element.PointToScreen(new Point(0, 0));
+                Point p2 = element.PointToScreen(new Point(element.ActualWidth, element.ActualHeight));
+
+                double left = Math.Min(p1.X, p2.X) - margin;
+                double right = Math.Max(p1.X, p2.X) + margin;
+                double top = Math.Min(p1.Y, p2.Y) - margin;
+                double bottom = Math.Max(p1.Y, p2.Y) + margin;
+
+                return pt.X >= left && pt.X <= right && pt.Y >= top && pt.Y <= bottom;
+            }
+            catch
+            {
+                // In case of transient rendering during opening, keep active
+                return true;
+            }
+        }
+
+        private bool IsCursorOverLyricsComponentOrPopups()
+        {
+            if (!UnmanagedMethods.GetCursorPos(out var pt)) return false;
+
+            // 1. Check the entire taskbar lyrics window
+            var helper = new WindowInteropHelper(this);
+            if (helper.Handle != IntPtr.Zero && UnmanagedMethods.GetWindowRect(helper.Handle, out var winRect))
+            {
+                // Generous 16px margin in all directions to cover edges, grips, and transitions
+                if (pt.X >= winRect.Left - 16 && pt.X <= winRect.Right + 16 &&
+                    pt.Y >= winRect.Top - 16 && pt.Y <= winRect.Bottom + 16)
+                {
+                    return true;
+                }
+            }
+
+            // 2. Check VolumePopup
+            if (VolumePopup != null && VolumePopup.IsOpen && VolumePopup.Child is FrameworkElement volChild)
+            {
+                if (IsPointInElementPhysicalBounds(volChild, pt, margin: 24))
+                {
+                    return true;
+                }
+            }
+
+            // 3. Check AudioDevicePopup
+            if (AudioDevicePopup != null && AudioDevicePopup.IsOpen && AudioDevicePopup.Child is FrameworkElement devChild)
+            {
+                if (IsPointInElementPhysicalBounds(devChild, pt, margin: 24))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void HoverWatchTimer_Tick(object? sender, EventArgs e)
+        {
+            if (!_settings.EnableTaskbarHoverMediaControls)
+            {
+                HideHoverMediaControls();
+                return;
+            }
+
+            if (!IsCursorOverLyricsComponentOrPopups())
+            {
+                HideHoverMediaControls();
+            }
+        }
+
+        private void ShowHoverMediaControls()
+        {
+            if (HoverMediaControlsBar == null || TextContainer == null) return;
+
+            HoverMediaControlsBar.Visibility = Visibility.Visible;
+            HoverMediaControlsBar.Opacity = 1;
+            HoverMediaControlsBar.IsHitTestVisible = true;
+            TextContainer.Opacity = 0;
+
+            float vol = _audioDeviceService.GetMasterVolume();
+            bool muted = _audioDeviceService.IsMuted();
+            UpdateVolumeUI(vol, muted);
+
+            bool isPlaying = _mediaManager.IsPlaying;
+            if (HoverPlayPauseButton != null)
+            {
+                HoverPlayPauseButton.Content = isPlaying ? "\ue12e" : "\ue13c";
+                HoverPlayPauseButton.ToolTip = isPlaying ? "暂停" : "播放";
+            }
+
+            if (_hoverWatchTimer != null && !_hoverWatchTimer.IsEnabled)
+            {
+                _hoverWatchTimer.Start();
+            }
+        }
+
+        private void HideHoverMediaControls()
+        {
+            if (VolumePopup != null) VolumePopup.IsOpen = false;
+            if (AudioDevicePopup != null) AudioDevicePopup.IsOpen = false;
+            if (HoverMediaControlsBar == null || TextContainer == null) return;
+
+            HoverMediaControlsBar.Opacity = 0;
+            HoverMediaControlsBar.IsHitTestVisible = false;
+            HoverMediaControlsBar.Visibility = Visibility.Collapsed;
+            TextContainer.Opacity = 1;
+
+            _hoverWatchTimer?.Stop();
+        }
+
+        private void MainBorder_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_settings.EnableTaskbarHoverMediaControls) return;
+            ShowHoverMediaControls();
+        }
+
+        private void MainBorder_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            // If a popup is open (e.g. user is moving cursor upward into the volume/device popup), don't abruptly close
+            if (VolumePopup?.IsOpen == true || AudioDevicePopup?.IsOpen == true)
+            {
+                return;
+            }
+
+            if (!IsCursorOverLyricsComponentOrPopups())
+            {
+                HideHoverMediaControls();
+            }
+        }
+
+        private void HoverVolumeButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (VolumePopup == null) return;
+            if (AudioDevicePopup != null) AudioDevicePopup.IsOpen = false;
+            if (!VolumePopup.IsOpen)
+            {
+                VolumePopup.IsOpen = true;
+                float vol = _audioDeviceService.GetMasterVolume();
+                bool muted = _audioDeviceService.IsMuted();
+                UpdateVolumeUI(vol, muted);
+            }
+        }
+
+        private void HoverVolumeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (VolumePopup == null) return;
+            if (AudioDevicePopup != null) AudioDevicePopup.IsOpen = false;
+            VolumePopup.IsOpen = !VolumePopup.IsOpen;
+            if (VolumePopup.IsOpen)
+            {
+                float vol = _audioDeviceService.GetMasterVolume();
+                bool muted = _audioDeviceService.IsMuted();
+                UpdateVolumeUI(vol, muted);
+            }
+        }
+
+        private void HoverMediaPlaybackButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (VolumePopup != null && VolumePopup.IsOpen)
+            {
+                VolumePopup.IsOpen = false;
+            }
+            if (AudioDevicePopup != null && AudioDevicePopup.IsOpen)
+            {
+                AudioDevicePopup.IsOpen = false;
+            }
+        }
+
+        private void HoverAudioDeviceButton_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (VolumePopup != null && VolumePopup.IsOpen)
+            {
+                VolumePopup.IsOpen = false;
+            }
+        }
+
+        private void HoverVolumeButton_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            e.Handled = true;
+            AdjustVolume(e.Delta > 0 ? 0.02f : -0.02f);
+        }
+
+        private void HoverVolumeButton_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton == System.Windows.Input.MouseButton.Middle)
+            {
+                e.Handled = true;
+                bool wasMuted = _audioDeviceService.IsMuted();
+                float vol = _audioDeviceService.GetMasterVolume();
+                if (wasMuted)
+                {
+                    if (vol <= 0.005f)
+                    {
+                        vol = 0.20f;
+                        _audioDeviceService.SetMasterVolume(vol);
+                    }
+                    _audioDeviceService.SetMute(false);
+                    UpdateVolumeUI(vol, false);
+                }
+                else
+                {
+                    _audioDeviceService.SetMute(true);
+                    UpdateVolumeUI(vol, true);
+                }
+            }
+        }
+
+        private void VolumePopup_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            e.Handled = true;
+            AdjustVolume(e.Delta > 0 ? 0.02f : -0.02f);
+        }
+
+        private void AdjustVolume(float delta)
+        {
+            float current = _audioDeviceService.GetMasterVolume();
+            float target = Math.Clamp(current + delta, 0f, 1f);
+            _audioDeviceService.SetMasterVolume(target);
+
+            // Automatically unmute when user scrolls volume to audible level
+            if (_audioDeviceService.IsMuted() && target > 0.005f)
+            {
+                _audioDeviceService.SetMute(false);
+            }
+            UpdateVolumeUI(target, _audioDeviceService.IsMuted());
+        }
+
+        private void VolumeSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isUpdatingVolumeSliderProgrammatically) return;
+            if (double.IsNaN(e.NewValue) || double.IsInfinity(e.NewValue)) return;
+
+            float level = (float)(Math.Clamp(e.NewValue, 0.0, 100.0) / 100.0);
+            _audioDeviceService.SetMasterVolume(level);
+
+            // If user adjusts slider to > 0 while currently muted, automatically unmute!
+            if (level > 0.005f && _audioDeviceService.IsMuted())
+            {
+                _audioDeviceService.SetMute(false);
+            }
+
+            int percent = (int)Math.Round(level * 100f);
+            bool isMuted = _audioDeviceService.IsMuted() || level <= 0.005f;
+
+            if (VolumePercentText != null)
+            {
+                VolumePercentText.Text = _audioDeviceService.IsMuted() ? "静音" : $"{percent}%";
+            }
+            string icon = GetVolumeGlyph(level, isMuted);
+            if (HoverVolumeButton != null)
+            {
+                HoverVolumeButton.Content = icon;
+                HoverVolumeButton.ToolTip = _audioDeviceService.IsMuted() ? "已静音 (点击/滚轮调节 / 中键静音)" : $"音量: {percent}% (滚轮调节)";
+            }
+            if (VolumeMuteToggleButton != null)
+            {
+                VolumeMuteToggleButton.Content = _audioDeviceService.IsMuted() ? "\ue1ac" : "\ue1ab";
+                VolumeMuteToggleButton.ToolTip = _audioDeviceService.IsMuted() ? "取消静音" : "静音";
+            }
+        }
+
+        private void VolumeMuteToggle_Click(object sender, RoutedEventArgs e)
+        {
+            bool wasMuted = _audioDeviceService.IsMuted();
+            float vol = _audioDeviceService.GetMasterVolume();
+            if (wasMuted)
+            {
+                // Unmuting: if volume was 0%, restore to a comfortable audible level (20%)
+                if (vol <= 0.005f)
+                {
+                    vol = 0.20f;
+                    _audioDeviceService.SetMasterVolume(vol);
+                }
+                _audioDeviceService.SetMute(false);
+                UpdateVolumeUI(vol, false);
             }
             else
             {
-                // Paused or stopped - show play icon
-                PlayPauseButton.Content = "\ue13c"; // Play icon (Lucide)
-                PlayPauseButton.ToolTip = "播放";
+                // Muting
+                _audioDeviceService.SetMute(true);
+                UpdateVolumeUI(vol, true);
+            }
+        }
+
+        private void VolumePopup_Closed(object? sender, EventArgs e)
+        {
+            if (!IsCursorOverLyricsComponentOrPopups())
+            {
+                HideHoverMediaControls();
+            }
+        }
+
+        private void HoverAudioDeviceButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (AudioDevicePopup == null) return;
+            if (VolumePopup != null) VolumePopup.IsOpen = false;
+            AudioDevicePopup.IsOpen = !AudioDevicePopup.IsOpen;
+            if (AudioDevicePopup.IsOpen)
+            {
+                RefreshAudioDevicesList();
+            }
+        }
+
+        private void RefreshAudioDevicesList()
+        {
+            if (AudioDevicesItemsControl == null) return;
+            var devices = _audioDeviceService.GetPlaybackDevices();
+            AudioDevicesItemsControl.ItemsSource = devices;
+        }
+
+        private DispatcherTimer? _audioDeviceToastTimer;
+
+        private void ShowAudioDeviceSwitchedToast(string deviceName, string iconGlyph)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (AudioDeviceSwitchToast == null || AudioDeviceToastText == null || AudioDeviceToastIcon == null) return;
+
+                AudioDeviceToastIcon.Text = iconGlyph;
+                AudioDeviceToastText.Text = $"已切换到：{deviceName}";
+                AudioDeviceSwitchToast.IsOpen = true;
+
+                if (_audioDeviceToastTimer == null)
+                {
+                    _audioDeviceToastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2200) };
+                    _audioDeviceToastTimer.Tick += (_, _) =>
+                    {
+                        _audioDeviceToastTimer.Stop();
+                        if (AudioDeviceSwitchToast != null)
+                        {
+                            AudioDeviceSwitchToast.IsOpen = false;
+                        }
+                    };
+                }
+                else
+                {
+                    _audioDeviceToastTimer.Stop();
+                }
+                _audioDeviceToastTimer.Start();
+            }));
+        }
+
+        private async void DeviceRow_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.DataContext is AudioPlaybackDevice device)
+            {
+                if (AudioDevicePopup != null) AudioDevicePopup.IsOpen = false;
+                bool success = await Task.Run(() => _audioDeviceService.SetDefaultPlaybackDevice(device.Id));
+                RefreshAudioDevicesList();
+                if (success)
+                {
+                    ShowAudioDeviceSwitchedToast(device.Name, device.IconGlyph);
+                }
+            }
+        }
+
+        private void AudioDevicePopup_Closed(object? sender, EventArgs e)
+        {
+            if (!IsCursorOverLyricsComponentOrPopups())
+            {
+                HideHoverMediaControls();
             }
         }
 

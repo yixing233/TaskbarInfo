@@ -439,6 +439,10 @@ public sealed partial class MainWindow : Window
             }),
             LabeledNumberBox("歌词时间偏移（秒）", _settings.LyricOffsetSeconds, -10, 10, value => _settings.LyricOffsetSeconds = value, step: 0.5)));
 
+        panel.AddRow(SectionHeader("交互与控制"));
+        panel.AddRow(CreateSettingsCard(
+            LabeledToggle("鼠标悬停时显示媒体控制栏", _settings.EnableTaskbarHoverMediaControls, value => _settings.EnableTaskbarHoverMediaControls = value)));
+
         return Wrap(panel);
     }
 
@@ -3983,6 +3987,7 @@ public sealed class SettingsDocument
     public bool EnableShadow { get; set; }
     public string FontWeight { get; set; } = "SemiBold";
     public bool EnableOutline { get; set; }
+    public bool EnableTaskbarHoverMediaControls { get; set; } = true;
     public int OffsetX { get; set; } = 10;
     public int? TaskbarPerformanceOffsetX { get; set; }
     public bool EnableTaskbarTranslateButton { get; set; } = true;

@@ -41,6 +41,12 @@ public partial class App : System.Windows.Application
             LogException(args.Exception, "Dispatcher");
         };
 
+        TaskScheduler.UnobservedTaskException += (s, args) =>
+        {
+            LogException(args.Exception, "TaskScheduler");
+            args.SetObserved();
+        };
+
         if (TemperatureSensorHelper.TryRun(e.Args))
         {
             Shutdown();

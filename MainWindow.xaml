@@ -12,6 +12,7 @@
         Loaded="Window_Loaded"
         FontFamily="Microsoft YaHei UI, Segoe UI, sans-serif">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <FontFamily x:Key="Lucide">./Fonts/lucide.ttf#lucide</FontFamily>
 
         <Style x:Key="MediaButtonStyle" TargetType="Button">
@@ -34,6 +35,177 @@
                                 <Setter TargetName="border" Property="Background" Value="#E0E0E0"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="HoverMediaButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="{StaticResource Lucide}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="MinWidth" Value="24"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#33FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#55FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PopupMediaButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontFamily" Value="{StaticResource Lucide}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource ThemeMenuForegroundBrush}"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="MinWidth" Value="24"/>
+            <Setter Property="Padding" Value="4,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeMenuHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="{DynamicResource ThemeMenuCheckedBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Fluent Horizontal Slider Style for Volume Control (Win11 Style) -->
+        <Style x:Key="FluentVolumeSliderStyle" TargetType="Slider">
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center" ClipToBounds="False">
+                            <!-- Background Track -->
+                            <Border x:Name="TrackBackground" Height="4" CornerRadius="2"
+                                    Background="{DynamicResource ThemeMenuSeparatorBrush}"
+                                    VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+                            
+                            <!-- Interactive Track -->
+                            <Track x:Name="PART_Track" Height="24" VerticalAlignment="Center" ClipToBounds="False">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}">
+                                        <RepeatButton.Style>
+                                            <Style TargetType="RepeatButton">
+                                                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="IsTabStop" Value="False"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="RepeatButton">
+                                                            <Border Height="4" Background="#0067C0" CornerRadius="2" VerticalAlignment="Center" Margin="0,0,-12,0"/>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </RepeatButton.Style>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}">
+                                        <RepeatButton.Style>
+                                            <Style TargetType="RepeatButton">
+                                                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Setter Property="IsTabStop" Value="False"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="RepeatButton">
+                                                            <Border Background="Transparent"/>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </RepeatButton.Style>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb x:Name="SliderThumb">
+                                        <Thumb.Style>
+                                            <Style TargetType="Thumb">
+                                                <Setter Property="OverridesDefaultStyle" Value="True"/>
+                                                <Setter Property="Height" Value="24"/>
+                                                <Setter Property="Width" Value="24"/>
+                                                <Setter Property="Cursor" Value="Hand"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Thumb">
+                                                            <Grid Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" ClipToBounds="False">
+                                                                <Ellipse x:Name="OuterThumb" Width="12" Height="12"
+                                                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                         Fill="White" Stroke="#0067C0" StrokeThickness="3"
+                                                                         RenderTransformOrigin="0.5,0.5">
+                                                                    <Ellipse.RenderTransform>
+                                                                        <ScaleTransform x:Name="ThumbScale" ScaleX="1.0" ScaleY="1.0"/>
+                                                                    </Ellipse.RenderTransform>
+                                                                    <Ellipse.Effect>
+                                                                        <DropShadowEffect BlurRadius="4" ShadowDepth="1" Direction="270" Opacity="0.25" Color="Black"/>
+                                                                    </Ellipse.Effect>
+                                                                </Ellipse>
+                                                            </Grid>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="OuterThumb" Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                            <ScaleTransform ScaleX="1.33" ScaleY="1.33"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="OuterThumb" Property="StrokeThickness" Value="3.5"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsDragging" Value="True">
+                                                                    <Setter TargetName="OuterThumb" Property="RenderTransform">
+                                                                        <Setter.Value>
+                                                                            <ScaleTransform ScaleX="1.15" ScaleY="1.15"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="OuterThumb" Property="Fill" Value="#0067C0"/>
+                                                                    <Setter TargetName="OuterThumb" Property="Stroke" Value="White"/>
+                                                                    <Setter TargetName="OuterThumb" Property="StrokeThickness" Value="2.5"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Thumb.Style>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -145,7 +317,8 @@
     </Window.Resources>
 
     <Grid>
-        <Border x:Name="MainBorder" Background="#33000000" CornerRadius="5" Padding="5,0">
+        <Border x:Name="MainBorder" Background="#33000000" CornerRadius="5" Padding="5,0"
+                MouseEnter="MainBorder_MouseEnter" MouseLeave="MainBorder_MouseLeave">
             <Border.ToolTip>
                 <ToolTip x:Name="SongInfoTooltip" Placement="Top">
                     <ToolTip.Style>
@@ -265,6 +438,7 @@
                        VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"
                        Visibility="Collapsed" Cursor="Hand" MouseLeftButtonDown="AppIcon_MouseLeftButtonDown"/>
 
+                <!-- Standard Lyrics Container -->
                 <Canvas x:Name="TextContainer" Grid.Column="2" ClipToBounds="True" Height="20" VerticalAlignment="Center">
                     <TextBlock x:Name="InfoText" Text="开始播放音乐吧"
                                FontSize="12" FontWeight="SemiBold"
@@ -288,6 +462,29 @@
                     </TextBlock>
                 </Canvas>
 
+                <!-- Hover Media Controls Bar -->
+                <Border x:Name="HoverMediaControlsBar" Grid.Column="2"
+                        Background="Transparent"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Opacity="0" Visibility="Collapsed" IsHitTestVisible="False">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Button x:Name="HoverPrevButton" Style="{StaticResource HoverMediaButtonStyle}" ToolTip="上一首"
+                                Click="PreviousTrack_Click" MouseEnter="HoverMediaPlaybackButton_MouseEnter" Content="&#xe15f;" Margin="2,0"/>
+                        <Button x:Name="HoverPlayPauseButton" Style="{StaticResource HoverMediaButtonStyle}" ToolTip="播放/暂停"
+                                Click="PlayPause_Click" MouseEnter="HoverMediaPlaybackButton_MouseEnter" Content="&#xe13c;" Margin="2,0"/>
+                        <Button x:Name="HoverNextButton" Style="{StaticResource HoverMediaButtonStyle}" ToolTip="下一首"
+                                Click="NextTrack_Click" MouseEnter="HoverMediaPlaybackButton_MouseEnter" Content="&#xe160;" Margin="2,0"/>
+                        <Border Width="1" Height="14" Background="#26FFFFFF" Margin="4,0"/>
+                        <Button x:Name="HoverVolumeButton" Style="{StaticResource HoverMediaButtonStyle}" ToolTip="音量控制 (滚轮调节 / 悬停展开 / 中键静音)"
+                                Click="HoverVolumeButton_Click" MouseEnter="HoverVolumeButton_MouseEnter"
+                                MouseDown="HoverVolumeButton_MouseDown"
+                                PreviewMouseWheel="HoverVolumeButton_PreviewMouseWheel" Content="&#xe1ab;" Margin="2,0"/>
+                        <Button x:Name="HoverAudioDeviceButton" Style="{StaticResource HoverMediaButtonStyle}" ToolTip="声音输出设备"
+                                Click="HoverAudioDeviceButton_Click" MouseEnter="HoverAudioDeviceButton_MouseEnter"
+                                Content="&#xe0f1;" Margin="2,0"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Width Grip -->
                 <Border x:Name="WidthGrip" Grid.Column="3" Width="10" Margin="2,0,0,0"
                         VerticalAlignment="Stretch" Cursor="SizeWE"
@@ -310,5 +507,133 @@
                 </Border>
             </Grid>
         </Border>
+
+        <!-- Volume Flyout Popup (Windows 11 Style) -->
+        <Popup x:Name="VolumePopup" PlacementTarget="{Binding ElementName=HoverVolumeButton}"
+               Placement="Top" VerticalOffset="-8" HorizontalOffset="-80"
+               AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade"
+               Closed="VolumePopup_Closed">
+            <Border Background="{DynamicResource ThemeMenuBackgroundBrush}"
+                    BorderBrush="{DynamicResource ThemeMenuBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,6"
+                    PreviewMouseWheel="VolumePopup_PreviewMouseWheel">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.18" ShadowDepth="4"/>
+                </Border.Effect>
+                <Grid Width="210" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Mute / Unmute Button -->
+                    <Button Grid.Column="0" x:Name="VolumeMuteToggleButton" Style="{StaticResource PopupMediaButtonStyle}"
+                            VerticalAlignment="Center" Width="26" Height="26" Margin="0,0,8,0" ToolTip="静音切换"
+                            Click="VolumeMuteToggle_Click" Content="&#xe1ab;"/>
+
+                    <!-- Horizontal Fluent Slider -->
+                    <Slider Grid.Column="1" x:Name="VolumeSlider" Orientation="Horizontal"
+                            Style="{StaticResource FluentVolumeSliderStyle}"
+                            Minimum="0" Maximum="100" Value="50"
+                            SmallChange="2" LargeChange="5"
+                            VerticalAlignment="Center"
+                            ValueChanged="VolumeSlider_ValueChanged"/>
+
+                    <!-- Percentage Text -->
+                    <TextBlock Grid.Column="2" x:Name="VolumePercentText" Text="50%"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeMenuForegroundBrush}"
+                               VerticalAlignment="Center" HorizontalAlignment="Right"
+                               Width="36" TextAlignment="Right" Margin="6,0,0,0"/>
+                </Grid>
+            </Border>
+        </Popup>
+
+        <!-- Audio Output Device Switcher Popup -->
+        <Popup x:Name="AudioDevicePopup" PlacementTarget="{Binding ElementName=HoverAudioDeviceButton}"
+               Placement="Top" VerticalOffset="-8" HorizontalOffset="-80"
+               AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade"
+               Closed="AudioDevicePopup_Closed">
+            <Border Background="{DynamicResource ThemeMenuBackgroundBrush}"
+                    BorderBrush="{DynamicResource ThemeMenuBorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="0,6" MinWidth="230">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.18" ShadowDepth="4"/>
+                </Border.Effect>
+                <StackPanel>
+                    <!-- Header -->
+                    <Grid Margin="12,4,12,8">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="&#xe0f1;" FontFamily="{StaticResource Lucide}" FontSize="13" Foreground="{DynamicResource ThemeMenuIconBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBlock Text="声音输出设备" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource ThemeMenuForegroundBrush}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
+                    <Border Height="1" Background="{DynamicResource ThemeMenuSeparatorBrush}" Margin="0,0,0,4"/>
+                    
+                    <!-- Devices List -->
+                    <ItemsControl x:Name="AudioDevicesItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border x:Name="DeviceRow" Background="Transparent" Cursor="Hand"
+                                        Padding="10,6" Margin="4,1" CornerRadius="4"
+                                        MouseLeftButtonDown="DeviceRow_MouseLeftButtonDown">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="20"/>
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Device Icon -->
+                                        <TextBlock Grid.Column="0" Text="{Binding IconGlyph}"
+                                                   FontFamily="{StaticResource Lucide}" FontSize="13"
+                                                   Foreground="{DynamicResource ThemeMenuIconBrush}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                        <!-- Device Name -->
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                                   FontSize="12" Foreground="{DynamicResource ThemeMenuForegroundBrush}"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="6,0,6,0"/>
+                                        <!-- Selected Checkmark -->
+                                        <TextBlock Grid.Column="2" Text="&#xe06c;"
+                                                   FontFamily="{StaticResource Lucide}" FontSize="12"
+                                                   Foreground="#0067C0"
+                                                   Visibility="{Binding IsDefault, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ThemeMenuHoverBrush}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </Popup>
+
+        <!-- Audio Device Switch Toast Notification (Windows 11 Floating Capsule) -->
+        <Popup x:Name="AudioDeviceSwitchToast" PlacementTarget="{Binding ElementName=HoverAudioDeviceButton}"
+               Placement="Top" VerticalOffset="-8" HorizontalOffset="-50"
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade">
+            <Border Background="{DynamicResource ThemeMenuBackgroundBrush}"
+                    BorderBrush="{DynamicResource ThemeMenuBorderBrush}"
+                    BorderThickness="1" CornerRadius="16" Padding="12,6">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" Direction="270" Color="Black" Opacity="0.25" ShadowDepth="3"/>
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="AudioDeviceToastIcon" FontFamily="{StaticResource Lucide}"
+                               FontSize="13" Foreground="#0078D4" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock x:Name="AudioDeviceToastText" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{DynamicResource ThemeMenuForegroundBrush}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

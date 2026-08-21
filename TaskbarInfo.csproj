@@ -12,10 +12,10 @@
     <AssemblyName>TinyBar</AssemblyName>
     <Product>TinyBar</Product>
     <Title>TinyBar</Title>
-    <Version>1.1.9</Version>
-    <AssemblyVersion>1.1.9.0</AssemblyVersion>
-    <FileVersion>1.1.9.0</FileVersion>
-    <InformationalVersion>1.1.9</InformationalVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <InformationalVersion>1.2.0</InformationalVersion>
     <RepositoryUrl>https://github.com/yixing233/TaskbarInfo</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>src\icons\TinyBar.ico</ApplicationIcon>
